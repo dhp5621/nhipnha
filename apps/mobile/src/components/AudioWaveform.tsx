@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, Text } from 'react-native';
 import { THEME } from '../constants/theme';
 import { useLanguage } from '../context/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
 
 interface AudioWaveformProps {
   isRecording: boolean;
@@ -19,6 +20,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
   waveform,
 }) => {
   const { activeLanguage } = useLanguage();
+  const { colors, isDark } = useTheme();
   const [liveBars, setLiveBars] = useState<number[]>([
     25, 45, 75, 92, 60, 38, 84, 96, 55, 32, 68, 88, 50, 72, 40, 62,
   ]);
@@ -44,15 +46,15 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
       : `Recording • 00:${durationLeft.toString().padStart(2, '0')}s`
     : isPlaying
     ? isVi
-      ? 'Đang phát lời nhắn yêu thương...'
-      : 'Playing loving voice note...'
+      ? 'Đang phát lời nhắn...'
+      : 'Playing voice note...'
     : waveform && waveform.length > 0
     ? isVi
-      ? 'Đã thu âm xong • Sẵn sàng gửi'
-      : 'Voice recorded • Ready to send'
+      ? 'Đã thu âm • Sẵn sàng gửi'
+      : 'Recorded • Ready to send'
     : isVi
-    ? 'Bấm nút bên dưới để bắt đầu nói'
-    : 'Tap the button below to start speaking';
+    ? 'Chạm nút bên dưới để bắt đầu nói'
+    : 'Tap the button below to speak';
 
   const progressRatio = isRecording
     ? Math.max(0, Math.min(1, (maxDuration - durationLeft) / maxDuration))
@@ -66,8 +68,13 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
     <View
       style={[
         styles.container,
-        isRecording && styles.containerRecording,
-        isPlaying && styles.containerPlaying,
+        {
+          backgroundColor: isRecording
+            ? colors.afternoonSurface
+            : isPlaying
+            ? colors.eveningSurface
+            : colors.surfaceContainerLow,
+        },
       ]}
     >
       {/* Top Status Pill */}
@@ -75,21 +82,39 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
         <View
           style={[
             styles.statusPill,
-            isRecording
-              ? styles.pillRecording
-              : isPlaying
-              ? styles.pillPlaying
-              : styles.pillIdle,
+            {
+              backgroundColor: isRecording
+                ? colors.afternoonContainer
+                : isPlaying
+                ? colors.eveningContainer
+                : colors.surfaceContainerHigh,
+            },
           ]}
         >
-          <Text style={styles.statusEmoji}>
-            {isRecording ? '🔴' : isPlaying ? '🔊' : waveform ? '✅' : '🎙️'}
-          </Text>
+          <View
+            style={[
+              styles.dotIndicator,
+              {
+                backgroundColor: isRecording
+                  ? '#DC2626'
+                  : isPlaying
+                  ? colors.eveningPurple
+                  : waveform
+                  ? colors.success
+                  : colors.textMuted,
+              },
+            ]}
+          />
           <Text
             style={[
               styles.timerText,
-              isRecording && { color: '#9A3412' },
-              isPlaying && { color: '#3730A3' },
+              {
+                color: isRecording
+                  ? colors.onAfternoonContainer
+                  : isPlaying
+                  ? colors.onEveningContainer
+                  : colors.textDark,
+              },
             ]}
           >
             {statusLabel}
@@ -101,7 +126,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
       <View style={styles.barsContainer}>
         {barsToDisplay.map((heightPercent, idx) => {
           const isActiveBar = isRecording || isPlaying;
-          const barHeight = Math.max(12, (heightPercent / 100) * 58);
+          const barHeight = Math.max(12, (heightPercent / 100) * 56);
           return (
             <View
               key={idx}
@@ -110,17 +135,15 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
                 {
                   height: barHeight,
                   backgroundColor: isRecording
-                    ? idx % 2 === 0
-                      ? '#EA580C'
-                      : '#F97316'
+                    ? colors.afternoonOrange
                     : isPlaying
-                    ? idx % 2 === 0
-                      ? '#4F46E5'
-                      : '#6366F1'
+                    ? colors.eveningPurple
                     : waveform
-                    ? '#16A34A'
-                    : '#CBD5E1',
-                  opacity: isActiveBar ? 1 : waveform ? 0.85 : 0.6,
+                    ? colors.success
+                    : isDark
+                    ? '#52433B'
+                    : '#CFC2B6',
+                  opacity: isActiveBar ? 1 : waveform ? 0.85 : 0.65,
                 },
               ]}
             />
@@ -128,18 +151,23 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
         })}
       </View>
 
-      {/* Subtle Progress Track */}
-      <View style={styles.progressTrack}>
+      {/* Progress Track */}
+      <View
+        style={[
+          styles.progressTrack,
+          { backgroundColor: colors.surfaceContainerHighest },
+        ]}
+      >
         <View
           style={[
             styles.progressFill,
             {
               width: `${Math.round(progressRatio * 100)}%`,
               backgroundColor: isRecording
-                ? '#EA580C'
+                ? colors.afternoonOrange
                 : isPlaying
-                ? '#4F46E5'
-                : '#16A34A',
+                ? colors.eveningPurple
+                : colors.success,
             },
           ]}
         />
@@ -150,23 +178,12 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FAF6F0',
-    borderWidth: 2,
-    borderColor: '#E5DEC9',
-    borderRadius: THEME.borderRadius.card,
+    borderRadius: 28,
     paddingVertical: 18,
     paddingHorizontal: 16,
-    marginVertical: 12,
+    marginVertical: 10,
     alignItems: 'center',
     width: '100%',
-  },
-  containerRecording: {
-    backgroundColor: '#FFF7ED',
-    borderColor: '#FB923C',
-  },
-  containerPlaying: {
-    backgroundColor: '#EEF2FF',
-    borderColor: '#818CF8',
   },
   topRow: {
     flexDirection: 'row',
@@ -181,29 +198,21 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 999,
   },
-  pillIdle: {
-    backgroundColor: '#EFECE6',
-  },
-  pillRecording: {
-    backgroundColor: '#FFEDD5',
-  },
-  pillPlaying: {
-    backgroundColor: '#E0E7FF',
-  },
-  statusEmoji: {
-    fontSize: 18,
+  dotIndicator: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
     marginRight: 8,
   },
   timerText: {
     fontSize: THEME.typography.bodyRegular,
     fontWeight: '800',
-    color: THEME.colors.textDark,
   },
   barsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    height: 64,
+    height: 60,
     width: '100%',
     gap: 5,
   },
@@ -214,7 +223,6 @@ const styles = StyleSheet.create({
   progressTrack: {
     width: '100%',
     height: 6,
-    backgroundColor: '#E2E8F0',
     borderRadius: 999,
     marginTop: 14,
     overflow: 'hidden',

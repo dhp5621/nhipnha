@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Pressable,
   Text,
@@ -8,6 +8,7 @@ import {
   Animated,
 } from 'react-native';
 import { THEME } from '../constants/theme';
+import { useTheme } from '../context/ThemeContext';
 
 interface BigButtonProps {
   title: string;
@@ -32,23 +33,27 @@ export const BigButton: React.FC<BigButtonProps> = ({
   loading = false,
   showArrow = false,
 }) => {
+  const { colors, isDark } = useTheme();
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const [pressed, setPressed] = useState(false);
 
   const handlePressIn = () => {
+    setPressed(true);
     Animated.spring(scaleAnim, {
-      toValue: 0.96,
+      toValue: 0.97,
       useNativeDriver: true,
-      speed: 35,
+      speed: 45,
       bounciness: 6,
     }).start();
   };
 
   const handlePressOut = () => {
+    setPressed(false);
     Animated.spring(scaleAnim, {
       toValue: 1,
       useNativeDriver: true,
-      speed: 25,
-      bounciness: 8,
+      speed: 30,
+      bounciness: 10,
     }).start();
   };
 
@@ -56,71 +61,75 @@ export const BigButton: React.FC<BigButtonProps> = ({
     switch (variant) {
       case 'morning':
         return {
-          bg: '#F59E0B',        // Rich Sunlit Amber
-          border: '#D97706',
-          iconBg: '#FEF3C7',
-          text: '#3B1800',      // High contrast espresso brown on amber
-          subtext: '#5C2804',
-          arrowBg: 'rgba(59, 24, 0, 0.1)',
-          arrowText: '#3B1800',
+          bg: isDark ? '#E59400' : '#F59E0B',
+          iconBg: isDark ? '#3B2200' : '#FFF3C4',
+          text: '#241000',
+          subtext: '#4A2500',
+          arrowBg: 'rgba(36, 16, 0, 0.12)',
+          arrowText: '#241000',
+          borderColor: 'transparent',
         };
       case 'afternoon':
         return {
-          bg: '#EA580C',        // Warm Terracotta Orange
-          border: '#C2410C',
-          iconBg: '#FFEDD5',
+          bg: isDark ? '#C8430E' : '#DF5018',
+          iconBg: isDark ? '#421200' : 'rgba(255,255,255,0.22)',
           text: '#FFFFFF',
-          subtext: '#FFEDD5',
+          subtext: '#FFDBCE',
           arrowBg: 'rgba(255, 255, 255, 0.2)',
           arrowText: '#FFFFFF',
+          borderColor: 'transparent',
         };
       case 'evening':
         return {
-          bg: '#4338CA',        // Deep Starry Indigo
-          border: '#312E81',
-          iconBg: '#E0E7FF',
+          bg: isDark ? '#544BE0' : '#4C43D6',
+          iconBg: isDark ? '#1E166B' : 'rgba(255,255,255,0.2)',
           text: '#FFFFFF',
-          subtext: '#E0E7FF',
+          subtext: '#E1E0FF',
           arrowBg: 'rgba(255, 255, 255, 0.2)',
           arrowText: '#FFFFFF',
+          borderColor: 'transparent',
         };
       case 'success':
         return {
-          bg: '#15803D',        // Bamboo Leaf Emerald
-          border: '#166534',
-          iconBg: '#DCFCE7',
+          bg: isDark ? '#1B6E38' : '#177A3E',
+          iconBg: 'rgba(255,255,255,0.2)',
           text: '#FFFFFF',
-          subtext: '#DCFCE7',
+          subtext: '#C8F7D6',
           arrowBg: 'rgba(255, 255, 255, 0.2)',
           arrowText: '#FFFFFF',
+          borderColor: 'transparent',
         };
       case 'secondary':
         return {
-          bg: '#FFFFFF',        // Clean M3 Outlined Tonal Surface
-          border: '#D8C2B9',
-          iconBg: '#F6EFE6',
-          text: THEME.colors.textDark,
-          subtext: THEME.colors.textSecondary,
-          arrowBg: '#F2EAE0',
-          arrowText: THEME.colors.textDark,
+          bg: colors.surfaceContainerHigh,
+          iconBg: colors.surfaceContainerHighest,
+          text: colors.textDark,
+          subtext: colors.textSecondary,
+          arrowBg: colors.surfaceContainerHighest,
+          arrowText: colors.textDark,
+          borderColor: colors.outlineVariant,
         };
       case 'primary':
       default:
         return {
-          bg: THEME.colors.primary,
-          border: '#8E3211',
-          iconBg: '#FFDBCF',
-          text: '#FFFFFF',
-          subtext: '#FFDBCF',
+          bg: colors.primary,
+          iconBg: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)',
+          text: colors.onPrimary,
+          subtext: colors.onPrimary,
           arrowBg: 'rgba(255, 255, 255, 0.2)',
-          arrowText: '#FFFFFF',
+          arrowText: colors.onPrimary,
+          borderColor: 'transparent',
         };
     }
   };
 
-  const colors = getColors();
+  const c = getColors();
   const isHero = size === 'hero';
   const shouldShowArrow = showArrow || (isHero && variant !== 'secondary');
+
+  // M3 Expressive Shape Morphing: Soft squircle at rest -> morphs to tighter squircle on press
+  const restRadius = isHero ? 32 : 999;
+  const pressedRadius = isHero ? 20 : 18;
 
   return (
     <Animated.View style={[styles.wrapper, { transform: [{ scale: scaleAnim }] }]}>
@@ -133,11 +142,12 @@ export const BigButton: React.FC<BigButtonProps> = ({
           styles.button,
           isHero ? THEME.shadows.expressive : THEME.shadows.button,
           {
-            backgroundColor: disabled ? '#E6DFD7' : colors.bg,
-            borderColor: disabled ? '#CFC5BA' : colors.border,
+            backgroundColor: disabled ? colors.surfaceContainer : c.bg,
+            borderColor: c.borderColor,
+            borderWidth: variant === 'secondary' ? 1 : 0,
             minHeight: isHero ? THEME.spacing.rhythmTouchTarget : THEME.spacing.touchTargetMin,
             paddingVertical: isHero ? 16 : 12,
-            borderRadius: isHero ? THEME.borderRadius.card : THEME.borderRadius.button,
+            borderRadius: pressed ? pressedRadius : restRadius,
           },
         ]}
         accessibilityRole="button"
@@ -145,7 +155,7 @@ export const BigButton: React.FC<BigButtonProps> = ({
         accessibilityHint={subtitle}
       >
         {loading ? (
-          <ActivityIndicator color={colors.text} size="large" />
+          <ActivityIndicator color={c.text} size="large" />
         ) : (
           <View style={styles.contentRow}>
             {icon ? (
@@ -153,7 +163,7 @@ export const BigButton: React.FC<BigButtonProps> = ({
                 style={[
                   styles.iconBadge,
                   isHero && styles.heroIconBadge,
-                  { backgroundColor: disabled ? '#D8D0C7' : colors.iconBg },
+                  { backgroundColor: c.iconBg },
                 ]}
               >
                 <Text style={[styles.icon, isHero && styles.heroIcon]}>{icon}</Text>
@@ -166,9 +176,9 @@ export const BigButton: React.FC<BigButtonProps> = ({
                   styles.title,
                   !icon && !shouldShowArrow && { textAlign: 'center' },
                   {
-                    color: disabled ? '#8C827A' : colors.text,
-                    fontSize: isHero ? THEME.typography.h2 + 1 : THEME.typography.bodyLarge,
-                    lineHeight: isHero ? 29 : 25,
+                    color: disabled ? colors.textMuted : c.text,
+                    fontSize: isHero ? THEME.typography.h2 : THEME.typography.bodyLarge,
+                    lineHeight: isHero ? 27 : 24,
                   },
                 ]}
                 numberOfLines={2}
@@ -181,7 +191,7 @@ export const BigButton: React.FC<BigButtonProps> = ({
                     styles.subtitle,
                     !icon && !shouldShowArrow && { textAlign: 'center' },
                     {
-                      color: disabled ? '#8C827A' : colors.subtext,
+                      color: disabled ? colors.textMuted : c.subtext,
                       fontSize: THEME.typography.label,
                     },
                   ]}
@@ -193,8 +203,8 @@ export const BigButton: React.FC<BigButtonProps> = ({
             </View>
 
             {shouldShowArrow ? (
-              <View style={[styles.arrowPill, { backgroundColor: colors.arrowBg }]}>
-                <Text style={[styles.arrowIcon, { color: colors.arrowText }]}>→</Text>
+              <View style={[styles.arrowPill, { backgroundColor: c.arrowBg }]}>
+                <Text style={[styles.arrowIcon, { color: c.arrowText }]}>→</Text>
               </View>
             ) : null}
           </View>
@@ -207,13 +217,11 @@ export const BigButton: React.FC<BigButtonProps> = ({
 const styles = StyleSheet.create({
   wrapper: {
     width: '100%',
-    marginVertical: 7,
+    marginVertical: 6,
   },
   button: {
     width: '100%',
-    borderWidth: 2,
-    borderBottomWidth: 5, // M3 Expressive tactile 3D cushion bottom lip
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -224,24 +232,24 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   iconBadge: {
-    width: 46,
-    height: 46,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 999,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 14,
   },
   heroIconBadge: {
-    width: 56,
-    height: 56,
+    width: 54,
+    height: 54,
     borderRadius: 20,
     marginRight: 14,
   },
   icon: {
-    fontSize: 24,
+    fontSize: 22,
   },
   heroIcon: {
-    fontSize: 30,
+    fontSize: 28,
   },
   textContainer: {
     flex: 1,
@@ -256,7 +264,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 2,
     textAlign: 'left',
-    lineHeight: 20,
+    lineHeight: 19,
+    opacity: 0.92,
   },
   arrowPill: {
     width: 38,
@@ -267,7 +276,7 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
   arrowIcon: {
-    fontSize: 20,
+    fontSize: 19,
     fontWeight: '900',
   },
 });

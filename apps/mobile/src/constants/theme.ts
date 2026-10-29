@@ -1,103 +1,256 @@
 /**
- * Nhịp Nhà – Material 3 Expressive (M3E) Accessibility & Design System Theme
+ * Nhịp Nhà – Authentic Google Material 3 Expressive (M3E 2025) Design System
  *
- * Specifically crafted across 3 generations:
- * 1. Rural Children (6–12 y/o): Playful, expressive squircle shapes, tactile springy buttons, joyful badges.
- * 2. Migrant Worker Parents (25–45 y/o): Calm, modern M3 tonal hierarchy, clear daily progress rings & AI empathy cards.
- * 3. Elderly Grandparents (65–70 y/o): WCAG AAA high contrast (>= 7:1), extra-large typography, zero-confusion navigation, >=64-76px touch targets.
- *
- * Color Seed: Warm Vietnamese Countryside Terracotta, Sunlit Rice Field Gold, Bamboo Leaf Green & Starry Indigo Night.
+ * Key M3 Expressive Principles Implemented:
+ * 1. Dynamic Color Tonal Palettes (Light & Dark Schemes) — Zero pure #FFFFFF or #000000 flat cards;
+ *    uses M3 Surface Container Lowest/Low/Standard/High/Highest hierarchy.
+ * 2. Expressive Shape System & Morphing — Extra-large corner tokens (20dp, 32dp, 44dp) + asymmetric
+ *    grouped list card stacks (first/middle/last radii) and shape-morphing active pills.
+ * 3. Emphasized Editorial Typography — High-contrast Display/Headline optical sizing paired with
+ *    clean, scannable Body/Label hierarchy.
  */
 
+export type ThemeMode = 'light' | 'dark' | 'system';
+export type ResolvedTheme = 'light' | 'dark';
+
+export interface M3ColorScheme {
+  isDark: boolean;
+
+  // M3 Surface Hierarchy
+  background: string;
+  surface: string;
+  surfaceContainerLowest: string;
+  surfaceContainerLow: string;
+  surfaceContainer: string;
+  surfaceContainerHigh: string;
+  surfaceContainerHighest: string;
+  surfaceSubtle: string;
+
+  // Text & On-Surface
+  textDark: string;
+  textSecondary: string;
+  textMuted: string;
+  onSurface: string;
+  onSurfaceVariant: string;
+
+  // Outlines
+  outline: string;
+  outlineVariant: string;
+  border: string;
+  borderBold: string;
+
+  // Primary (Warm Terracotta Hearth)
+  primary: string;
+  onPrimary: string;
+  primaryContainer: string;
+  onPrimaryContainer: string;
+
+  // Secondary (Bamboo Sage)
+  secondary: string;
+  onSecondary: string;
+  secondaryContainer: string;
+  onSecondaryContainer: string;
+
+  // Rhythm 1: Morning (Sunlit Golden Amber)
+  morningYellow: string;
+  morningPrimary: string;
+  morningContainer: string;
+  morningSurface: string;
+  morningBorder: string;
+  onMorningContainer: string;
+
+  // Rhythm 2: Afternoon (Warm Sunset Terracotta)
+  afternoonOrange: string;
+  afternoonPrimary: string;
+  afternoonContainer: string;
+  afternoonSurface: string;
+  afternoonBorder: string;
+  onAfternoonContainer: string;
+
+  // Rhythm 3: Evening (Starry Lullaby Indigo)
+  eveningPurple: string;
+  eveningPrimary: string;
+  eveningContainer: string;
+  eveningSurface: string;
+  eveningBorder: string;
+  onEveningContainer: string;
+
+  // Semantic Status
+  success: string;
+  successBg: string;
+  successBorder: string;
+  onSuccessContainer: string;
+
+  error: string;
+  errorBg: string;
+  errorBorder: string;
+
+  accent: string;
+  accentBg: string;
+}
+
+export const LIGHT_COLORS: M3ColorScheme = {
+  isDark: false,
+
+  background: '#FCF6EE',
+  surface: '#FFFBF7',
+  surfaceContainerLowest: '#FFFFFF',
+  surfaceContainerLow: '#F6EFE6',
+  surfaceContainer: '#F0E7DC',
+  surfaceContainerHigh: '#EAE0D3',
+  surfaceContainerHighest: '#E3D8C9',
+  surfaceSubtle: '#F4ECE1',
+
+  textDark: '#1F1610',
+  textSecondary: '#52433B',
+  textMuted: '#7E6D63',
+  onSurface: '#1F1610',
+  onSurfaceVariant: '#52433B',
+
+  outline: '#857369',
+  outlineVariant: '#D7C3B8',
+  border: '#DFD2C5',
+  borderBold: '#78665C',
+
+  primary: '#B84318',
+  onPrimary: '#FFFFFF',
+  primaryContainer: '#FFDBCF',
+  onPrimaryContainer: '#3B0900',
+
+  secondary: '#266C44',
+  onSecondary: '#FFFFFF',
+  secondaryContainer: '#B7F1C9',
+  onSecondaryContainer: '#04210E',
+
+  // Morning Tonal Palette
+  morningYellow: '#F59E0B',
+  morningPrimary: '#8C4F00',
+  morningContainer: '#FFDEA8',
+  morningSurface: '#FFF5E0',
+  morningBorder: '#E59400',
+  onMorningContainer: '#2C1600',
+
+  // Afternoon Tonal Palette
+  afternoonOrange: '#DF5018',
+  afternoonPrimary: '#9E3306',
+  afternoonContainer: '#FFDBCE',
+  afternoonSurface: '#FFF0EA',
+  afternoonBorder: '#D94D1A',
+  onAfternoonContainer: '#370E00',
+
+  // Evening Tonal Palette
+  eveningPurple: '#4C43D6',
+  eveningPrimary: '#3D32B8',
+  eveningContainer: '#E1E0FF',
+  eveningSurface: '#F1F0FF',
+  eveningBorder: '#5B53E6',
+  onEveningContainer: '#110563',
+
+  // Semantic
+  success: '#177A3E',
+  successBg: '#C8F7D6',
+  successBorder: '#249C53',
+  onSuccessContainer: '#042B12',
+
+  error: '#BA1A1A',
+  errorBg: '#FFDAD6',
+  errorBorder: '#DE3730',
+
+  accent: '#0B7A75',
+  accentBg: '#BCECE9',
+};
+
+export const DARK_COLORS: M3ColorScheme = {
+  isDark: true,
+
+  background: '#15100C',
+  surface: '#1D1612',
+  surfaceContainerLowest: '#100B08',
+  surfaceContainerLow: '#1F1814',
+  surfaceContainer: '#251D18',
+  surfaceContainerHigh: '#302620',
+  surfaceContainerHighest: '#3B3029',
+  surfaceSubtle: '#281F1A',
+
+  textDark: '#F4E5DC',
+  textSecondary: '#D5C2B7',
+  textMuted: '#9E8C82',
+  onSurface: '#F4E5DC',
+  onSurfaceVariant: '#D5C2B7',
+
+  outline: '#9E8C82',
+  outlineVariant: '#51433B',
+  border: '#3D312A',
+  borderBold: '#6E5B50',
+
+  primary: '#FFB59C',
+  onPrimary: '#5E1700',
+  primaryContainer: '#832600',
+  onPrimaryContainer: '#FFDBCF',
+
+  secondary: '#9CD4AF',
+  onSecondary: '#05381B',
+  secondaryContainer: '#1B5130',
+  onSecondaryContainer: '#B7F1C9',
+
+  // Morning Dark Tonal Palette
+  morningYellow: '#FFB945',
+  morningPrimary: '#FFB945',
+  morningContainer: '#4E2D00',
+  morningSurface: '#2A1B08',
+  morningBorder: '#B06A00',
+  onMorningContainer: '#FFDEA8',
+
+  // Afternoon Dark Tonal Palette
+  afternoonOrange: '#FFB59B',
+  afternoonPrimary: '#FFB59B',
+  afternoonContainer: '#5B1B00',
+  afternoonSurface: '#2E140B',
+  afternoonBorder: '#BA4112',
+  onAfternoonContainer: '#FFDBCE',
+
+  // Evening Dark Tonal Palette
+  eveningPurple: '#C1C1FF',
+  eveningPrimary: '#C1C1FF',
+  eveningContainer: '#2A2096',
+  eveningSurface: '#181538',
+  eveningBorder: '#635CE0',
+  onEveningContainer: '#E1E0FF',
+
+  // Semantic Dark
+  success: '#83DB9E',
+  successBg: '#0E4723',
+  successBorder: '#249C53',
+  onSuccessContainer: '#C8F7D6',
+
+  error: '#FFB4AB',
+  errorBg: '#690005',
+  errorBorder: '#B3261E',
+
+  accent: '#82D5CF',
+  accentBg: '#004F4B',
+};
+
 export const THEME = {
-  colors: {
-    // M3 Surface & Background Tonal Hierarchy (Warm Rice Paper / Lotte Cream)
-    background: '#FDF8F2',          // M3 Surface Warm Ivory
-    surface: '#FFFFFF',             // M3 Surface Bright
-    surfaceContainerLowest: '#FFFFFF',
-    surfaceContainerLow: '#F8F2EA', // M3 Surface Container Low
-    surfaceContainer: '#F2EAE0',    // M3 Surface Container
-    surfaceContainerHigh: '#ECE2D5',// M3 Surface Container High
-    surfaceSubtle: '#F6EFE6',
-
-    // Outlines & Dividers
-    outline: '#85736B',
-    outlineVariant: '#D8C2B9',
-    border: '#DFD5C8',
-    borderBold: '#78685E',
-
-    // Typography Colors (WCAG AAA High Contrast)
-    textDark: '#1E1510',            // M3 On-Surface (Deep Warm Espresso)
-    textSecondary: '#4E4039',       // M3 On-Surface-Variant
-    textMuted: '#79675E',
-
-    // M3 Primary: Warm Terracotta / Hearth (Tình cảm gia đình)
-    primary: '#B9461E',
-    onPrimary: '#FFFFFF',
-    primaryContainer: '#FFDBCF',
-    onPrimaryContainer: '#3B0900',
-
-    // M3 Secondary: Bamboo Leaf / Rice Paddy Green (Bình yên & Thấu cảm SDG 3/4)
-    secondary: '#266C44',
-    onSecondary: '#FFFFFF',
-    secondaryContainer: '#ACCTC0',
-    secondarySurface: '#E7F6EC',
-    onSecondaryContainer: '#082E18',
-
-    // M3 Rhythm 1: Chạm Sáng (Sunlit Golden Amber)
-    morningYellow: '#F59E0B',
-    morningPrimary: '#B45309',
-    morningContainer: '#FEF3C7',
-    morningSurface: '#FFFBEB',
-    morningBorder: '#D97706',
-    onMorningContainer: '#451A03',
-
-    // M3 Rhythm 2: Chạm Chiều (Warm Sunset Terracotta)
-    afternoonOrange: '#EA580C',
-    afternoonPrimary: '#C2410C',
-    afternoonContainer: '#FFEDD5',
-    afternoonSurface: '#FFF7ED',
-    afternoonBorder: '#EA580C',
-    onAfternoonContainer: '#431407',
-
-    // M3 Rhythm 3: Chạm Tối (Starry Lullaby Indigo)
-    eveningPurple: '#4F46E5',
-    eveningPrimary: '#4338CA',
-    eveningContainer: '#E0E7FF',
-    eveningSurface: '#EEF2FF',
-    eveningBorder: '#4F46E5',
-    onEveningContainer: '#1E1B4B',
-
-    // Semantic Status
-    success: '#15803D',
-    successBg: '#DCFCE7',
-    successBorder: '#22C55E',
-    onSuccessContainer: '#052E16',
-
-    error: '#DC2626',
-    errorBg: '#FEE2E2',
-    errorBorder: '#EF4444',
-
-    accent: '#0D9488',
-    accentBg: '#CCFBF1',
-  },
+  colors: LIGHT_COLORS,
+  light: LIGHT_COLORS,
+  dark: DARK_COLORS,
 
   typography: {
-    // M3 Expressive Scale - Tuned for multi-age readability
-    display: 38,
+    display: 40,
     hero: 32,
     h1: 26,
-    h2: 22,
-    bodyLarge: 19,
-    bodyRegular: 17,
-    label: 15,
-    caption: 13,
+    h2: 21,
+    bodyLarge: 18,
+    bodyRegular: 16,
+    label: 14,
+    caption: 12,
 
     lineHeightDisplay: 46,
-    lineHeightHero: 40,
-    lineHeightHeading: 34,
-    lineHeightH2: 30,
-    lineHeightBody: 27,
+    lineHeightHero: 38,
+    lineHeightHeading: 32,
+    lineHeightH2: 28,
+    lineHeightBody: 25,
   },
 
   spacing: {
@@ -107,42 +260,43 @@ export const THEME = {
     lg: 24,
     xl: 32,
     xxl: 44,
-    touchTargetMin: 60,     // Exceeds 56px WCAG AAA requirement
-    rhythmTouchTarget: 74,  // M3 Expressive Hero Pill height for children & grandparents
+    touchTargetMin: 60,
+    rhythmTouchTarget: 76,
   },
 
   borderRadius: {
-    // Material 3 Expressive Shapes (Extra Large Squircles & Full Pills)
+    // M3 Expressive 2025 Shape Tokens
     xs: 10,
     sm: 14,
-    button: 24,
-    card: 28,
-    cardExpressive: 32,
+    md: 20,
+    button: 28,
+    card: 32,
+    cardExpressive: 40,
     pill: 9999,
     avatar: 9999,
   },
 
   shadows: {
     card: {
-      shadowColor: '#3E2723',
+      shadowColor: '#1F1610',
       shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.07,
+      shadowOpacity: 0.06,
       shadowRadius: 14,
-      elevation: 3,
+      elevation: 2,
     },
     expressive: {
-      shadowColor: '#3E2723',
-      shadowOffset: { width: 0, height: 10 },
-      shadowOpacity: 0.12,
-      shadowRadius: 20,
-      elevation: 6,
+      shadowColor: '#1F1610',
+      shadowOffset: { width: 0, height: 12 },
+      shadowOpacity: 0.11,
+      shadowRadius: 24,
+      elevation: 5,
     },
     button: {
-      shadowColor: '#1E1510',
+      shadowColor: '#1F1610',
       shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.14,
-      shadowRadius: 8,
-      elevation: 4,
+      shadowOpacity: 0.1,
+      shadowRadius: 10,
+      elevation: 3,
     },
   },
 };

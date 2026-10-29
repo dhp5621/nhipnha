@@ -3,14 +3,25 @@ import type { Family, Member, Role } from '@nhipnha/shared';
 import { offlineStorage } from '../services/offlineStorage';
 import { apiClient } from '../services/api';
 
+export const DEMO_FAMILY_CODE = 'NHIP-8868';
+export const DEMO_FAMILY_ID = 'fam_dongthap_001';
+
 interface AuthContextType {
   family: Family | null;
   member: Member | null;
   isLoading: boolean;
   isPaired: boolean;
-  pairWithQR: (qrData: string) => Promise<void>;
+  isDemoAccount: boolean;
+  pairWithQR: (qrData: string, role?: Role, name?: string) => Promise<void>;
   pairWithCode: (code: string, role: Role, name: string) => Promise<void>;
-  switchRole: (role: Role, name?: string) => void;
+  createNewFamily: (
+    familyName: string,
+    province: string,
+    role: Role,
+    memberName: string
+  ) => Promise<void>;
+  loginDemoAccount: (role?: Role) => Promise<void>;
+  switchRole: (role: Role, name?: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -28,26 +39,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (stored.family && stored.member) {
           setFamily(stored.family);
           setMember(stored.member);
-        } else {
-          // Pre-seed with demo child so reviewer/user can test directly without friction
-          const demoFam: Family = {
-            id: 'fam_dongthap_001',
-            name: 'Gia đình Bác Ba & Bé An',
-            code: 'NHIP-8868',
-            qrPayload: '{"version":"1.0","app":"nhipnha","familyId":"fam_dongthap_001"}',
-            addressProvince: 'Đồng Tháp',
-            createdAt: new Date().toISOString(),
-          };
-          const demoMem: Member = {
-            id: 'mem_child_an',
-            familyId: demoFam.id,
-            name: 'Bé An (8 tuổi)',
-            role: 'CHILD',
-            createdAt: new Date().toISOString(),
-          };
-          setFamily(demoFam);
-          setMember(demoMem);
-          await offlineStorage.saveAuth(demoFam, demoMem);
         }
       } catch (err) {
         console.error('Error loading auth state:', err);
@@ -58,10 +49,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loadStoredAuth();
   }, []);
 
-  const pairWithQR = async (qrData: string) => {
+  const isDemoAccount =
+    family?.id === DEMO_FAMILY_ID ||
+    family?.code?.toUpperCase() === DEMO_FAMILY_CODE;
+
+  const pairWithQR = async (qrData: string, role?: Role, name?: string) => {
     setIsLoading(true);
     try {
-      const result = await apiClient.pairWithQR(qrData);
+      const result = await apiClient.pairWithQR(qrData, role, name);
       setFamily(result.family);
       setMember(result.member);
     } finally {
@@ -72,7 +67,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const pairWithCode = async (code: string, role: Role, name: string) => {
     setIsLoading(true);
     try {
-      const result = await apiClient.pairWithCode(code, role, name);
+      const cleanCode = code.trim().toUpperCase();
+      const result = await apiClient.pairWithCode(cleanCode, role, name);
       setFamily(result.family);
       setMember(result.member);
     } finally {
@@ -80,17 +76,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const switchRole = (newRole: Role, newName?: string) => {
+  const loginDemoAccount = async (role: Role = 'CHILD') => {
+    const defaultName =
+      role === 'CHILD' ? 'Bé An' : role === 'PARENT' ? 'Mẹ Hoa' : 'Bà Nội Bảy';
+    await pairWithCode(DEMO_FAMILY_CODE, role, defaultName);
+  };
+
+  const createNewFamily = async (
+    familyName: string,
+    province: string,
+    role: Role,
+    memberName: string
+  ) => {
+    setIsLoading(true);
+    try {
+      const result = await apiClient.createFamily(
+        familyName.trim() || 'Gia đình mình',
+        province.trim() || 'Việt Nam',
+        role,
+        memberName.trim() || 'Thành viên'
+      );
+      setFamily(result.family);
+      setMember(result.member);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const switchRole = async (newRole: Role, newName?: string) => {
     if (!family) return;
-    const updatedMember: Member = {
-      id: `mem_${newRole.toLowerCase()}_${Date.now()}`,
-      familyId: family.id,
-      name: newName || (newRole === 'CHILD' ? 'Bé An (8 tuổi)' : newRole === 'PARENT' ? 'Mẹ Hoa (Công nhân)' : 'Bà Bảy'),
-      role: newRole,
-      createdAt: new Date().toISOString(),
-    };
-    setMember(updatedMember);
-    offlineStorage.saveAuth(family, updatedMember);
+    try {
+      const result = await apiClient.pairWithCode(family.code, newRole, newName || '');
+      setFamily(result.family);
+      setMember(result.member);
+    } catch {
+      const fallbackName =
+        newName ||
+        (newRole === 'CHILD' ? 'Con' : newRole === 'PARENT' ? 'Bố / Mẹ' : 'Ông / Bà');
+      const updatedMember: Member = {
+        id: `mem_${newRole.toLowerCase()}_${Date.now()}`,
+        familyId: family.id,
+        name: fallbackName,
+        role: newRole,
+        createdAt: new Date().toISOString(),
+      };
+      setMember(updatedMember);
+      await offlineStorage.saveAuth(family, updatedMember);
+    }
   };
 
   const logout = async () => {
@@ -106,8 +138,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         member,
         isLoading,
         isPaired: !!family && !!member,
+        isDemoAccount,
         pairWithQR,
         pairWithCode,
+        createNewFamily,
+        loginDemoAccount,
         switchRole,
         logout,
       }}

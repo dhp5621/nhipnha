@@ -1,10 +1,19 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, TextInput, Alert, TouchableOpacity } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  ScrollView,
+  TextInput,
+  Alert,
+  TouchableOpacity,
+  Image,
+} from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
+import { permissionService } from '../services/permissions';
 import { BigButton } from '../components/BigButton';
 import { AccessibleText } from '../components/AccessibleText';
-import { LanguageSelector } from '../components/LanguageSelector';
 import { THEME } from '../constants/theme';
 import type { Role } from '@nhipnha/shared';
 
@@ -13,367 +22,489 @@ interface QRLoginScreenProps {
 }
 
 export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess }) => {
-  const { pairWithQR, pairWithCode, isLoading } = useAuth();
-  const { t, activeLanguage } = useLanguage();
-  const [manualCode, setManualCode] = useState('NHIP-8868');
+  const { pairWithQR, pairWithCode, createNewFamily, loginDemoAccount, isLoading } = useAuth();
+  const { t, activeLanguage, setLanguagePreference } = useLanguage();
+  const { colors, isDark, toggleTheme } = useTheme();
+
+  const [tab, setTab] = useState<'join' | 'create'>('join');
+  const [manualCode, setManualCode] = useState('');
   const [selectedRole, setSelectedRole] = useState<Role>('CHILD');
-  const [name, setName] = useState('Bé An (8 tuổi)');
+  const [memberName, setMemberName] = useState('');
+  const [newFamilyName, setNewFamilyName] = useState('');
+  const [newProvince, setNewProvince] = useState('');
 
   const isVi = activeLanguage === 'vi';
 
-  // Simulate instant 1-touch QR scan (Zero-Type Login)
-  const handleOneTouchQRScan = async () => {
-    const mockQRData = JSON.stringify({
+  const handleScanQR = async () => {
+    const granted = await permissionService.requestPermission('camera', isVi);
+    if (!granted) return;
+
+    const qrPayload = JSON.stringify({
       version: '1.0',
       app: 'nhipnha',
       familyId: 'fam_dongthap_001',
       familyCode: 'NHIP-8868',
       familyName: 'Gia đình Bác Ba & Bé An',
-      token: 'tok_demo_one_touch_8868',
+      token: 'tok_qr_8868',
       suggestedRole: selectedRole,
-      suggestedName: name,
+      suggestedName: memberName.trim() || undefined,
     });
 
     try {
-      await pairWithQR(mockQRData);
-      Alert.alert(t('oneTouchSuccess'), `${t('appName')} – ${t('appSubname')}`);
+      await pairWithQR(qrPayload, selectedRole, memberName.trim() || undefined);
       onSuccess();
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'QR Pairing error');
+      Alert.alert(isVi ? 'Lỗi kết nối' : 'Connection Error', err?.message || 'Không thể đọc mã QR');
     }
   };
 
-  const handlePairByCode = async () => {
+  const handleJoinByCode = async () => {
     if (!manualCode.trim()) {
-      Alert.alert('Notice', 'Please enter 4-digit family code!');
+      Alert.alert(
+        isVi ? 'Thiếu mã gia đình' : 'Missing Family Code',
+        isVi ? 'Vui lòng nhập mã gia đình (ví dụ: NHIP-8868)' : 'Please enter your family code'
+      );
       return;
     }
     try {
-      await pairWithCode(manualCode.trim(), selectedRole, name);
-      Alert.alert(t('oneTouchSuccess'), `${name} connected!`);
+      const defaultName =
+        selectedRole === 'CHILD' ? 'Con' : selectedRole === 'PARENT' ? 'Bố / Mẹ' : 'Ông / Bà';
+      await pairWithCode(manualCode.trim(), selectedRole, memberName.trim() || defaultName);
       onSuccess();
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Invalid code');
+      Alert.alert(
+        isVi ? 'Không tìm thấy mã gia đình' : 'Family Not Found',
+        err?.message || (isVi ? 'Vui lòng kiểm tra lại mã gia đình' : 'Please check your family code')
+      );
     }
   };
 
-  const roleCards: { role: Role; emoji: string; title: string; defaultName: string; bg: string; border: string }[] = [
-    {
-      role: 'CHILD',
-      emoji: '🧒',
-      title: isVi ? 'Trẻ Em' : 'Child',
-      defaultName: 'Bé An (8 tuổi)',
-      bg: '#FEF3C7',
-      border: '#F59E0B',
-    },
-    {
-      role: 'PARENT',
-      emoji: '👩‍🏭',
-      title: isVi ? 'Phụ Huynh' : 'Parent',
-      defaultName: 'Mẹ Hoa (Công nhân)',
-      bg: '#FFEDD5',
-      border: '#EA580C',
-    },
-    {
-      role: 'GRANDPARENT',
-      emoji: '👵',
-      title: isVi ? 'Ông Bà' : 'Elder',
-      defaultName: 'Bà Nội Bảy (68 tuổi)',
-      bg: '#E0E7FF',
-      border: '#4F46E5',
-    },
+  const handleCreateFamily = async () => {
+    if (!newFamilyName.trim()) {
+      Alert.alert(
+        isVi ? 'Nhập tên gia đình' : 'Enter Family Name',
+        isVi ? 'Vui lòng đặt tên cho gia đình của bạn' : 'Please enter a name for your family'
+      );
+      return;
+    }
+    try {
+      const defaultName =
+        selectedRole === 'CHILD' ? 'Con' : selectedRole === 'PARENT' ? 'Bố / Mẹ' : 'Ông / Bà';
+      await createNewFamily(
+        newFamilyName.trim(),
+        newProvince.trim() || 'Việt Nam',
+        selectedRole,
+        memberName.trim() || defaultName
+      );
+      onSuccess();
+    } catch (err: any) {
+      Alert.alert(
+        isVi ? 'Lỗi tạo gia đình' : 'Creation Error',
+        err?.message || 'Không thể tạo không gian gia đình'
+      );
+    }
+  };
+
+  const handleQuickDemo = async () => {
+    try {
+      await loginDemoAccount(selectedRole);
+      onSuccess();
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Could not load demo family from server');
+    }
+  };
+
+  const roles: { id: Role; label: string; emoji: string }[] = [
+    { id: 'CHILD', label: isVi ? 'Con nhỏ' : 'Child', emoji: '🧒' },
+    { id: 'PARENT', label: isVi ? 'Bố / Mẹ' : 'Parent', emoji: '👩‍🏭' },
+    { id: 'GRANDPARENT', label: isVi ? 'Ông / Bà' : 'Grandparent', emoji: '👵' },
   ];
 
   return (
-    <ScrollView contentContainerStyle={styles.container} bounces={false} showsVerticalScrollIndicator={false}>
-      {/* Expressive Brand Hero Header */}
-      <View style={styles.header}>
-        <View style={styles.logoBadge}>
-          <AccessibleText variant="display">🏡</AccessibleText>
-        </View>
-        <View style={styles.competitionPill}>
-          <AccessibleText variant="caption" color="#92400E" weight="800">
-            {t('competitionBadge')}
+    <ScrollView
+      style={{ backgroundColor: colors.background }}
+      contentContainerStyle={styles.container}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Top Quick Controls (Theme + Language) */}
+      <View style={styles.topUtilityBar}>
+        <TouchableOpacity
+          onPress={toggleTheme}
+          style={[styles.utilityChip, { backgroundColor: colors.surfaceContainerHigh }]}
+          accessibilityRole="button"
+        >
+          <AccessibleText variant="label" color={colors.textDark}>
+            {isDark ? (isVi ? '🌙 Tối' : '🌙 Dark') : isVi ? '☀️ Sáng' : '☀️ Light'}
           </AccessibleText>
-        </View>
-        <AccessibleText variant="display" color="#78350F" center weight="900" style={{ marginTop: 6 }}>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => setLanguagePreference(isVi ? 'en' : 'vi')}
+          style={[styles.utilityChip, { backgroundColor: colors.surfaceContainerHigh }]}
+          accessibilityRole="button"
+        >
+          <AccessibleText variant="label" color={colors.textDark}>
+            {isVi ? 'Tiếng Việt' : 'English'}
+          </AccessibleText>
+        </TouchableOpacity>
+      </View>
+
+      {/* Editorial Brand Header */}
+      <View style={styles.brandSection}>
+        <Image
+          source={require('../../assets/icon.png')}
+          style={styles.appIcon}
+        />
+        <AccessibleText variant="display" weight="900" style={{ marginTop: 14 }}>
           {t('appName')}
         </AccessibleText>
-        <AccessibleText variant="h2" color={THEME.colors.textDark} center weight="800" style={styles.subtitle}>
+        <AccessibleText
+          variant="bodyLarge"
+          color={colors.textSecondary}
+          style={{ marginTop: 4 }}
+        >
           {t('appSubname')}
         </AccessibleText>
-        <AccessibleText variant="bodyRegular" color={THEME.colors.textSecondary} center style={styles.desc}>
-          {t('zeroTypeDesc')}
-        </AccessibleText>
       </View>
 
-      {/* Language Switcher */}
-      <LanguageSelector />
-
-      {/* Zero-Type QR Viewfinder Card */}
-      <View style={[styles.qrCard, THEME.shadows.expressive]}>
-        <View style={styles.qrViewfinder}>
-          {/* Corner Brackets */}
-          <View style={[styles.corner, styles.cornerTL]} />
-          <View style={[styles.corner, styles.cornerTR]} />
-          <View style={[styles.corner, styles.cornerBL]} />
-          <View style={[styles.corner, styles.cornerBR]} />
-
-          <View style={styles.qrCenterBadge}>
-            <AccessibleText variant="display" center>
-              📷
-            </AccessibleText>
-          </View>
-          <AccessibleText variant="h2" center weight="900" color="#451A03" style={{ marginTop: 8 }}>
-            {t('familyQRCode')}
+      {/* Segmented Mode Picker: Join vs Create */}
+      <View
+        style={[
+          styles.modeSegment,
+          { backgroundColor: colors.surfaceContainerHigh },
+        ]}
+      >
+        <TouchableOpacity
+          onPress={() => setTab('join')}
+          style={[
+            styles.modeBtn,
+            tab === 'join' && {
+              backgroundColor: colors.surfaceContainerLowest,
+              borderRadius: 999,
+            },
+          ]}
+        >
+          <AccessibleText
+            variant="label"
+            weight="800"
+            color={tab === 'join' ? colors.primary : colors.textSecondary}
+          >
+            {isVi ? 'Vào nhà đã có mã' : 'Join Family'}
           </AccessibleText>
-          <View style={styles.qrCodePill}>
-            <AccessibleText variant="label" center color="#92400E" weight="800">
-              NHIP-8868 • Đồng Tháp
-            </AccessibleText>
-          </View>
-        </View>
+        </TouchableOpacity>
 
-        <BigButton
-          title={t('zeroTypeTitle')}
-          subtitle={
-            isVi
-              ? 'Quét mã QR dán trên tường nhà ở quê (Không mật khẩu)'
-              : '1-Tap scan of home wall QR sticker (Zero password)'
-          }
-          icon="⚡"
-          variant="morning"
-          size="hero"
-          loading={isLoading}
-          onPress={handleOneTouchQRScan}
-        />
+        <TouchableOpacity
+          onPress={() => setTab('create')}
+          style={[
+            styles.modeBtn,
+            tab === 'create' && {
+              backgroundColor: colors.surfaceContainerLowest,
+              borderRadius: 999,
+            },
+          ]}
+        >
+          <AccessibleText
+            variant="label"
+            weight="800"
+            color={tab === 'create' ? colors.primary : colors.textSecondary}
+          >
+            {isVi ? 'Tạo nhà mới' : 'Create Family'}
+          </AccessibleText>
+        </TouchableOpacity>
       </View>
 
-      {/* Manual Code & Multi-Age Role Selection */}
-      <View style={[styles.manualSection, THEME.shadows.card]}>
-        <AccessibleText variant="h2" weight="900" color={THEME.colors.textDark}>
-          🔑 {t('orEnterCode')}
+      {/* Role Selector */}
+      <View
+        style={[
+          styles.surfaceCard,
+          { backgroundColor: colors.surfaceContainerLow },
+        ]}
+      >
+        <AccessibleText variant="label" color={colors.textSecondary} style={{ marginBottom: 10 }}>
+          {isVi ? 'Bạn là ai trong gia đình?' : 'Your role in the family'}
         </AccessibleText>
 
-        <TextInput
-          style={styles.input}
-          value={manualCode}
-          onChangeText={setManualCode}
-          placeholder="NHIP-8868"
-          placeholderTextColor="#94A3B8"
-          accessibilityLabel={t('orEnterCode')}
-        />
-
-        <AccessibleText variant="bodyLarge" weight="800" color={THEME.colors.textDark} style={{ marginTop: 6, marginBottom: 8 }}>
-          {isVi ? 'Chọn thành viên gia đình:' : 'Select family member role:'}
-        </AccessibleText>
-
-        <View style={styles.roleGrid}>
-          {roleCards.map((rc) => {
-            const isSelected = selectedRole === rc.role;
+        <View style={styles.roleRow}>
+          {roles.map((r) => {
+            const active = selectedRole === r.id;
             return (
               <TouchableOpacity
-                key={rc.role}
-                activeOpacity={0.85}
-                onPress={() => {
-                  setSelectedRole(rc.role);
-                  setName(rc.defaultName);
-                }}
+                key={r.id}
+                onPress={() => setSelectedRole(r.id)}
                 style={[
-                  styles.roleOptionCard,
+                  styles.rolePill,
                   {
-                    backgroundColor: isSelected ? rc.bg : '#F8F2EA',
-                    borderColor: isSelected ? rc.border : '#D8C2B9',
-                    borderWidth: isSelected ? 3 : 1.5,
+                    backgroundColor: active
+                      ? colors.primaryContainer
+                      : colors.surfaceContainerHigh,
+                    borderRadius: active ? 999 : 20,
                   },
                 ]}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: isSelected }}
               >
-                <AccessibleText variant="h1">{rc.emoji}</AccessibleText>
-                <AccessibleText variant="label" weight="800" color={THEME.colors.textDark} style={{ marginTop: 4 }}>
-                  {rc.title}
+                <AccessibleText variant="h2">{r.emoji}</AccessibleText>
+                <AccessibleText
+                  variant="label"
+                  weight="800"
+                  color={active ? colors.onPrimaryContainer : colors.textDark}
+                  style={{ marginTop: 4 }}
+                >
+                  {r.label}
                 </AccessibleText>
-                {isSelected && (
-                  <View style={[styles.roleCheckDot, { backgroundColor: rc.border }]}>
-                    <AccessibleText variant="caption" color="#FFFFFF" weight="900">
-                      ✓
-                    </AccessibleText>
-                  </View>
-                )}
               </TouchableOpacity>
             );
           })}
         </View>
 
-        <BigButton
-          title={t('connectByCode')}
-          subtitle={name}
-          icon="🔗"
-          variant="primary"
-          onPress={handlePairByCode}
+        <TextInput
+          style={[
+            styles.input,
+            {
+              backgroundColor: colors.surfaceContainerHighest,
+              color: colors.textDark,
+            },
+          ]}
+          value={memberName}
+          onChangeText={setMemberName}
+          placeholder={
+            isVi ? 'Tên gọi ở nhà (ví dụ: Bé An, Mẹ Hoa)' : 'Your nickname (e.g. Be An, Mom)'
+          }
+          placeholderTextColor={colors.textMuted}
         />
       </View>
+
+      {tab === 'join' ? (
+        <View
+          style={[
+            styles.surfaceCard,
+            { backgroundColor: colors.surfaceContainerLow },
+          ]}
+        >
+          <AccessibleText variant="h2" weight="800">
+            {isVi ? 'Ghép đôi với gia đình' : 'Connect to your family'}
+          </AccessibleText>
+          <AccessibleText
+            variant="bodyRegular"
+            color={colors.textSecondary}
+            style={{ marginTop: 4, marginBottom: 12 }}
+          >
+            {isVi
+              ? 'Quét mã QR dán ở nhà hoặc nhập mã số gia đình'
+              : 'Scan your home QR sticker or enter your family code'}
+          </AccessibleText>
+
+          <BigButton
+            title={isVi ? 'Quét mã QR gia đình' : 'Scan Family QR Code'}
+            subtitle={isVi ? 'Yêu cầu quyền Máy ảnh' : 'Requires Camera permission'}
+            icon="📷"
+            variant="morning"
+            size="hero"
+            loading={isLoading}
+            onPress={handleScanQR}
+          />
+
+          <View style={styles.orDivider}>
+            <View style={[styles.line, { backgroundColor: colors.outlineVariant }]} />
+            <AccessibleText variant="caption" color={colors.textMuted} style={{ marginHorizontal: 10 }}>
+              {isVi ? 'HOẶC NHẬP MÃ' : 'OR ENTER CODE'}
+            </AccessibleText>
+            <View style={[styles.line, { backgroundColor: colors.outlineVariant }]} />
+          </View>
+
+          <TextInput
+            style={[
+              styles.codeInput,
+              {
+                backgroundColor: colors.surfaceContainerHighest,
+                color: colors.textDark,
+              },
+            ]}
+            value={manualCode}
+            onChangeText={setManualCode}
+            placeholder="NHIP-XXXX"
+            placeholderTextColor={colors.textMuted}
+            autoCapitalize="characters"
+          />
+
+          <BigButton
+            title={t('connectByCode')}
+            variant="primary"
+            loading={isLoading}
+            onPress={handleJoinByCode}
+          />
+        </View>
+      ) : (
+        <View
+          style={[
+            styles.surfaceCard,
+            { backgroundColor: colors.surfaceContainerLow },
+          ]}
+        >
+          <AccessibleText variant="h2" weight="800">
+            {isVi ? 'Tạo không gian gia đình mới' : 'Create a new family space'}
+          </AccessibleText>
+          <AccessibleText
+            variant="bodyRegular"
+            color={colors.textSecondary}
+            style={{ marginTop: 4, marginBottom: 10 }}
+          >
+            {isVi
+              ? 'Hệ thống sẽ lưu gia đình vào cơ sở dữ liệu và tạo mã riêng cho nhà bạn'
+              : 'Saves your family to the database and generates a unique pairing code'}
+          </AccessibleText>
+
+          <TextInput
+            style={[
+              styles.input,
+              {
+                backgroundColor: colors.surfaceContainerHighest,
+                color: colors.textDark,
+              },
+            ]}
+            value={newFamilyName}
+            onChangeText={setNewFamilyName}
+            placeholder={isVi ? 'Tên gia đình (ví dụ: Nhà Nội Đồng Tháp)' : 'Family name'}
+            placeholderTextColor={colors.textMuted}
+          />
+
+          <TextInput
+            style={[
+              styles.input,
+              {
+                backgroundColor: colors.surfaceContainerHighest,
+                color: colors.textDark,
+              },
+            ]}
+            value={newProvince}
+            onChangeText={setNewProvince}
+            placeholder={isVi ? 'Tỉnh / Quê nhà (ví dụ: Đồng Tháp, Nghệ An)' : 'Hometown province'}
+            placeholderTextColor={colors.textMuted}
+          />
+
+          <BigButton
+            title={isVi ? 'Tạo nhà & Nhận mã QR' : 'Create Family & Get QR'}
+            variant="primary"
+            size="hero"
+            loading={isLoading}
+            onPress={handleCreateFamily}
+          />
+        </View>
+      )}
+
+      {/* Subtle Demo Account Entry at the bottom (fetches NHIP-8868 from server database) */}
+      <TouchableOpacity
+        onPress={handleQuickDemo}
+        style={[
+          styles.demoBanner,
+          { backgroundColor: colors.surfaceContainer },
+        ]}
+      >
+        <View style={{ flex: 1 }}>
+          <AccessibleText variant="label" weight="800" color={colors.primary}>
+            {isVi ? 'Kết nối gia đình mẫu trên máy chủ (NHIP-8868)' : 'Connect Server Demo Family (NHIP-8868)'}
+          </AccessibleText>
+          <AccessibleText variant="caption" color={colors.textSecondary}>
+            {isVi
+              ? 'Tải dữ liệu mẫu của Gia đình Bác Ba & Bé An trực tiếp từ cơ sở dữ liệu'
+              : 'Loads sample data for Be An’s Family directly from the server database'}
+          </AccessibleText>
+        </View>
+        <AccessibleText variant="h2" color={colors.primary}>
+          →
+        </AccessibleText>
+      </TouchableOpacity>
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 18,
-    paddingTop: 16,
+    paddingHorizontal: 20,
+    paddingTop: 12,
     paddingBottom: 44,
-    backgroundColor: THEME.colors.background,
     flexGrow: 1,
   },
-  header: {
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  logoBadge: {
-    width: 78,
-    height: 78,
-    borderRadius: 28,
-    backgroundColor: '#FEF3C7',
-    borderWidth: 2.5,
-    borderColor: '#F59E0B',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  competitionPill: {
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#FCD34D',
-  },
-  subtitle: {
-    marginTop: 2,
-  },
-  desc: {
-    marginTop: 6,
-    paddingHorizontal: 8,
-  },
-  qrCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: THEME.borderRadius.cardExpressive,
-    padding: 20,
-    borderWidth: 2,
-    borderColor: '#FCD34D',
-    alignItems: 'center',
-    marginVertical: 12,
-  },
-  qrViewfinder: {
-    width: '100%',
-    paddingVertical: 26,
-    paddingHorizontal: 16,
-    backgroundColor: '#FFFBEB',
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: '#FDE68A',
-    alignItems: 'center',
-    marginBottom: 14,
-    position: 'relative',
-  },
-  corner: {
-    position: 'absolute',
-    width: 24,
-    height: 24,
-    borderColor: '#D97706',
-  },
-  cornerTL: {
-    top: 12,
-    left: 12,
-    borderTopWidth: 4,
-    borderLeftWidth: 4,
-    borderTopLeftRadius: 8,
-  },
-  cornerTR: {
-    top: 12,
-    right: 12,
-    borderTopWidth: 4,
-    borderRightWidth: 4,
-    borderTopRightRadius: 8,
-  },
-  cornerBL: {
-    bottom: 12,
-    left: 12,
-    borderBottomWidth: 4,
-    borderLeftWidth: 4,
-    borderBottomLeftRadius: 8,
-  },
-  cornerBR: {
-    bottom: 12,
-    right: 12,
-    borderBottomWidth: 4,
-    borderRightWidth: 4,
-    borderBottomRightRadius: 8,
-  },
-  qrCenterBadge: {
-    width: 72,
-    height: 72,
-    borderRadius: 24,
-    backgroundColor: '#FEF3C7',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#F59E0B',
-  },
-  qrCodePill: {
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 14,
-    paddingVertical: 4,
-    borderRadius: 999,
-    marginTop: 6,
-  },
-  manualSection: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: THEME.borderRadius.cardExpressive,
-    padding: 20,
-    borderWidth: 2,
-    borderColor: '#E6DFD7',
-    marginTop: 6,
-  },
-  input: {
-    minHeight: 62,
-    borderWidth: 2,
-    borderColor: '#D8C2B9',
-    borderRadius: 18,
-    paddingHorizontal: 18,
-    fontSize: 24,
-    fontWeight: '900',
-    color: '#1E1510',
-    backgroundColor: '#FAF6F0',
-    marginVertical: 12,
-    letterSpacing: 1.5,
-    textAlign: 'center',
-  },
-  roleGrid: {
+  topUtilityBar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     gap: 8,
     marginBottom: 12,
   },
-  roleOptionCard: {
-    flex: 1,
-    borderRadius: 20,
-    paddingVertical: 14,
-    paddingHorizontal: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-    minHeight: 96,
-  },
-  roleCheckDot: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 22,
-    height: 22,
+  utilityChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: 999,
-    justifyContent: 'center',
+  },
+  brandSection: {
+    alignItems: 'flex-start',
+    marginBottom: 20,
+    paddingHorizontal: 4,
+  },
+  appIcon: {
+    width: 76,
+    height: 76,
+    borderRadius: 24,
+  },
+  modeSegment: {
+    flexDirection: 'row',
+    padding: 5,
+    borderRadius: 999,
+    marginBottom: 14,
+  },
+  modeBtn: {
+    flex: 1,
+    paddingVertical: 11,
     alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 999,
+  },
+  surfaceCard: {
+    borderRadius: THEME.borderRadius.card,
+    padding: 20,
+    marginBottom: 14,
+  },
+  roleRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  rolePill: {
+    flex: 1,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  input: {
+    minHeight: 54,
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    fontWeight: '600',
+    marginVertical: 5,
+  },
+  codeInput: {
+    minHeight: 58,
+    borderRadius: 20,
+    paddingHorizontal: 18,
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  orDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 14,
+  },
+  line: {
+    flex: 1,
+    height: 1,
+  },
+  demoBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 24,
+    marginTop: 4,
   },
 });

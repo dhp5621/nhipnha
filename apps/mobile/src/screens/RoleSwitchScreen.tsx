@@ -1,11 +1,15 @@
-import React from 'react';
-import { View, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, Image } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
+import { permissionService, type PermissionStatus } from '../services/permissions';
 import { BigButton } from '../components/BigButton';
 import { AccessibleText } from '../components/AccessibleText';
 import { LanguageSelector } from '../components/LanguageSelector';
-import { THEME } from '../constants/theme';
+import { ThemeSelector } from '../components/ThemeSelector';
+import { TextSizeSelector } from '../components/TextSizeSelector';
+import type { Role } from '@nhipnha/shared';
 
 interface RoleSwitchScreenProps {
   onBack: () => void;
@@ -18,145 +22,288 @@ export const RoleSwitchScreen: React.FC<RoleSwitchScreenProps> = ({
 }) => {
   const { member, family, switchRole, logout } = useAuth();
   const { t, activeLanguage } = useLanguage();
+  const { colors } = useTheme();
+
+  const [micPerm, setMicPerm] = useState<PermissionStatus>('undetermined');
+  const [camPerm, setCamPerm] = useState<PermissionStatus>('undetermined');
 
   const isVi = activeLanguage === 'vi';
 
-  const handleSwitchToChild = () => {
-    switchRole('CHILD', 'Bé An (8 tuổi)');
-    Alert.alert(isVi ? 'Đã đổi vai' : 'Role Changed', t('switchToChild'));
+  const loadPermissions = async () => {
+    const [m, c] = await Promise.all([
+      permissionService.getStatus('microphone'),
+      permissionService.getStatus('camera'),
+    ]);
+    setMicPerm(m);
+    setCamPerm(c);
+  };
+
+  useEffect(() => {
+    loadPermissions();
+  }, []);
+
+  const handleRequestMic = async () => {
+    await permissionService.requestPermission('microphone', isVi);
+    await loadPermissions();
+  };
+
+  const handleRequestCam = async () => {
+    await permissionService.requestPermission('camera', isVi);
+    await loadPermissions();
+  };
+
+  const handleRoleSelect = (role: Role) => {
+    switchRole(role);
     onBack();
   };
 
-  const handleSwitchToParent = () => {
-    switchRole('PARENT', 'Mẹ Hoa (Công nhân xa nhà)');
-    Alert.alert(isVi ? 'Đã đổi vai' : 'Role Changed', t('switchToParent'));
-    onBack();
+  const handleSignOut = () => {
+    Alert.alert(
+      isVi ? 'Rời khỏi gia đình hiện tại?' : 'Sign out of current family?',
+      isVi
+        ? 'Bạn có thể quét lại mã QR hoặc nhập mã gia đình bất cứ lúc nào.'
+        : 'You can scan your QR code or enter your family code again anytime.',
+      [
+        { text: isVi ? 'Hủy' : 'Cancel', style: 'cancel' },
+        {
+          text: isVi ? 'Đăng xuất' : 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            await logout();
+            onGoToLogin();
+          },
+        },
+      ]
+    );
   };
 
-  const handleSwitchToGrandparent = () => {
-    switchRole('GRANDPARENT', 'Bà Nội Bảy (68 tuổi)');
-    Alert.alert(isVi ? 'Đã đổi vai' : 'Role Changed', t('switchToGrandparent'));
-    onBack();
-  };
-
-  const handleReset = async () => {
-    await logout();
-    onGoToLogin();
-  };
+  const roleOptions: { id: Role; label: string; sub: string; emoji: string }[] = [
+    {
+      id: 'CHILD',
+      label: isVi ? 'Trẻ em' : 'Child',
+      sub: isVi ? 'Cỡ chữ chuẩn' : 'Standard font',
+      emoji: '🧒',
+    },
+    {
+      id: 'PARENT',
+      label: isVi ? 'Bố / Mẹ' : 'Parent',
+      sub: isVi ? 'Cỡ chữ chuẩn' : 'Standard font',
+      emoji: '👩‍🏭',
+    },
+    {
+      id: 'GRANDPARENT',
+      label: isVi ? 'Ông / Bà' : 'Elder',
+      sub: isVi ? 'Tự động chữ lớn' : 'Auto large font',
+      emoji: '👵',
+    },
+  ];
 
   return (
-    <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Top Nav */}
+    <ScrollView
+      style={{ backgroundColor: colors.background }}
+      contentContainerStyle={styles.container}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Top Bar */}
       <View style={styles.topNav}>
         <TouchableOpacity
           onPress={onBack}
-          style={styles.backPill}
+          style={[styles.backPill, { backgroundColor: colors.surfaceContainerHigh }]}
           accessibilityRole="button"
           accessibilityLabel={t('back')}
         >
-          <AccessibleText variant="bodyLarge" weight="800" color={THEME.colors.textDark}>
+          <AccessibleText variant="label" weight="800">
             ← {t('back')}
           </AccessibleText>
         </TouchableOpacity>
-
-        <View style={styles.sdgPill}>
-          <AccessibleText variant="caption" color="#15803D" weight="900">
-            SDG 3 • 4 • 8
-          </AccessibleText>
-        </View>
       </View>
 
-      <View style={styles.header}>
-        <AccessibleText variant="h1" color={THEME.colors.textDark} weight="900" center>
-          {t('switchRoleBtn')}
-        </AccessibleText>
-        <AccessibleText variant="bodyRegular" color={THEME.colors.textSecondary} center style={{ marginTop: 4 }}>
-          {t('competitionBadge')}
-        </AccessibleText>
-      </View>
+      <AccessibleText variant="display" weight="900" style={{ marginBottom: 16 }}>
+        {isVi ? 'Cài đặt & Tài khoản' : 'Settings & Account'}
+      </AccessibleText>
 
-      {/* Active Profile Card */}
-      <View style={[styles.activeProfileCard, THEME.shadows.card]}>
+      {/* Active Family Profile Card */}
+      <View
+        style={[
+          styles.profileCard,
+          { backgroundColor: colors.surfaceContainerLow },
+        ]}
+      >
         <View style={styles.profileRow}>
-          <View style={styles.activeAvatar}>
-            <AccessibleText variant="h1">
-              {member?.role === 'CHILD' ? '🧒' : member?.role === 'PARENT' ? '👩‍🏭' : '👵'}
-            </AccessibleText>
-          </View>
+          <Image
+            source={require('../../assets/icon.png')}
+            style={styles.avatarImg}
+          />
           <View style={{ flex: 1 }}>
-            <AccessibleText variant="caption" color="#0D9488" weight="900">
-              {isVi ? 'ĐANG SỬ DỤNG VAI TRÒ:' : 'CURRENT ACTIVE PERSONA:'}
-            </AccessibleText>
-            <AccessibleText variant="h2" color={THEME.colors.textDark} weight="900">
+            <AccessibleText variant="h2" weight="900">
               {member?.name}
             </AccessibleText>
-            <AccessibleText variant="label" color={THEME.colors.textSecondary}>
-              {family?.name} • {family?.code}
+            <AccessibleText variant="bodyRegular" color={colors.textSecondary}>
+              {family?.name}
+            </AccessibleText>
+            <AccessibleText variant="caption" color={colors.primary} weight="800" style={{ marginTop: 2 }}>
+              {isVi ? 'Mã gia đình:' : 'Family Code:'} {family?.code}
             </AccessibleText>
           </View>
         </View>
-      </View>
 
-      {/* Language Selector */}
-      <LanguageSelector />
-
-      {/* 3 Generation Persona Switcher */}
-      <View style={styles.switchSection}>
-        <AccessibleText variant="h2" weight="900" color={THEME.colors.textDark} style={{ marginBottom: 6 }}>
-          {isVi ? 'Chọn thế hệ người dùng để trải nghiệm:' : 'Choose generation persona to preview:'}
+        {/* Role Switcher inside Family */}
+        <AccessibleText
+          variant="label"
+          color={colors.textSecondary}
+          style={{ marginTop: 16, marginBottom: 8 }}
+        >
+          {isVi ? 'Chuyển vai trò trên thiết bị này' : 'Switch role on this device'}
         </AccessibleText>
 
-        <BigButton
-          title={t('switchToChild')}
-          subtitle={
-            isVi
-              ? '6–12 tuổi • 3 Nhịp Gắn Kết, chọn 4 cảm xúc & thu âm 15s'
-              : '6–12 y/o • 3 Daily Rhythms, 4 mood cards & 15s voice note'
-          }
-          icon="🧒"
-          variant="morning"
-          size="hero"
-          onPress={handleSwitchToChild}
-        />
+        <View style={styles.roleRow}>
+          {roleOptions.map((r) => {
+            const active = member?.role === r.id;
+            return (
+              <TouchableOpacity
+                key={r.id}
+                onPress={() => handleRoleSelect(r.id)}
+                style={[
+                  styles.roleBtn,
+                  {
+                    backgroundColor: active
+                      ? colors.primaryContainer
+                      : colors.surfaceContainerHigh,
+                    borderRadius: active ? 999 : 20,
+                  },
+                ]}
+              >
+                <AccessibleText variant="h2">{r.emoji}</AccessibleText>
+                <AccessibleText
+                  variant="label"
+                  weight="800"
+                  color={active ? colors.onPrimaryContainer : colors.textDark}
+                  style={{ marginTop: 2 }}
+                >
+                  {r.label}
+                </AccessibleText>
+                <AccessibleText
+                  variant="caption"
+                  color={active ? colors.onPrimaryContainer : colors.textMuted}
+                >
+                  {r.sub}
+                </AccessibleText>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
 
-        <BigButton
-          title={t('switchToParent')}
-          subtitle={
-            isVi
-              ? 'Công nhân xa nhà • Dòng thời gian, AI Thấu Cảm & phản hồi 30s'
-              : 'Migrant worker • Daily timeline, AI Empathy & 30s bedtime voice'
-          }
-          icon="👩‍🏭"
-          variant="afternoon"
-          size="hero"
-          onPress={handleSwitchToParent}
-        />
+      {/* Theme Selector (Light / Dark / System) */}
+      <ThemeSelector />
 
-        <BigButton
-          title={t('switchToGrandparent')}
-          subtitle={
-            isVi
-              ? '65–70 tuổi • Tự động phóng to chữ (+3pt), tương phản AAA tối đa'
-              : '65–70 y/o • Auto-boosted extra-large typography (+3pt) & AAA contrast'
-          }
-          icon="👵"
-          variant="evening"
-          size="hero"
-          onPress={handleSwitchToGrandparent}
-        />
+      {/* Text Size Selector (Role Auto / Normal / Large / Extra Large) */}
+      <TextSizeSelector />
 
-        <View style={styles.divider} />
+      {/* Language Selector (VI / EN / Auto) */}
+      <LanguageSelector />
 
+      {/* System Permissions Card */}
+      <View
+        style={[
+          styles.permCard,
+          {
+            backgroundColor: colors.surfaceContainerLow,
+            borderColor: colors.outlineVariant,
+          },
+        ]}
+      >
+        <AccessibleText variant="bodyLarge" weight="800" style={{ marginBottom: 10 }}>
+          {isVi ? 'Quyền truy cập thiết bị' : 'Device Permissions'}
+        </AccessibleText>
+
+        <TouchableOpacity
+          onPress={handleRequestMic}
+          style={[
+            styles.permRow,
+            { backgroundColor: colors.surfaceContainerHigh },
+          ]}
+        >
+          <View style={{ flex: 1 }}>
+            <AccessibleText variant="bodyRegular" weight="700">
+              🎙️ {isVi ? 'Micro thu âm' : 'Microphone'}
+            </AccessibleText>
+            <AccessibleText variant="caption" color={colors.textSecondary}>
+              {isVi ? 'Dùng cho Hộp thư thoại & Nhật ký 15s' : 'Used for Voice Mailbox & 15s Diary'}
+            </AccessibleText>
+          </View>
+          <View
+            style={[
+              styles.permBadge,
+              {
+                backgroundColor:
+                  micPerm === 'granted' ? colors.successBg : colors.surfaceContainerHighest,
+              },
+            ]}
+          >
+            <AccessibleText
+              variant="caption"
+              weight="800"
+              color={micPerm === 'granted' ? colors.onSuccessContainer : colors.primary}
+            >
+              {micPerm === 'granted'
+                ? isVi
+                  ? 'Đã cấp'
+                  : 'Granted'
+                : isVi
+                ? 'Cấp quyền'
+                : 'Allow'}
+            </AccessibleText>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={handleRequestCam}
+          style={[
+            styles.permRow,
+            { backgroundColor: colors.surfaceContainerHigh, marginTop: 8 },
+          ]}
+        >
+          <View style={{ flex: 1 }}>
+            <AccessibleText variant="bodyRegular" weight="700">
+              📷 {isVi ? 'Máy ảnh' : 'Camera'}
+            </AccessibleText>
+            <AccessibleText variant="caption" color={colors.textSecondary}>
+              {isVi ? 'Dùng để quét mã QR & chụp ảnh nhật ký' : 'Used for QR pairing & diary photos'}
+            </AccessibleText>
+          </View>
+          <View
+            style={[
+              styles.permBadge,
+              {
+                backgroundColor:
+                  camPerm === 'granted' ? colors.successBg : colors.surfaceContainerHighest,
+              },
+            ]}
+          >
+            <AccessibleText
+              variant="caption"
+              weight="800"
+              color={camPerm === 'granted' ? colors.onSuccessContainer : colors.primary}
+            >
+              {camPerm === 'granted'
+                ? isVi
+                  ? 'Đã cấp'
+                  : 'Granted'
+                : isVi
+                ? 'Cấp quyền'
+                : 'Allow'}
+            </AccessibleText>
+          </View>
+        </TouchableOpacity>
+      </View>
+
+      {/* Sign Out */}
+      <View style={{ marginTop: 12 }}>
         <BigButton
-          title={t('resetQR')}
-          subtitle={
-            isVi
-              ? 'Trải nghiệm lại màn hình quét QR 1 chạm (Zero-Type Login)'
-              : 'Test the 1-Touch Zero-Type QR Pairing screen again'
-          }
-          icon="📷"
+          title={isVi ? 'Đổi gia đình / Đăng xuất' : 'Switch Family / Sign Out'}
           variant="secondary"
-          onPress={handleReset}
+          onPress={handleSignOut}
         />
       </View>
     </ScrollView>
@@ -167,64 +314,60 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 18,
     paddingTop: 12,
-    paddingBottom: 44,
-    backgroundColor: THEME.colors.background,
+    paddingBottom: 40,
     flexGrow: 1,
   },
   topNav: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
   },
   backPill: {
-    backgroundColor: '#F2EAE0',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 999,
-    borderWidth: 1.5,
-    borderColor: '#D8C2B9',
   },
-  sdgPill: {
-    backgroundColor: '#DCFCE7',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#86EFAC',
-  },
-  header: {
-    marginBottom: 14,
-  },
-  activeProfileCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: THEME.borderRadius.card,
-    padding: 16,
-    borderWidth: 2,
-    borderColor: '#99F6E4',
-    marginBottom: 6,
+  profileCard: {
+    borderRadius: 32,
+    padding: 20,
+    marginBottom: 8,
   },
   profileRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  activeAvatar: {
+  avatarImg: {
     width: 60,
     height: 60,
-    borderRadius: 22,
-    backgroundColor: '#CCFBF1',
-    borderWidth: 2,
-    borderColor: '#14B8A6',
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderRadius: 20,
     marginRight: 14,
   },
-  switchSection: {
-    marginTop: 8,
+  roleRow: {
+    flexDirection: 'row',
+    gap: 8,
   },
-  divider: {
-    height: 1.5,
-    backgroundColor: '#E6DFD7',
-    marginVertical: 12,
+  roleBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  permCard: {
+    borderRadius: 32,
+    padding: 16,
+    marginVertical: 8,
+    borderWidth: 1,
+  },
+  permRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 20,
+  },
+  permBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
   },
 });

@@ -1,40 +1,55 @@
 import { NextResponse } from 'next/server';
-import { memoryStore } from '@/db';
+import { dataRepository } from '@/db';
 import type { Message } from '@nhipnha/shared';
 
 export const dynamic = 'force-dynamic';
 
-// POST: Parent sends evening bedtime message or marks listened
+// POST: Parent sends evening bedtime message or child marks message listened
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { action, messageId, familyId, senderId, senderName, recipientId, transcription, durationSec, audioUrl } = body;
+    const {
+      action,
+      messageId,
+      familyId,
+      senderId,
+      senderName,
+      recipientId,
+      transcription,
+      durationSec,
+      audioUrl,
+      aiSummary,
+      aiSuggestedPrompts,
+    } = body;
 
-    // Mark message as listened by child
     if (action === 'mark_listened' && messageId) {
-      const messages = memoryStore.getMessages(familyId || 'fam_dongthap_001');
-      const target = messages.find((m) => m.id === messageId);
-      if (target) {
-        target.listenedAt = new Date().toISOString();
-      }
+      await dataRepository.markMessageListened(messageId);
       return NextResponse.json({ success: true, message: 'Đã đánh dấu đã nghe' });
     }
 
-    // Create new evening message
+    if (!familyId) {
+      return NextResponse.json(
+        { success: false, error: 'Thiếu mã định danh gia đình (familyId)' },
+        { status: 400 }
+      );
+    }
+
     const newMsg: Message = {
       id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      familyId: familyId || 'fam_dongthap_001',
-      senderId: senderId || 'mem_parent_hoa',
-      senderName: senderName || 'Mẹ Hoa',
-      recipientId: recipientId || 'mem_child_an',
+      familyId,
+      senderId: senderId || `mem_parent_${Date.now().toString(36)}`,
+      senderName: senderName || 'Bố / Mẹ',
+      recipientId,
       rhythmType: 'EVENING',
       durationSec: durationSec || 20,
-      audioUrl: audioUrl || 'mock://audio/dan-do-me-hoa.aac',
+      audioUrl,
       transcription: transcription || 'Con yêu ngủ ngon nhé, nhớ đắp chăn ấm!',
+      aiSummary,
+      aiSuggestedPrompts,
       createdAt: new Date().toISOString(),
     };
 
-    memoryStore.addMessage(newMsg);
+    await dataRepository.addMessage(newMsg);
 
     return NextResponse.json({
       success: true,
@@ -49,12 +64,19 @@ export async function POST(request: Request) {
   }
 }
 
-// GET: Retrieve latest evening messages
+// GET: Retrieve evening messages for a family from database
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const familyId = searchParams.get('familyId') || 'fam_dongthap_001';
+  const familyId = searchParams.get('familyId');
 
-  const msgs = memoryStore.getMessages(familyId);
+  if (!familyId) {
+    return NextResponse.json(
+      { success: false, error: 'Thiếu tham số familyId', data: [] },
+      { status: 400 }
+    );
+  }
+
+  const msgs = await dataRepository.getMessages(familyId);
   return NextResponse.json({
     success: true,
     data: msgs,

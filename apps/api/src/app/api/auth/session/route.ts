@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { memoryStore } from '@/db';
+import { dataRepository } from '@/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,12 +9,12 @@ export async function GET(request: Request) {
   const familyId = searchParams.get('familyId');
 
   if (memberId) {
-    const member = memoryStore.getMember(memberId);
+    const member = await dataRepository.getMember(memberId);
     if (!member) {
       return NextResponse.json({ success: false, error: 'Không tìm thấy thành viên' }, { status: 404 });
     }
-    const family = memoryStore.getFamily(member.familyId);
-    const familyMembers = memoryStore.getMembers(member.familyId);
+    const family = await dataRepository.getFamily(member.familyId);
+    const familyMembers = await dataRepository.getMembers(member.familyId);
     return NextResponse.json({
       success: true,
       member,
@@ -24,11 +24,11 @@ export async function GET(request: Request) {
   }
 
   if (familyId) {
-    const family = memoryStore.getFamily(familyId);
+    const family = await dataRepository.getFamily(familyId);
     if (!family) {
       return NextResponse.json({ success: false, error: 'Không tìm thấy gia đình' }, { status: 404 });
     }
-    const familyMembers = memoryStore.getMembers(familyId);
+    const familyMembers = await dataRepository.getMembers(familyId);
     return NextResponse.json({
       success: true,
       family,
@@ -36,15 +36,8 @@ export async function GET(request: Request) {
     });
   }
 
-  // Fallback demo session
-  const defaultMember = memoryStore.getMember('mem_child_an');
-  const defaultFamily = memoryStore.getFamily('fam_dongthap_001');
-  const members = defaultFamily ? memoryStore.getMembers(defaultFamily.id) : [];
-
-  return NextResponse.json({
-    success: true,
-    member: defaultMember,
-    family: defaultFamily,
-    familyMembers: members,
-  });
+  return NextResponse.json(
+    { success: false, error: 'Thiếu tham số familyId hoặc memberId' },
+    { status: 400 }
+  );
 }

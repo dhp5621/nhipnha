@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { View, StyleSheet, ActivityIndicator, TouchableOpacity, Text } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 
 import { LanguageProvider, useLanguage } from './src/context/LanguageContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { RhythmProvider } from './src/context/RhythmContext';
 import { QRLoginScreen } from './src/screens/QRLoginScreen';
 import { ChildHomeScreen } from './src/screens/ChildHomeScreen';
@@ -13,8 +14,7 @@ import { AfternoonTouchScreen } from './src/screens/AfternoonTouchScreen';
 import { EveningTouchScreen } from './src/screens/EveningTouchScreen';
 import { ParentDashboardScreen } from './src/screens/ParentDashboardScreen';
 import { RoleSwitchScreen } from './src/screens/RoleSwitchScreen';
-import { THEME } from './src/constants/theme';
-import type { Role } from '@nhipnha/shared';
+import { AccessibleText } from './src/components/AccessibleText';
 
 type ScreenName =
   | 'QR_LOGIN'
@@ -26,29 +26,30 @@ type ScreenName =
   | 'ROLE_SWITCH';
 
 function NavigationRoot() {
-  const { isPaired, isLoading, member, switchRole } = useAuth();
+  const { isPaired, isLoading, member } = useAuth();
   const { activeLanguage } = useLanguage();
+  const { colors, isDark } = useTheme();
   const [currentScreen, setCurrentScreen] = useState<ScreenName | null>(null);
 
   const isVi = activeLanguage === 'vi';
 
   if (isLoading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={THEME.colors.morningBorder} />
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
-  // Not paired -> Show Zero-type QR login
+  // Not paired -> Show Zero-type QR / Family Code login
   if (!isPaired || currentScreen === 'QR_LOGIN') {
-    return <QRLoginScreen onSuccess={() => setCurrentScreen(null)} />;
+    return (
+      <View style={[styles.rootContainer, { backgroundColor: colors.background }]}>
+        <StatusBar style={isDark ? 'light' : 'dark'} backgroundColor={colors.background} />
+        <QRLoginScreen onSuccess={() => setCurrentScreen(null)} />
+      </View>
+    );
   }
-
-  const handleQuickRoleSelect = (role: Role, name: string) => {
-    switchRole(role, name);
-    setCurrentScreen(null);
-  };
 
   const renderMainContent = () => {
     if (currentScreen === 'MORNING_TOUCH') {
@@ -90,74 +91,55 @@ function NavigationRoot() {
     );
   };
 
+  const isHomeTab = currentScreen !== 'ROLE_SWITCH';
+
   return (
-    <View style={styles.rootContainer}>
+    <View style={[styles.rootContainer, { backgroundColor: colors.background }]}>
+      <StatusBar style={isDark ? 'light' : 'dark'} backgroundColor={colors.background} />
       <View style={styles.screenArea}>{renderMainContent()}</View>
 
-      {/* M3 Expressive Floating Generation & Settings Dock */}
-      <View style={styles.dockWrapper}>
-        <View style={[styles.dockBar, THEME.shadows.expressive]}>
+      {/* Material 3 Expressive Production Floating Navigation Bar */}
+      <View
+        style={[
+          styles.dockWrapper,
+          { backgroundColor: colors.background },
+        ]}
+      >
+        <View
+          style={[
+            styles.dockBar,
+            { backgroundColor: colors.surfaceContainerHigh },
+          ]}
+        >
           <TouchableOpacity
             activeOpacity={0.85}
-            onPress={() => handleQuickRoleSelect('CHILD', 'Bé An (8 tuổi)')}
+            onPress={() => setCurrentScreen(null)}
             style={[
               styles.dockItem,
-              member?.role === 'CHILD' && currentScreen !== 'ROLE_SWITCH' && styles.dockItemActiveMorning,
+              {
+                backgroundColor: isHomeTab ? colors.primaryContainer : 'transparent',
+                borderRadius: isHomeTab ? 999 : 20,
+              },
             ]}
             accessibilityRole="tab"
-            accessibilityState={{ selected: member?.role === 'CHILD' && currentScreen !== 'ROLE_SWITCH' }}
+            accessibilityState={{ selected: isHomeTab }}
           >
-            <Text style={styles.dockEmoji}>🧒</Text>
-            <Text
-              style={[
-                styles.dockLabel,
-                member?.role === 'CHILD' && currentScreen !== 'ROLE_SWITCH' && styles.dockLabelActiveMorning,
-              ]}
+            <AccessibleText variant="bodyLarge" style={styles.dockEmoji}>
+              {member?.role === 'PARENT' ? '📊' : '🏡'}
+            </AccessibleText>
+            <AccessibleText
+              variant="label"
+              weight="800"
+              color={isHomeTab ? colors.onPrimaryContainer : colors.textSecondary}
             >
-              {isVi ? 'Bé An' : 'Child'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={() => handleQuickRoleSelect('GRANDPARENT', 'Bà Nội Bảy (68 tuổi)')}
-            style={[
-              styles.dockItem,
-              member?.role === 'GRANDPARENT' && currentScreen !== 'ROLE_SWITCH' && styles.dockItemActiveEvening,
-            ]}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: member?.role === 'GRANDPARENT' && currentScreen !== 'ROLE_SWITCH' }}
-          >
-            <Text style={styles.dockEmoji}>👵</Text>
-            <Text
-              style={[
-                styles.dockLabel,
-                member?.role === 'GRANDPARENT' && currentScreen !== 'ROLE_SWITCH' && styles.dockLabelActiveEvening,
-              ]}
-            >
-              {isVi ? 'Bà Nội' : 'Elder'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={() => handleQuickRoleSelect('PARENT', 'Mẹ Hoa (Công nhân)')}
-            style={[
-              styles.dockItem,
-              member?.role === 'PARENT' && currentScreen !== 'ROLE_SWITCH' && styles.dockItemActiveAfternoon,
-            ]}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: member?.role === 'PARENT' && currentScreen !== 'ROLE_SWITCH' }}
-          >
-            <Text style={styles.dockEmoji}>👩‍🏭</Text>
-            <Text
-              style={[
-                styles.dockLabel,
-                member?.role === 'PARENT' && currentScreen !== 'ROLE_SWITCH' && styles.dockLabelActiveAfternoon,
-              ]}
-            >
-              {isVi ? 'Mẹ Hoa' : 'Parent'}
-            </Text>
+              {member?.role === 'PARENT'
+                ? isVi
+                  ? 'Nhịp gia đình'
+                  : 'Family Rhythm'
+                : isVi
+                ? 'Trang chính'
+                : 'Home'}
+            </AccessibleText>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -165,24 +147,37 @@ function NavigationRoot() {
             onPress={() => setCurrentScreen('ROLE_SWITCH')}
             style={[
               styles.dockItem,
-              currentScreen === 'ROLE_SWITCH' && styles.dockItemActiveNeutral,
+              {
+                backgroundColor: !isHomeTab ? colors.primaryContainer : 'transparent',
+                borderRadius: !isHomeTab ? 999 : 20,
+              },
             ]}
             accessibilityRole="tab"
-            accessibilityState={{ selected: currentScreen === 'ROLE_SWITCH' }}
+            accessibilityState={{ selected: !isHomeTab }}
           >
-            <Text style={styles.dockEmoji}>⚙️</Text>
-            <Text
-              style={[
-                styles.dockLabel,
-                currentScreen === 'ROLE_SWITCH' && styles.dockLabelActiveNeutral,
-              ]}
+            <AccessibleText variant="bodyLarge" style={styles.dockEmoji}>
+              ⚙️
+            </AccessibleText>
+            <AccessibleText
+              variant="label"
+              weight="800"
+              color={!isHomeTab ? colors.onPrimaryContainer : colors.textSecondary}
             >
-              {isVi ? 'Cài đặt' : 'Setup'}
-            </Text>
+              {isVi ? 'Cài đặt' : 'Settings'}
+            </AccessibleText>
           </TouchableOpacity>
         </View>
       </View>
     </View>
+  );
+}
+
+function ThemedSafeArea({ children }: { children: React.ReactNode }) {
+  const { colors } = useTheme();
+  return (
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
+      {children}
+    </SafeAreaView>
   );
 }
 
@@ -191,12 +186,13 @@ export default function App() {
     <SafeAreaProvider>
       <LanguageProvider>
         <AuthProvider>
-          <RhythmProvider>
-            <SafeAreaView style={styles.safeArea}>
-              <StatusBar style="dark" backgroundColor={THEME.colors.background} />
-              <NavigationRoot />
-            </SafeAreaView>
-          </RhythmProvider>
+          <ThemeProvider>
+            <RhythmProvider>
+              <ThemedSafeArea>
+                <NavigationRoot />
+              </ThemedSafeArea>
+            </RhythmProvider>
+          </ThemeProvider>
         </AuthProvider>
       </LanguageProvider>
     </SafeAreaProvider>
@@ -206,11 +202,9 @@ export default function App() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: THEME.colors.background,
   },
   rootContainer: {
     flex: 1,
-    backgroundColor: THEME.colors.background,
   },
   screenArea: {
     flex: 1,
@@ -219,74 +213,29 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: THEME.colors.background,
   },
   dockWrapper: {
-    paddingHorizontal: 14,
+    paddingHorizontal: 20,
     paddingBottom: 10,
     paddingTop: 6,
-    backgroundColor: THEME.colors.background,
-    borderTopWidth: 1,
-    borderTopColor: '#EDE4D9',
   },
   dockBar: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
     borderRadius: 999,
     padding: 5,
-    borderWidth: 2,
-    borderColor: '#E5DEC9',
     justifyContent: 'space-between',
+    gap: 6,
   },
   dockItem: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 6,
-    borderRadius: 999,
-    minHeight: 48,
-  },
-  dockItemActiveMorning: {
-    backgroundColor: '#FEF3C7',
-    borderWidth: 1.5,
-    borderColor: '#F59E0B',
-  },
-  dockItemActiveAfternoon: {
-    backgroundColor: '#FFEDD5',
-    borderWidth: 1.5,
-    borderColor: '#EA580C',
-  },
-  dockItemActiveEvening: {
-    backgroundColor: '#E0E7FF',
-    borderWidth: 1.5,
-    borderColor: '#4F46E5',
-  },
-  dockItemActiveNeutral: {
-    backgroundColor: '#F2EAE0',
-    borderWidth: 1.5,
-    borderColor: '#85736B',
+    paddingVertical: 11,
+    paddingHorizontal: 14,
+    minHeight: 50,
   },
   dockEmoji: {
-    fontSize: 18,
-    marginRight: 5,
-  },
-  dockLabel: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: THEME.colors.textSecondary,
-  },
-  dockLabelActiveMorning: {
-    color: '#78350F',
-  },
-  dockLabelActiveAfternoon: {
-    color: '#9A3412',
-  },
-  dockLabelActiveEvening: {
-    color: '#1E1B4B',
-  },
-  dockLabelActiveNeutral: {
-    color: '#1E1510',
+    marginRight: 8,
   },
 });

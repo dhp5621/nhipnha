@@ -30,12 +30,14 @@ export const checkIns = pgTable('check_ins', {
   memberId: varchar('member_id', { length: 64 })
     .notNull()
     .references(() => members.id, { onDelete: 'cascade' }),
+  memberName: varchar('member_name', { length: 128 }),
   rhythmType: varchar('rhythm_type', { length: 32 }).notNull(), // 'MORNING' | 'AFTERNOON' | 'EVENING'
   mood: varchar('mood', { length: 32 }), // 'JOYFUL' | 'CALM' | 'TIRED' | 'NEED_HUG'
   note: text('note'),
   voiceDurationSec: integer('voice_duration_sec').default(0),
   voiceUrl: text('voice_url'),
   waveform: jsonb('waveform'), // Simulated audio waveform values
+  attachment: jsonb('attachment'), // CreativeAttachment JSONB
   syncStatus: varchar('sync_status', { length: 32 }).default('SYNCED').notNull(), // 'SYNCED' | 'PENDING'
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
@@ -48,6 +50,7 @@ export const messages = pgTable('messages', {
   senderId: varchar('sender_id', { length: 64 })
     .notNull()
     .references(() => members.id, { onDelete: 'cascade' }),
+  senderName: varchar('sender_name', { length: 128 }),
   recipientId: varchar('recipient_id', { length: 64 }),
   rhythmType: varchar('rhythm_type', { length: 32 }).notNull(), // usually 'EVENING' or 'AFTERNOON'
   audioUrl: text('audio_url'),

@@ -2,6 +2,7 @@ import React from 'react';
 import { Text, TextProps, StyleSheet } from 'react-native';
 import { THEME } from '../constants/theme';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 
 interface AccessibleTextProps extends TextProps {
   variant?: 'display' | 'hero' | 'h1' | 'h2' | 'bodyLarge' | 'bodyRegular' | 'label' | 'caption';
@@ -13,22 +14,25 @@ interface AccessibleTextProps extends TextProps {
 export const AccessibleText: React.FC<AccessibleTextProps> = ({
   children,
   variant = 'bodyRegular',
-  color = THEME.colors.textDark,
+  color,
   weight = 'normal',
   center = false,
   style,
   ...props
 }) => {
-  // Automatically boost font sizes slightly when in GRANDPARENT mode for vision comfort
-  let isElderMode = false;
+  const { colors, getFontBoost } = useTheme();
+  const resolvedColor = color || colors.textDark;
+
+  let role: string | undefined;
   try {
     const auth = useAuth();
-    isElderMode = auth.member?.role === 'GRANDPARENT';
+    role = auth.member?.role;
   } catch {
     // Fallback if used outside AuthProvider
   }
 
-  const fontBoost = isElderMode ? 3 : 0;
+  const fontBoost = getFontBoost(role);
+  const labelBoost = Math.round(fontBoost * 0.6);
 
   const getStyleForVariant = () => {
     switch (variant) {
@@ -37,14 +41,14 @@ export const AccessibleText: React.FC<AccessibleTextProps> = ({
           fontSize: THEME.typography.display + fontBoost,
           lineHeight: THEME.typography.lineHeightDisplay + fontBoost,
           fontWeight: '900' as const,
-          letterSpacing: -0.6,
+          letterSpacing: -0.8,
         };
       case 'hero':
         return {
           fontSize: THEME.typography.hero + fontBoost,
           lineHeight: THEME.typography.lineHeightHero + fontBoost,
           fontWeight: '800' as const,
-          letterSpacing: -0.4,
+          letterSpacing: -0.5,
         };
       case 'h1':
         return {
@@ -68,23 +72,23 @@ export const AccessibleText: React.FC<AccessibleTextProps> = ({
         };
       case 'label':
         return {
-          fontSize: THEME.typography.label + (isElderMode ? 2 : 0),
-          lineHeight: 22 + (isElderMode ? 2 : 0),
+          fontSize: THEME.typography.label + labelBoost,
+          lineHeight: 20 + labelBoost,
           fontWeight: '700' as const,
           letterSpacing: 0.2,
         };
       case 'caption':
         return {
-          fontSize: THEME.typography.caption + (isElderMode ? 2 : 0),
-          lineHeight: 18 + (isElderMode ? 2 : 0),
-          fontWeight: '600' as const,
-          letterSpacing: 0.3,
+          fontSize: THEME.typography.caption + labelBoost,
+          lineHeight: 16 + labelBoost,
+          fontWeight: '700' as const,
+          letterSpacing: 0.4,
         };
       case 'bodyRegular':
       default:
         return {
           fontSize: THEME.typography.bodyRegular + fontBoost,
-          lineHeight: 25 + fontBoost,
+          lineHeight: 24 + fontBoost,
           fontWeight: '500' as const,
         };
     }
@@ -98,7 +102,7 @@ export const AccessibleText: React.FC<AccessibleTextProps> = ({
         styles.base,
         variantStyle,
         {
-          color,
+          color: resolvedColor,
           textAlign: center ? 'center' : 'left',
           fontWeight: weight !== 'normal' ? weight : variantStyle.fontWeight,
         },

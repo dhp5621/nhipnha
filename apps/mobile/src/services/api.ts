@@ -6,6 +6,7 @@ import type {
   Member,
   Message,
   QRPairingPayload,
+  Role,
   EmpathyAssistantResponse,
 } from '@nhipnha/shared';
 import { offlineStorage } from './offlineStorage';
@@ -15,85 +16,101 @@ export const API_BASE =
   (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_API_URL) ||
   'https://nhipnha.vercel.app/api';
 
+export interface FamilyTimelineResponse {
+  success: boolean;
+  family: Family | null;
+  members: Member[];
+  checkIns: CheckIn[];
+  messages: Message[];
+  rhythmScore: number;
+  timeline: Array<{
+    id: string;
+    type: 'MORNING' | 'AFTERNOON' | 'EVENING';
+    title: string;
+    timeWindow: string;
+    status: 'COMPLETED' | 'PENDING';
+    data: any;
+    extraReply?: any;
+    summary: string;
+  }>;
+}
+
 export const apiClient = {
-  // Zero-type QR Pairing
-  async pairWithQR(qrPayload: string | QRPairingPayload): Promise<{ family: Family; member: Member }> {
-    try {
-      const res = await fetch(`${API_BASE}/auth/qr-pair`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ qrPayload }),
-      });
-      const data = await res.json();
-      if (data.success && data.family && data.member) {
-        await offlineStorage.saveAuth(data.family, data.member);
-        return { family: data.family, member: data.member };
-      }
-      throw new Error(data.error || 'Ghép đôi thất bại');
-    } catch {
-      // Offline fallback: Generate local demo pairing
-      const fallbackFamily: Family = {
-        id: 'fam_dongthap_001',
-        name: 'Gia đình Bác Ba & Bé An',
-        code: 'NHIP-8868',
-        qrPayload: typeof qrPayload === 'string' ? qrPayload : JSON.stringify(qrPayload),
-        addressProvince: 'Đồng Tháp',
-        createdAt: new Date().toISOString(),
-      };
-      const fallbackMember: Member = {
-        id: 'mem_child_an',
-        familyId: fallbackFamily.id,
-        name: 'Bé An (Offline)',
-        role: 'CHILD',
-        createdAt: new Date().toISOString(),
-      };
-      await offlineStorage.saveAuth(fallbackFamily, fallbackMember);
-      return { family: fallbackFamily, member: fallbackMember };
+  // Zero-type QR Pairing against database
+  async pairWithQR(
+    qrPayload: string | QRPairingPayload,
+    memberRole?: Role,
+    memberName?: string
+  ): Promise<{ family: Family; member: Member }> {
+    const res = await fetch(`${API_BASE}/auth/qr-pair`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ qrPayload, memberRole, memberName }),
+    });
+    const data = await res.json();
+    if (data.success && data.family && data.member) {
+      await offlineStorage.saveAuth(data.family, data.member);
+      return { family: data.family, member: data.member };
     }
+    throw new Error(data.error || 'Không thể kết nối gia đình qua mã QR');
   },
 
-  // Pair by manual 4-digit code (e.g. NHIP-8868)
-  async pairWithCode(code: string, role: string, name: string): Promise<{ family: Family; member: Member }> {
-    try {
-      const res = await fetch(`${API_BASE}/auth/qr-pair`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, memberRole: role, memberName: name }),
-      });
-      const data = await res.json();
-      if (data.success && data.family && data.member) {
-        await offlineStorage.saveAuth(data.family, data.member);
-        return { family: data.family, member: data.member };
-      }
-      throw new Error(data.error || 'Ghép đôi mã thất bại');
-    } catch {
-      const fallbackFamily: Family = {
-        id: 'fam_dongthap_001',
-        name: 'Gia đình Bác Ba & Bé An',
-        code: code || 'NHIP-8868',
-        qrPayload: '',
-        addressProvince: 'Đồng Tháp',
-        createdAt: new Date().toISOString(),
-      };
-      const fallbackMember: Member = {
-        id: `mem_${Date.now()}`,
-        familyId: fallbackFamily.id,
-        name: name || 'Bé An',
-        role: (role as any) || 'CHILD',
-        createdAt: new Date().toISOString(),
-      };
-      await offlineStorage.saveAuth(fallbackFamily, fallbackMember);
-      return { family: fallbackFamily, member: fallbackMember };
+  // Pair by family code (e.g. NHIP-8868 or user's created code) against database
+  async pairWithCode(
+    code: string,
+    role: Role,
+    name: string
+  ): Promise<{ family: Family; member: Member }> {
+    const res = await fetch(`${API_BASE}/auth/qr-pair`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: code.trim().toUpperCase(), memberRole: role, memberName: name }),
+    });
+    const data = await res.json();
+    if (data.success && data.family && data.member) {
+      await offlineStorage.saveAuth(data.family, data.member);
+      return { family: data.family, member: data.member };
     }
+    throw new Error(data.error || 'Mã gia đình không tồn tại hoặc không hợp lệ');
+  },
+
+  // Create a new family in the database
+  async createFamily(
+    familyName: string,
+    addressProvince: string,
+    memberRole: Role,
+    memberName: string
+  ): Promise<{ family: Family; member: Member }> {
+    const res = await fetch(`${API_BASE}/auth/qr-pair`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'generate',
+        familyName,
+        addressProvince,
+        memberRole,
+        memberName,
+      }),
+    });
+    const data = await res.json();
+    if (data.success && data.family && data.member) {
+      await offlineStorage.saveAuth(data.family, data.member);
+      return { family: data.family, member: data.member };
+    }
+    throw new Error(data.error || 'Không thể tạo không gian gia đình mới');
   },
 
   // Record CheckIn (Morning, Afternoon, Evening) - with offline queuing
   async submitCheckIn(checkIn: Partial<CheckIn>): Promise<CheckIn> {
+    if (!checkIn.familyId) {
+      throw new Error('Missing familyId for check-in');
+    }
+
     const fullCheckIn: CheckIn = {
       id: checkIn.id || `chk_${Date.now()}`,
-      familyId: checkIn.familyId || 'fam_dongthap_001',
-      memberId: checkIn.memberId || 'mem_child_an',
-      memberName: checkIn.memberName || 'Bé An',
+      familyId: checkIn.familyId,
+      memberId: checkIn.memberId || `mem_${Date.now()}`,
+      memberName: checkIn.memberName || 'Thành viên',
       rhythmType: checkIn.rhythmType || 'MORNING',
       mood: checkIn.mood,
       note: checkIn.note,
@@ -116,14 +133,15 @@ export const apiClient = {
         return data.data;
       }
     } catch {
-      // Offline-first: save into local queue for deferred upload
+      // Offline-first: save into local queue for deferred upload when network returns
+      fullCheckIn.syncStatus = 'PENDING';
       await offlineStorage.enqueueOfflineCheckIn(fullCheckIn);
     }
 
     return fullCheckIn;
   },
 
-  // Sync pending offline queue
+  // Sync pending offline queue to server database
   async syncOfflineQueue(): Promise<number> {
     const queue = await offlineStorage.getOfflineQueue();
     if (queue.length === 0) return 0;
@@ -145,53 +163,26 @@ export const apiClient = {
     return 0;
   },
 
-  // Get Family Timeline
-  async getFamilyTimeline(familyId: string) {
-    try {
-      const res = await fetch(`${API_BASE}/family/timeline?familyId=${familyId}`);
-      const data = await res.json();
-      if (data.success) return data;
-    } catch {
-      // Mock fallback
+  // Get Family Timeline & database check-ins/messages
+  async getFamilyTimeline(familyId: string): Promise<FamilyTimelineResponse> {
+    const res = await fetch(
+      `${API_BASE}/family/timeline?familyId=${encodeURIComponent(familyId)}`
+    );
+    const data = await res.json();
+    if (data.success) {
+      return data as FamilyTimelineResponse;
     }
-    return {
-      success: true,
-      timeline: [
-        {
-          id: 'morning_slot',
-          type: 'MORNING',
-          title: 'Nhịp Sáng – Tiếng chuông & Hộp thư thoại',
-          timeWindow: '06:30 - 07:15',
-          status: 'COMPLETED',
-          summary: 'Bé đã gửi lời chào sáng lúc 06:45: "Con chuẩn bị đi học đây ạ!"',
-        },
-        {
-          id: 'afternoon_slot',
-          type: 'AFTERNOON',
-          title: 'Nhịp Chiều – Nhật ký tương tác 15s',
-          timeWindow: '17:00 - 18:30',
-          status: 'COMPLETED',
-          summary: 'Tâm trạng: Vui vẻ 😄 • Voice: 14s • Nét vẽ hoa sen hồng',
-        },
-        {
-          id: 'evening_slot',
-          type: 'EVENING',
-          title: 'Nhịp Tối – Hộp thư thoại chúc ngủ ngon',
-          timeWindow: '20:30 - 21:00',
-          status: 'PENDING',
-          summary: 'Đang đợi ba mẹ gửi lời chúc ngủ ngon qua hộp thư thoại',
-        },
-      ],
-    };
+    throw new Error(data.error || 'Failed to load family timeline');
   },
 
-  // AI Empathy Assistant: Summarizes child's day & generates non-academic empathy prompts
+  // AI Empathy Assistant: Server-side call to generate non-academic empathy prompts
   async getEmpathySuggestions(
     mood: string,
     childMessage?: string,
     attachmentTitle?: string,
-    language: 'vi' | 'en' = 'vi'
-  ): Promise<EmpathyAssistantResponse> {
+    language: 'vi' | 'en' = 'vi',
+    childName?: string
+  ): Promise<EmpathyAssistantResponse | null> {
     try {
       const res = await fetch(`${API_BASE}/ai/empathy-assistant`, {
         method: 'POST',
@@ -199,7 +190,7 @@ export const apiClient = {
         body: JSON.stringify({
           mood,
           childMessage,
-          childName: 'Bé An',
+          childName,
           attachmentTitle,
           language,
         }),
@@ -208,46 +199,43 @@ export const apiClient = {
       if (data.success && data.data) {
         return data.data;
       }
-    } catch {
-      // Fallback
+    } catch (e) {
+      console.warn('Empathy AI fetch error:', e);
     }
-
-    return {
-      summary: 'Bé An hôm nay có nhiều chuyện vui ở lớp học, được cô giáo khen vẽ hoa sen và ăn cơm ngon cùng bà.',
-      keywords: ['#VẽHoaSen', '#ĐượcCôKhen', '#CanhChuaBàNấu', '#MongCuốiTuần'],
-      suggestedPrompts: [
-        'Hôm nay ở trường có chuyện gì làm con cười nhiều nhất thế?',
-        'Bức tranh hoa sen hồng con vẽ có mấy cánh thế, kể mẹ nghe với!',
-        'Bà nấu món canh chua gì cho An ăn chiều thế? Mẹ nhớ con nhiều lắm!',
-      ],
-      toneExplanation: 'Khuyến khích trò chuyện thấu cảm, tránh hoàn toàn câu hỏi gây áp lực điểm số.',
-      cvInsight: 'Màu hồng ấm & vàng tươi — Tín hiệu thị giác tích cực, giàu tình cảm hướng về gia đình.',
-    };
+    return null;
   },
 
-  // Send Bedtime Message from Parent
+  // Send Bedtime Message from Parent to database
   async sendBedtimeMessage(message: Partial<Message>): Promise<Message> {
+    if (!message.familyId) {
+      throw new Error('Missing familyId for bedtime message');
+    }
+    const res = await fetch(`${API_BASE}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(message),
+    });
+    const data = await res.json();
+    if (data.success && data.data) {
+      return data.data;
+    }
+    throw new Error(data.error || 'Không thể gửi tin nhắn chúc ngủ ngon');
+  },
+
+  // Mark Evening Message as listened in database
+  async markMessageListened(familyId: string, messageId: string): Promise<void> {
     try {
-      const res = await fetch(`${API_BASE}/messages`, {
+      await fetch(`${API_BASE}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(message),
+        body: JSON.stringify({
+          action: 'mark_listened',
+          familyId,
+          messageId,
+        }),
       });
-      const data = await res.json();
-      if (data.success && data.data) return data.data;
     } catch {
-      // Fallback
+      // Ignore network error on read receipt
     }
-
-    return {
-      id: `msg_${Date.now()}`,
-      familyId: message.familyId || 'fam_dongthap_001',
-      senderId: message.senderId || 'mem_parent_hoa',
-      senderName: message.senderName || 'Mẹ Hoa',
-      rhythmType: 'EVENING',
-      durationSec: message.durationSec || 20,
-      transcription: message.transcription || 'Mẹ chúc con yêu ngủ thật ngon nhé!',
-      createdAt: new Date().toISOString(),
-    };
   },
 };

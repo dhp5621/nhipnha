@@ -4,26 +4,49 @@
     "slug": "nhip-nha",
     "version": "1.0.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
     "splash": {
-      "backgroundColor": "#FFFBEB",
+      "image": "./assets/icon.png",
+      "backgroundColor": "#FCF6EE",
       "resizeMode": "contain"
     },
     "web": {
-      "bundler": "metro"
+      "bundler": "metro",
+      "favicon": "./assets/icon.png"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.nhipnha.app",
+      "bundleIdentifier": "dhp.sunlit.tulip.nhipnha",
+      "icon": "./assets/icon.png",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Nhịp Nhà cần quyền máy ảnh để quét mã QR gia đình và chụp ảnh chia sẻ trong Nhật ký 15 giây.",
+        "NSMicrophoneUsageDescription": "Nhịp Nhà cần quyền micro để ghi âm lời chào buổi sáng và Nhật ký giọng nói 15 giây gửi cho gia đình.",
+        "NSPhotoLibraryUsageDescription": "Nhịp Nhà cần quyền thư viện ảnh để đính kèm hình vẽ hoặc bức ảnh trong ngày."
+      },
       "splash": {
-        "backgroundColor": "#FFFBEB"
+        "image": "./assets/icon.png",
+        "backgroundColor": "#FCF6EE",
+        "resizeMode": "contain"
       }
     },
     "android": {
-      "package": "com.nhipnha.app",
+      "package": "dhp.sunlit.tulip.nhipnha",
       "versionCode": 1,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.VIBRATE"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#DF5018"
+      },
       "splash": {
-        "backgroundColor": "#FFFBEB",
+        "image": "./assets/icon.png",
+        "backgroundColor": "#FCF6EE",
         "resizeMode": "contain"
       }
     },

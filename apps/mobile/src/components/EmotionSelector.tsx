@@ -2,6 +2,7 @@ import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { EMOTIONS, type MoodType, type EmotionOption } from '@nhipnha/shared';
 import { useLanguage } from '../context/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
 import { THEME } from '../constants/theme';
 
 interface EmotionSelectorProps {
@@ -13,7 +14,8 @@ export const EmotionSelector: React.FC<EmotionSelectorProps> = ({
   selectedMood,
   onSelectMood,
 }) => {
-  const { t, activeLanguage } = useLanguage();
+  const { t } = useLanguage();
+  const { colors, isDark } = useTheme();
 
   const getLocalizedEmotion = (item: EmotionOption) => {
     switch (item.id) {
@@ -35,6 +37,11 @@ export const EmotionSelector: React.FC<EmotionSelectorProps> = ({
       {EMOTIONS.map((item: EmotionOption) => {
         const isSelected = selectedMood === item.id;
         const localized = getLocalizedEmotion(item);
+
+        const activeBg = isDark ? colors.surfaceContainerHighest : item.colorBg;
+        const inactiveBg = colors.surfaceContainerLow;
+        const textColor = isSelected && !isDark ? item.colorText : colors.textDark;
+
         return (
           <TouchableOpacity
             key={item.id}
@@ -42,25 +49,30 @@ export const EmotionSelector: React.FC<EmotionSelectorProps> = ({
             onPress={() => onSelectMood(item.id)}
             style={[
               styles.card,
-              THEME.shadows.card,
               {
-                backgroundColor: isSelected ? item.colorBg : '#FFFFFF',
-                borderColor: isSelected ? item.colorBorder : '#E6DFD7',
-                borderWidth: isSelected ? 3 : 2,
-                borderBottomWidth: isSelected ? 6 : 3,
-                transform: [{ scale: isSelected ? 1.02 : 1 }],
+                backgroundColor: isSelected ? activeBg : inactiveBg,
+                borderColor: isSelected ? item.colorBorder : 'transparent',
+                borderWidth: isSelected ? 2.5 : 0,
+                // M3 Expressive Shape Morphing: Selected card gets a distinct expressive radius
+                borderRadius: isSelected ? 34 : 24,
               },
             ]}
             accessibilityRole="radio"
             accessibilityState={{ selected: isSelected }}
             accessibilityLabel={`${localized.label}, ${localized.sublabel}`}
           >
-            {/* Top Selection Indicator */}
             <View style={styles.cardTopRow}>
               <View
                 style={[
                   styles.emojiCircle,
-                  { backgroundColor: isSelected ? '#FFFFFF' : item.colorBg },
+                  {
+                    backgroundColor: isSelected
+                      ? isDark
+                        ? colors.surfaceContainerLow
+                        : '#FFFFFF'
+                      : colors.surfaceContainerHigh,
+                    borderRadius: isSelected ? 999 : 18,
+                  },
                 ]}
               >
                 <Text style={styles.emoji}>{item.emoji}</Text>
@@ -70,27 +82,25 @@ export const EmotionSelector: React.FC<EmotionSelectorProps> = ({
                   styles.radioCircle,
                   isSelected
                     ? { backgroundColor: item.colorBorder, borderColor: item.colorBorder }
-                    : { backgroundColor: '#F8F2EA', borderColor: '#CFC5BA' },
+                    : { backgroundColor: 'transparent', borderColor: colors.outlineVariant },
                 ]}
               >
                 {isSelected && <Text style={styles.radioCheck}>✓</Text>}
               </View>
             </View>
 
-            <Text style={[styles.label, { color: item.colorText }]} numberOfLines={1}>
+            <Text style={[styles.label, { color: textColor }]} numberOfLines={1}>
               {localized.label}
             </Text>
-            <Text style={[styles.sublabel, { color: item.colorText }]} numberOfLines={2}>
+            <Text
+              style={[
+                styles.sublabel,
+                { color: isSelected && !isDark ? item.colorText : colors.textSecondary },
+              ]}
+              numberOfLines={2}
+            >
               {localized.sublabel}
             </Text>
-
-            {isSelected && (
-              <View style={[styles.selectedPill, { backgroundColor: item.colorBorder }]}>
-                <Text style={styles.selectedPillText}>
-                  {activeLanguage === 'vi' ? 'Đang chọn' : 'Selected'}
-                </Text>
-              </View>
-            )}
           </TouchableOpacity>
         );
       })}
@@ -108,11 +118,10 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '48.2%',
-    borderRadius: THEME.borderRadius.card,
     paddingVertical: 16,
     paddingHorizontal: 14,
-    marginBottom: 14,
-    minHeight: 150,
+    marginBottom: 12,
+    minHeight: 142,
     justifyContent: 'space-between',
   },
   cardTopRow: {
@@ -123,18 +132,17 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   emojiCircle: {
-    width: 58,
-    height: 58,
-    borderRadius: 22,
+    width: 54,
+    height: 54,
     justifyContent: 'center',
     alignItems: 'center',
   },
   emoji: {
-    fontSize: 34,
+    fontSize: 30,
   },
   radioCircle: {
-    width: 28,
-    height: 28,
+    width: 26,
+    height: 26,
     borderRadius: 999,
     borderWidth: 2,
     justifyContent: 'center',
@@ -142,7 +150,7 @@ const styles = StyleSheet.create({
   },
   radioCheck: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '900',
   },
   label: {
@@ -156,19 +164,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'left',
     marginTop: 2,
-    opacity: 0.9,
-    lineHeight: 20,
-  },
-  selectedPill: {
-    alignSelf: 'flex-start',
-    marginTop: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 999,
-  },
-  selectedPillText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '800',
+    lineHeight: 19,
   },
 });

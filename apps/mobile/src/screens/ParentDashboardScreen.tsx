@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, Image } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { useRhythm } from '../context/RhythmContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
+import { permissionService } from '../services/permissions';
 import { apiClient } from '../services/api';
 import { EmpathyPromptCard } from '../components/EmpathyPromptCard';
 import { AudioWaveform } from '../components/AudioWaveform';
 import { BigButton } from '../components/BigButton';
 import { AccessibleText } from '../components/AccessibleText';
-import { THEME } from '../constants/theme';
-import { CREATIVE_ATTACHMENTS, type EmpathyAssistantResponse } from '@nhipnha/shared';
+import type { EmpathyAssistantResponse } from '@nhipnha/shared';
 
 interface ParentDashboardScreenProps {
   onNavigateToSwitch: () => void;
@@ -19,8 +20,9 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
   onNavigateToSwitch,
 }) => {
   const { family, member } = useAuth();
-  const { state } = useRhythm();
+  const { state, refreshRhythm } = useRhythm();
   const { t, activeLanguage, setLanguagePreference } = useLanguage();
+  const { colors, isDark, toggleTheme } = useTheme();
 
   const [aiData, setAiData] = useState<EmpathyAssistantResponse | null>(null);
   const [selectedPrompt, setSelectedPrompt] = useState<string>('');
@@ -29,27 +31,41 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
   const [sentMessage, setSentMessage] = useState(false);
 
   const isVi = activeLanguage === 'vi';
-  const activeAttachment = state.afternoonAttachment || CREATIVE_ATTACHMENTS[0];
+  const activeAttachment = state.afternoonAttachment;
+  const hasDiaryToday = state.afternoonCompleted;
+  const completedRhythmsCount =
+    (state.morningCompleted ? 1 : 0) +
+    (state.afternoonCompleted ? 1 : 0) +
+    (!!state.eveningMessageText || sentMessage ? 1 : 0);
 
   useEffect(() => {
     async function fetchAiInsights() {
+      if (!hasDiaryToday) {
+        setAiData(null);
+        return;
+      }
       const mood = state.afternoonMood || 'JOYFUL';
-      const attachTitle = isVi ? activeAttachment.titleVi : activeAttachment.titleEn;
+      const attachTitle = activeAttachment
+        ? isVi
+          ? activeAttachment.titleVi
+          : activeAttachment.titleEn
+        : undefined;
       const insights = await apiClient.getEmpathySuggestions(
         mood,
-        undefined,
+        state.afternoonNote,
         attachTitle,
         activeLanguage
       );
-      setAiData(insights);
-      if (insights.suggestedPrompts.length > 0) {
-        setSelectedPrompt(insights.suggestedPrompts[0]);
+      if (insights) {
+        setAiData(insights);
+        if (insights.suggestedPrompts.length > 0) {
+          setSelectedPrompt(insights.suggestedPrompts[0]);
+        }
       }
     }
     fetchAiInsights();
-  }, [state.afternoonMood, activeAttachment, activeLanguage]);
+  }, [state.afternoonMood, state.afternoonNote, activeAttachment, activeLanguage, hasDiaryToday, isVi]);
 
-  // 30-second recording countdown
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
     if (isRecording30s && durationLeft > 0) {
@@ -66,380 +82,428 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
     return () => clearInterval(interval);
   }, [isRecording30s, durationLeft]);
 
-  const handleStartRecording = () => {
+  const handleStartRecording = async () => {
+    const granted = await permissionService.requestPermission('microphone', isVi);
+    if (!granted) return;
+
     setIsRecording30s(true);
     setDurationLeft(30);
   };
 
   const handleSendBedtimeVoice = async () => {
     setIsRecording30s(false);
-    await apiClient.sendBedtimeMessage({
-      familyId: family?.id || 'fam_dongthap_001',
-      senderName: member?.name || 'Mẹ Hoa',
-      transcription: selectedPrompt || 'Con yêu ngủ ngoan nhé, mẹ thương con nhiều!',
-      durationSec: 30 - durationLeft || 25,
-    });
-    setSentMessage(true);
-    Alert.alert(t('quick30sTitle'), t('sentBedtimeSuccess'));
-  };
-
-  const toggleQuickLang = () => {
-    setLanguagePreference(activeLanguage === 'vi' ? 'en' : 'vi');
-  };
-
-  const getMoodBadge = () => {
-    switch (state.afternoonMood) {
-      case 'CALM':
-        return { emoji: '⛅', label: t('moodCalm'), bg: '#E0F2FE', color: '#075985' };
-      case 'TIRED':
-        return { emoji: '🌧️', label: t('moodTired'), bg: '#F3F4F6', color: '#374151' };
-      case 'NEED_HUG':
-        return { emoji: '🫂', label: t('moodNeedHug'), bg: '#FCE7F3', color: '#9D174D' };
-      case 'JOYFUL':
-      default:
-        return { emoji: '😄', label: t('moodJoyful'), bg: '#FEF3C7', color: '#92400E' };
+    if (!family?.id) return;
+    try {
+      await apiClient.sendBedtimeMessage({
+        familyId: family.id,
+        senderId: member?.id,
+        senderName: member?.name || 'Bố / Mẹ',
+        transcription: selectedPrompt || 'Con yêu ngủ ngoan nhé, bố mẹ thương con nhiều!',
+        durationSec: 30 - durationLeft || 25,
+      });
+      setSentMessage(true);
+      await refreshRhythm();
+      Alert.alert(t('quick30sTitle'), t('sentBedtimeSuccess'));
+    } catch (err: any) {
+      Alert.alert('Lỗi', err?.message || 'Không thể gửi tin nhắn chúc ngủ ngon');
     }
   };
 
-  const moodInfo = getMoodBadge();
+  const getMoodLabel = () => {
+    if (!state.afternoonMood) {
+      return isVi ? 'Chưa điểm danh chiều nay' : 'No afternoon check-in yet';
+    }
+    switch (state.afternoonMood) {
+      case 'CALM':
+        return `⛅ ${t('moodCalm')}`;
+      case 'TIRED':
+        return `🌧️ ${t('moodTired')}`;
+      case 'NEED_HUG':
+        return `🫂 ${t('moodNeedHug')}`;
+      case 'JOYFUL':
+      default:
+        return `😄 ${t('moodJoyful')}`;
+    }
+  };
 
-  const keywords =
-    aiData?.keywords && aiData.keywords.length > 0
-      ? aiData.keywords
-      : isVi
-      ? ['#VẽHoaSen', '#ĐượcCôKhen', '#CanhChuaBàNấu', '#MongCuốiTuần']
-      : ['#LotusDoodle', '#PraisedByTeacher', '#GrandmaSoup', '#WaitingForWeekend'];
+  const keywords = aiData?.keywords || [];
 
   return (
-    <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-      {/* M3 Expressive Parent Hero Card */}
-      <View style={[styles.parentBanner, THEME.shadows.expressive]}>
-        <View style={styles.bannerTopRow}>
-          <View style={styles.avatarCircle}>
-            <AccessibleText variant="h1">👩‍🏭</AccessibleText>
-          </View>
-          <View style={styles.bannerTextCol}>
-            <View style={styles.sdgRow}>
-              <View style={styles.sdgPill}>
-                <AccessibleText variant="caption" color="#9A3412" weight="900">
-                  {isVi ? 'BƯỚC CHÂN NHỎ • CHA MẸ XA NHÀ' : 'LITTLE FOOTSTEPS • MIGRANT PARENT'}
-                </AccessibleText>
-              </View>
-            </View>
-            <AccessibleText variant="h1" color="#431407" weight="900">
-              {t('parentDashboardTitle')}
+    <ScrollView
+      style={{ backgroundColor: colors.background }}
+      contentContainerStyle={styles.container}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Top Bar */}
+      <View style={styles.topBar}>
+        <View style={styles.brandRow}>
+          <Image
+            source={require('../../assets/icon.png')}
+            style={styles.miniIcon}
+          />
+          <View style={{ flex: 1 }}>
+            <AccessibleText variant="h2" weight="900" numberOfLines={1}>
+              {family?.name || t('appName')}
             </AccessibleText>
-            <AccessibleText variant="label" color="#7C2D12" weight="600">
-              {t('parentSubtitle')}
+            <AccessibleText variant="caption" color={colors.textSecondary}>
+              {member?.name} • {family?.code}
             </AccessibleText>
           </View>
+        </View>
 
-          <TouchableOpacity onPress={toggleQuickLang} style={styles.langPill}>
-            <AccessibleText variant="label" weight="800" color="#9A3412">
-              {isVi ? '🇻🇳 VI' : '🇬🇧 EN'}
+        <View style={styles.topActions}>
+          <TouchableOpacity
+            onPress={toggleTheme}
+            style={[styles.iconChip, { backgroundColor: colors.surfaceContainerHigh }]}
+          >
+            <AccessibleText variant="label">{isDark ? '🌙' : '☀️'}</AccessibleText>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => setLanguagePreference(isVi ? 'en' : 'vi')}
+            style={[styles.iconChip, { backgroundColor: colors.surfaceContainerHigh }]}
+          >
+            <AccessibleText variant="caption" weight="900" color={colors.primary}>
+              {isVi ? 'VI' : 'EN'}
             </AccessibleText>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* 1. DAILY 3-RHYTHM STEPPER TIMELINE */}
-      <View style={[styles.card, THEME.shadows.card]}>
-        <View style={styles.cardHeaderRow}>
-          <AccessibleText variant="h2" weight="900" color={THEME.colors.textDark}>
-            📅 {t('timelineTitle')}
-          </AccessibleText>
-          <View style={styles.liveTag}>
-            <AccessibleText variant="caption" color="#15803D" weight="800">
-              ● {isVi ? 'Đồng bộ hộp thư' : 'Mailbox Synced'}
-            </AccessibleText>
-          </View>
-        </View>
-
-        {/* Stepper Node 1: Morning (06:30 - 07:15) */}
-        <View style={styles.timelineRow}>
-          <View style={styles.timelineLeftCol}>
-            <View style={[styles.nodeCircle, { backgroundColor: '#FEF3C7', borderColor: '#F59E0B' }]}>
-              <AccessibleText variant="bodyLarge">☀️</AccessibleText>
-            </View>
-            <View style={styles.verticalConnector} />
-          </View>
-          <View style={[styles.timelineBubble, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}>
-            <View style={styles.bubbleTopRow}>
-              <AccessibleText variant="bodyLarge" weight="800" color="#78350F">
-                {t('morningTitle')}
-              </AccessibleText>
-              <AccessibleText variant="caption" color="#B45309" weight="800">
-                {state.morningTime || '06:45'}
-              </AccessibleText>
-            </View>
-            <AccessibleText variant="bodyRegular" color="#92400E" style={{ marginTop: 2 }}>
-              {t('morningAlreadyDone')} — “{t('morningQuote')}”
-            </AccessibleText>
-          </View>
-        </View>
-
-        {/* Stepper Node 2: Afternoon (17:00 - 18:30) */}
-        <View style={styles.timelineRow}>
-          <View style={styles.timelineLeftCol}>
-            <View style={[styles.nodeCircle, { backgroundColor: '#FFEDD5', borderColor: '#EA580C' }]}>
-              <AccessibleText variant="bodyLarge">🎒</AccessibleText>
-            </View>
-            <View style={styles.verticalConnector} />
-          </View>
-          <View style={[styles.timelineBubble, { backgroundColor: '#FFF7ED', borderColor: '#FED7AA' }]}>
-            <View style={styles.bubbleTopRow}>
-              <AccessibleText variant="bodyLarge" weight="800" color="#7C2D12">
-                {t('afternoonTitle')}
-              </AccessibleText>
-              <AccessibleText variant="caption" color="#C2410C" weight="800">
-                {state.afternoonTime || '17:20'}
-              </AccessibleText>
-            </View>
-            <View style={styles.chipsWrapRow}>
-              <View style={[styles.moodChipInline, { backgroundColor: moodInfo.bg }]}>
-                <AccessibleText variant="caption" weight="800" color={moodInfo.color}>
-                  {moodInfo.emoji} {moodInfo.label} • 🎙️ {state.afternoonVoiceDuration || 14}s
-                </AccessibleText>
-              </View>
-              <View style={styles.attachmentChipInline}>
-                <AccessibleText variant="caption" weight="800" color="#9A3412">
-                  {activeAttachment.emoji} {isVi ? activeAttachment.titleVi : activeAttachment.titleEn}
-                </AccessibleText>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* Stepper Node 3: Evening (20:30 - 21:00) */}
-        <View style={styles.timelineRow}>
-          <View style={styles.timelineLeftCol}>
-            <View style={[styles.nodeCircle, { backgroundColor: '#E0E7FF', borderColor: '#4F46E5' }]}>
-              <AccessibleText variant="bodyLarge">🌙</AccessibleText>
-            </View>
-          </View>
-          <View style={[styles.timelineBubble, { backgroundColor: '#EEF2FF', borderColor: '#C7D2FE' }]}>
-            <View style={styles.bubbleTopRow}>
-              <AccessibleText variant="bodyLarge" weight="800" color="#1E1B4B">
-                {t('eveningTitle')}
-              </AccessibleText>
-              <AccessibleText variant="caption" color="#4338CA" weight="800">
-                {t('eveningTimeWindow')}
-              </AccessibleText>
-            </View>
-            <AccessibleText variant="bodyRegular" color="#3730A3" style={{ marginTop: 2 }}>
-              {sentMessage ? `✓ ${t('sentBedtimeSuccess')}` : t('eveningSubtitle')}
-            </AccessibleText>
-          </View>
-        </View>
-      </View>
-
-      {/* 2. AI EMPATHY ASSISTANT (Section 5.1, 5.3, 5.4: NLP, CV, Human-Centered AI) */}
-      <View style={[styles.card, styles.aiCard, THEME.shadows.card]}>
-        <View style={styles.aiHeader}>
-          <View style={styles.aiTitleRow}>
-            <View style={styles.aiIconCircle}>
-              <AccessibleText variant="h2">🌿</AccessibleText>
-            </View>
-            <View style={{ flex: 1 }}>
-              <AccessibleText variant="h2" weight="900" color="#052E16">
-                {t('aiAssistantTitle')}
-              </AccessibleText>
-              <AccessibleText variant="caption" color="#15803D" weight="800">
-                {t('aiLevelBadge')}
-              </AccessibleText>
-            </View>
-          </View>
-        </View>
-
-        <AccessibleText variant="bodyRegular" color="#14532D" weight="600" style={styles.aiExplanation}>
-          💡 {t('aiAssistantDesc')}
+      {/* Editorial Parent Header */}
+      <View style={{ marginBottom: 16 }}>
+        <AccessibleText variant="display" weight="900">
+          {t('parentDashboardTitle')}
         </AccessibleText>
-
-        {/* Keywords Chips (Section 5.1: AI tóm tắt thành các từ khóa) */}
-        <View style={styles.keywordSection}>
-          <AccessibleText variant="caption" color="#166534" weight="800">
-            {t('aiKeywordsLabel')}
-          </AccessibleText>
-          <View style={styles.keywordRow}>
-            {keywords.map((kw, i) => (
-              <View key={i} style={styles.keywordPill}>
-                <AccessibleText variant="caption" color="#14532D" weight="800">
-                  {kw}
-                </AccessibleText>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        {/* AI Summary Quote Box */}
-        <View style={styles.summaryBox}>
-          <AccessibleText variant="caption" color="#15803D" weight="800">
-            {isVi ? 'BẢN TÓM TẮT NHẬT KÝ 15 GIÂY CỦA CON:' : "CHILD'S 15S DIARY SUMMARY:"}
-          </AccessibleText>
-          <AccessibleText variant="bodyLarge" color="#1E293B" weight="700" style={{ marginTop: 4 }}>
-            {aiData?.summary ||
-              'Bé An có một ngày vui vẻ tại trường, được cô giáo khen vẽ hoa sen và ăn cơm ngon cùng bà.'}
-          </AccessibleText>
-        </View>
-
-        {/* Computer Vision Non-Diagnostic Signal Box (Section 5.3) */}
-        <View style={styles.cvBox}>
-          <View style={styles.cvHeaderRow}>
-            <AccessibleText variant="label" color="#9A3412" weight="800">
-              {t('cvSignalTitle')}
-            </AccessibleText>
-          </View>
-          <AccessibleText variant="bodyRegular" color="#7C2D12" weight="600" style={{ marginTop: 4 }}>
-            {activeAttachment.emoji}{' '}
-            {aiData?.cvInsight || (isVi ? activeAttachment.cvSignalVi : activeAttachment.cvSignalEn)}
-          </AccessibleText>
-        </View>
-
-        {/* Human-Centered AI Safeguard Banner (Section 5.4) */}
-        <View style={styles.humanSafeguardBox}>
-          <AccessibleText variant="caption" color="#166534" weight="700">
-            🛡️ {t('aiHumanCenteredNote')}
-          </AccessibleText>
-        </View>
-
-        <AccessibleText variant="bodyLarge" weight="800" color="#052E16" style={{ marginTop: 12, marginBottom: 4 }}>
-          👇 {t('aiPromptPick')}
+        <AccessibleText variant="bodyRegular" color={colors.textSecondary} style={{ marginTop: 4 }}>
+          {t('parentSubtitle')}
         </AccessibleText>
-
-        {aiData?.suggestedPrompts.map((prompt, index) => (
-          <EmpathyPromptCard
-            key={index}
-            index={index}
-            prompt={prompt}
-            isSelected={selectedPrompt === prompt}
-            onSelectPrompt={(p) => setSelectedPrompt(p)}
-          />
-        ))}
       </View>
 
-      {/* 3. ASYNC VOICE MAILBOX & MORNING BELL SCHEDULER */}
-      <View style={[styles.card, styles.voiceCard, THEME.shadows.expressive]}>
-        <View style={styles.voiceHeaderRow}>
-          <View style={styles.voiceIconCircle}>
-            <AccessibleText variant="h2">🎙️</AccessibleText>
-          </View>
-          <View style={{ flex: 1 }}>
-            <AccessibleText variant="h2" weight="900" color="#1E1B4B">
-              {t('quick30sTitle')}
-            </AccessibleText>
-            <AccessibleText variant="bodyRegular" color="#3730A3" style={{ marginTop: 2 }}>
-              {t('quick30sDesc')}
-            </AccessibleText>
+      {/* M3 Expressive Grouped Asymmetric Stack */}
+      <View style={styles.groupedStack}>
+        {/* CARD 1: 3-Rhythm Daily Summary */}
+        <View
+          style={[
+            styles.stackTop,
+            { backgroundColor: colors.surfaceContainerLow },
+          ]}
+        >
+          <AccessibleText variant="h2" weight="800" style={{ marginBottom: 12 }}>
+            {t('timelineTitle')}
+          </AccessibleText>
+
+          <View style={styles.rhythmRow}>
+            <View
+              style={[
+                styles.rhythmPill,
+                { backgroundColor: colors.morningSurface },
+              ]}
+            >
+              <AccessibleText variant="caption" color={colors.onMorningContainer} weight="800">
+                06:30 • {t('morningTitle')}
+              </AccessibleText>
+              <AccessibleText variant="bodyRegular" color={colors.onMorningContainer} weight="700" style={{ marginTop: 2 }}>
+                {state.morningCompleted
+                  ? `${t('morningAlreadyDone')}${state.morningTime ? ` (${state.morningTime})` : ''}`
+                  : isVi
+                  ? 'Chưa gửi lời chào sáng'
+                  : 'No morning check-in yet'}
+              </AccessibleText>
+            </View>
+
+            <View
+              style={[
+                styles.rhythmPill,
+                { backgroundColor: colors.afternoonSurface },
+              ]}
+            >
+              <AccessibleText variant="caption" color={colors.onAfternoonContainer} weight="800">
+                17:00 • {t('afternoonTitle')}
+              </AccessibleText>
+              <AccessibleText variant="bodyRegular" color={colors.onAfternoonContainer} weight="700" style={{ marginTop: 2 }}>
+                {getMoodLabel()}
+                {activeAttachment
+                  ? ` • ${activeAttachment.emoji} ${isVi ? activeAttachment.titleVi : activeAttachment.titleEn}`
+                  : ''}
+              </AccessibleText>
+            </View>
+
+            <View
+              style={[
+                styles.rhythmPill,
+                { backgroundColor: colors.eveningSurface },
+              ]}
+            >
+              <AccessibleText variant="caption" color={colors.onEveningContainer} weight="800">
+                20:30 • {t('eveningTitle')}
+              </AccessibleText>
+              <AccessibleText variant="bodyRegular" color={colors.onEveningContainer} weight="700" style={{ marginTop: 2 }}>
+                {sentMessage || state.eveningMessageText
+                  ? t('sentBedtimeSuccess')
+                  : t('eveningSubtitle')}
+              </AccessibleText>
+            </View>
           </View>
         </View>
 
-        {selectedPrompt ? (
-          <View style={styles.selectedScriptBox}>
-            <AccessibleText variant="caption" color="#4338CA" weight="800">
-              {isVi ? 'CÂU HỎI MỞ ĐANG CHỌN ĐỂ ĐỌC CHO CON:' : 'SELECTED EMPATHY PROMPT TO READ ALOUD:'}
-            </AccessibleText>
-            <AccessibleText variant="bodyLarge" color="#1E1B4B" weight="800" style={{ marginTop: 4 }}>
-              “{selectedPrompt}”
+        {/* CARD 2: AI Empathy Assistant (30s) */}
+        <View
+          style={[
+            styles.stackMiddle,
+            { backgroundColor: colors.surfaceContainerLow },
+          ]}
+        >
+          <View style={styles.sectionHeaderRow}>
+            <AccessibleText variant="h2" weight="800">
+              {t('aiAssistantTitle')}
             </AccessibleText>
           </View>
-        ) : null}
 
-        <AudioWaveform
-          isRecording={isRecording30s}
-          durationLeft={durationLeft}
-          maxDuration={30}
-        />
+          {hasDiaryToday ? (
+            <>
+              {keywords.length > 0 && (
+                <View style={styles.keywordRow}>
+                  {keywords.map((kw, i) => (
+                    <View
+                      key={i}
+                      style={[
+                        styles.keywordChip,
+                        { backgroundColor: colors.secondaryContainer },
+                      ]}
+                    >
+                      <AccessibleText
+                        variant="caption"
+                        color={colors.onSecondaryContainer}
+                        weight="800"
+                      >
+                        {kw}
+                      </AccessibleText>
+                    </View>
+                  ))}
+                </View>
+              )}
 
-        {!isRecording30s ? (
-          <BigButton
-            title={t('quick30sRecordBtn')}
-            subtitle={
-              sentMessage
-                ? isVi
-                  ? '✓ Đã gửi vào Hộp thư thoại • Bấm nếu muốn hẹn giờ Tiếng chuông sáng'
-                  : '✓ Sent to Voice Mailbox • Tap to schedule Morning Bell'
-                : isVi
-                ? 'Chỉ mất 30 giây sau ca làm • Xóa bỏ áp lực gọi cùng lúc'
-                : 'Takes only 30s after your shift • Zero simultaneous call pressure'
-            }
-            icon="🎙️"
-            variant="evening"
-            size="hero"
-            onPress={handleStartRecording}
+              <View
+                style={[
+                  styles.summaryBox,
+                  { backgroundColor: colors.surfaceContainerHigh },
+                ]}
+              >
+                <AccessibleText variant="bodyLarge" weight="700">
+                  {aiData?.summary ||
+                    state.afternoonNote ||
+                    (isVi
+                      ? 'Đang phân tích nhật ký 15 giây của con...'
+                      : 'Analyzing child’s 15-second diary...')}
+                </AccessibleText>
+                {activeAttachment && (
+                  <AccessibleText
+                    variant="label"
+                    color={colors.textSecondary}
+                    style={{ marginTop: 6 }}
+                  >
+                    {activeAttachment.emoji}{' '}
+                    {aiData?.cvInsight ||
+                      (isVi ? activeAttachment.cvSignalVi : activeAttachment.cvSignalEn)}
+                  </AccessibleText>
+                )}
+              </View>
+
+              {aiData?.suggestedPrompts && aiData.suggestedPrompts.length > 0 && (
+                <>
+                  <AccessibleText
+                    variant="label"
+                    color={colors.textSecondary}
+                    style={{ marginTop: 12, marginBottom: 4 }}
+                  >
+                    {t('aiPromptPick')}
+                  </AccessibleText>
+
+                  {aiData.suggestedPrompts.map((prompt, index) => (
+                    <EmpathyPromptCard
+                      key={index}
+                      index={index}
+                      prompt={prompt}
+                      isSelected={selectedPrompt === prompt}
+                      onSelectPrompt={(p) => setSelectedPrompt(p)}
+                    />
+                  ))}
+                </>
+              )}
+
+              <AccessibleText
+                variant="caption"
+                color={colors.textMuted}
+                style={{ marginTop: 8 }}
+              >
+                {t('aiHumanCenteredNote')}
+              </AccessibleText>
+            </>
+          ) : (
+            <View
+              style={[
+                styles.summaryBox,
+                { backgroundColor: colors.surfaceContainerHigh, marginTop: 8 },
+              ]}
+            >
+              <AccessibleText variant="bodyRegular" color={colors.textSecondary}>
+                {isVi
+                  ? 'Khi con gửi Nhật ký 15 giây vào buổi chiều, hệ thống AI trên máy chủ sẽ tóm tắt từ khóa và gợi ý câu hỏi mở tại đây.'
+                  : 'Once your child sends their 15s afternoon diary, our server AI will summarize keywords and suggest open prompts here.'}
+              </AccessibleText>
+            </View>
+          )}
+        </View>
+
+        {/* CARD 3: 30s Voice Mailbox Recorder */}
+        <View
+          style={[
+            styles.stackMiddle,
+            { backgroundColor: colors.eveningSurface },
+          ]}
+        >
+          <AccessibleText
+            variant="h2"
+            weight="800"
+            color={colors.onEveningContainer}
+          >
+            {t('quick30sTitle')}
+          </AccessibleText>
+          <AccessibleText
+            variant="bodyRegular"
+            color={colors.onEveningContainer}
+            style={{ opacity: 0.85, marginTop: 2 }}
+          >
+            {t('quick30sDesc')}
+          </AccessibleText>
+
+          {selectedPrompt ? (
+            <View
+              style={[
+                styles.scriptBox,
+                { backgroundColor: colors.eveningContainer },
+              ]}
+            >
+              <AccessibleText
+                variant="bodyLarge"
+                weight="800"
+                color={colors.onEveningContainer}
+              >
+                “{selectedPrompt}”
+              </AccessibleText>
+            </View>
+          ) : null}
+
+          <AudioWaveform
+            isRecording={isRecording30s}
+            durationLeft={durationLeft}
+            maxDuration={30}
           />
-        ) : (
-          <BigButton
-            title={t('quick30sSendBtn')}
-            subtitle={`${t('recordingTimeLeft')}: ${durationLeft}s`}
-            icon="📤"
-            variant="success"
-            size="hero"
-            onPress={handleSendBedtimeVoice}
-          />
-        )}
-      </View>
 
-      {/* 4. WEEKLY RECAP NEWSLETTER (Section 5.1, 5.2, 5.4 Level 2 AI) */}
-      <View style={[styles.card, styles.weeklyCard, THEME.shadows.card]}>
-        <View style={styles.weeklyHeaderRow}>
-          <AccessibleText variant="h2" weight="900" color="#451A03">
+          {!isRecording30s ? (
+            <BigButton
+              title={t('quick30sRecordBtn')}
+              subtitle={
+                sentMessage
+                  ? isVi
+                    ? '✓ Đã gửi vào hộp thư • Bấm để thu thêm'
+                    : '✓ Sent to mailbox • Tap to record another'
+                  : isVi
+                  ? 'Hộp thư thoại bất đồng bộ 30 giây'
+                  : '30-second async voice mailbox'
+              }
+              icon="🎙️"
+              variant="evening"
+              size="hero"
+              onPress={handleStartRecording}
+            />
+          ) : (
+            <BigButton
+              title={t('quick30sSendBtn')}
+              subtitle={`${t('recordingTimeLeft')}: ${durationLeft}s`}
+              icon="📤"
+              variant="success"
+              size="hero"
+              onPress={handleSendBedtimeVoice}
+            />
+          )}
+        </View>
+
+        {/* CARD 4: Weekly Recap Newsletter */}
+        <View
+          style={[
+            styles.stackBottom,
+            { backgroundColor: colors.surfaceContainerLow },
+          ]}
+        >
+          <AccessibleText variant="h2" weight="800">
             {t('weeklyRecapTitle')}
           </AccessibleText>
-        </View>
-        <AccessibleText variant="bodyRegular" color="#78350F" style={{ marginTop: 4, marginBottom: 10 }}>
-          {t('weeklyRecapSubtitle')}
-        </AccessibleText>
+          <AccessibleText
+            variant="bodyRegular"
+            color={colors.textSecondary}
+            style={{ marginTop: 4, marginBottom: 12 }}
+          >
+            {t('weeklyRecapSubtitle')}
+          </AccessibleText>
 
-        {/* 7-Day Mood Bar Strip */}
-        <View style={styles.weekDaysRow}>
-          {[
-            { d: isVi ? 'T2' : 'M', e: '😄', bg: '#FEF3C7' },
-            { d: isVi ? 'T3' : 'T', e: '⛅', bg: '#E0F2FE' },
-            { d: isVi ? 'T4' : 'W', e: '😄', bg: '#FEF3C7' },
-            { d: isVi ? 'T5' : 'T', e: '🫂', bg: '#FCE7F3' },
-            { d: isVi ? 'T6' : 'F', e: '😄', bg: '#FEF3C7' },
-            { d: isVi ? 'T7' : 'S', e: '⛅', bg: '#E0F2FE' },
-            { d: isVi ? 'CN' : 'S', e: '😄', bg: '#FEF3C7' },
-          ].map((day, idx) => (
-            <View key={idx} style={[styles.dayPill, { backgroundColor: day.bg }]}>
-              <AccessibleText variant="bodyLarge">{day.e}</AccessibleText>
-              <AccessibleText variant="caption" color="#451A03" weight="800">
-                {day.d}
+          {completedRhythmsCount >= 2 ? (
+            <>
+              <View style={styles.weekDaysRow}>
+                {[
+                  { d: isVi ? 'T2' : 'M', e: '😄' },
+                  { d: isVi ? 'T3' : 'T', e: '⛅' },
+                  { d: isVi ? 'T4' : 'W', e: '😄' },
+                  { d: isVi ? 'T5' : 'T', e: '🫂' },
+                  { d: isVi ? 'T6' : 'F', e: '😄' },
+                  { d: isVi ? 'T7' : 'S', e: '⛅' },
+                  { d: isVi ? 'CN' : 'S', e: '😄' },
+                ].map((day, idx) => (
+                  <View
+                    key={idx}
+                    style={[
+                      styles.dayPill,
+                      { backgroundColor: colors.surfaceContainerHigh },
+                    ]}
+                  >
+                    <AccessibleText variant="bodyLarge">{day.e}</AccessibleText>
+                    <AccessibleText variant="caption" color={colors.textSecondary}>
+                      {day.d}
+                    </AccessibleText>
+                  </View>
+                ))}
+              </View>
+
+              <View
+                style={[
+                  styles.summaryBox,
+                  { backgroundColor: colors.surfaceContainerHigh },
+                ]}
+              >
+                <AccessibleText variant="bodyRegular" weight="700">
+                  {t('weeklyMilestone1')}
+                </AccessibleText>
+                <AccessibleText variant="bodyRegular" weight="700" style={{ marginTop: 6 }}>
+                  {t('weeklyRecurringTopics')}
+                </AccessibleText>
+              </View>
+            </>
+          ) : (
+            <View
+              style={[
+                styles.summaryBox,
+                { backgroundColor: colors.surfaceContainerHigh },
+              ]}
+            >
+              <AccessibleText variant="bodyRegular" color={colors.textSecondary}>
+                {isVi
+                  ? 'Bản tin tổng kết tuần sẽ tự động tổng hợp từ cơ sở dữ liệu sau khi gia đình hoàn thành các nhịp kết nối.'
+                  : 'Your Weekly Recap will automatically generate from the database after your family completes daily check-ins.'}
               </AccessibleText>
             </View>
-          ))}
+          )}
         </View>
-
-        <View style={styles.weeklyPointBox}>
-          <AccessibleText variant="bodyRegular" color="#451A03" weight="700">
-            {t('weeklyMilestone1')}
-          </AccessibleText>
-          <AccessibleText variant="bodyRegular" color="#451A03" weight="700" style={{ marginTop: 6 }}>
-            {t('weeklyMilestone2')}
-          </AccessibleText>
-          <AccessibleText variant="bodyRegular" color="#78350F" weight="700" style={{ marginTop: 6 }}>
-            {t('weeklyRecurringTopics')}
-          </AccessibleText>
-        </View>
-
-        <AccessibleText variant="caption" color="#92400E" weight="700" style={{ marginTop: 8 }}>
-          {t('weeklyEditableNote')}
-        </AccessibleText>
-      </View>
-
-      {/* Switch role demo button */}
-      <View style={styles.footer}>
-        <BigButton
-          title={t('switchRoleBtn')}
-          subtitle={
-            isVi
-              ? 'Chuyển sang giao diện Trẻ ở quê (Bé An) hoặc Ông Bà (Bà Nội)'
-              : 'Switch to Rural Child (Be An) or Grandparent screen'
-          }
-          icon="🔄"
-          variant="secondary"
-          onPress={onNavigateToSwitch}
-        />
       </View>
     </ScrollView>
   );
@@ -447,238 +511,93 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     paddingTop: 12,
-    paddingBottom: 44,
-    backgroundColor: THEME.colors.background,
+    paddingBottom: 38,
   },
-  parentBanner: {
-    backgroundColor: '#FFF4ED',
-    borderRadius: THEME.borderRadius.cardExpressive,
-    padding: 18,
-    borderWidth: 2,
-    borderColor: '#FDBA74',
-    marginBottom: 14,
-  },
-  bannerTopRow: {
+  topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  avatarCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 22,
-    backgroundColor: '#FFEDD5',
-    borderWidth: 2,
-    borderColor: '#EA580C',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  bannerTextCol: {
-    flex: 1,
-  },
-  sdgRow: {
-    flexDirection: 'row',
-    marginBottom: 2,
-  },
-  sdgPill: {
-    backgroundColor: '#FFEDD5',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 999,
-  },
-  langPill: {
-    backgroundColor: '#FFEDD5',
-    borderWidth: 1.5,
-    borderColor: '#FB923C',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 16,
-    marginLeft: 6,
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: THEME.borderRadius.cardExpressive,
-    padding: 18,
-    marginVertical: 9,
-    borderWidth: 2,
-    borderColor: '#E6DFD7',
-  },
-  cardHeaderRow: {
-    flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 14,
+    marginBottom: 16,
   },
-  liveTag: {
-    backgroundColor: '#DCFCE7',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-  timelineRow: {
+  brandRow: {
     flexDirection: 'row',
-    alignItems: 'stretch',
-  },
-  timelineLeftCol: {
     alignItems: 'center',
-    width: 44,
+    flex: 1,
     marginRight: 10,
   },
-  nodeCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 16,
-    borderWidth: 2,
+  miniIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    marginRight: 12,
+  },
+  topActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  iconChip: {
+    height: 40,
+    minWidth: 40,
+    paddingHorizontal: 12,
+    borderRadius: 999,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  verticalConnector: {
-    width: 3,
-    flex: 1,
-    backgroundColor: '#E5DEC9',
-    marginVertical: 4,
-    borderRadius: 2,
+  groupedStack: {
+    gap: 6,
   },
-  timelineBubble: {
-    flex: 1,
+  stackTop: {
+    borderTopLeftRadius: 36,
+    borderTopRightRadius: 36,
+    borderBottomLeftRadius: 14,
+    borderBottomRightRadius: 14,
+    padding: 20,
+  },
+  stackMiddle: {
+    borderRadius: 14,
+    padding: 20,
+  },
+  stackBottom: {
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
+    borderBottomLeftRadius: 36,
+    borderBottomRightRadius: 36,
+    padding: 20,
+  },
+  rhythmRow: {
+    gap: 8,
+  },
+  rhythmPill: {
     borderRadius: 20,
     padding: 14,
-    borderWidth: 1.5,
-    marginBottom: 12,
   },
-  bubbleTopRow: {
+  sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  chipsWrapRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 6,
-  },
-  moodChipInline: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-  attachmentChipInline: {
-    backgroundColor: '#FFEDD5',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-  aiCard: {
-    backgroundColor: '#F2FCF5',
-    borderColor: '#86EFAC',
-  },
-  aiHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  aiTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  aiIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    backgroundColor: '#DCFCE7',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-    borderWidth: 1.5,
-    borderColor: '#4ADE80',
-  },
-  aiExplanation: {
-    marginVertical: 10,
-  },
-  keywordSection: {
-    marginBottom: 10,
   },
   keywordRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
-    marginTop: 6,
+    marginVertical: 10,
   },
-  keywordPill: {
-    backgroundColor: '#DCFCE7',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  keywordChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
     borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#86EFAC',
   },
   summaryBox: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
+    borderRadius: 22,
     padding: 16,
-    borderWidth: 2,
-    borderColor: '#BBF7D0',
-    marginVertical: 4,
   },
-  cvBox: {
-    backgroundColor: '#FFF7ED',
+  scriptBox: {
     borderRadius: 20,
     padding: 14,
-    borderWidth: 1.5,
-    borderColor: '#FED7AA',
-    marginTop: 8,
-  },
-  cvHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  humanSafeguardBox: {
-    backgroundColor: '#DCFCE7',
-    borderRadius: 16,
-    padding: 12,
-    marginTop: 8,
-    borderWidth: 1,
-    borderColor: '#86EFAC',
-  },
-  voiceCard: {
-    backgroundColor: '#F8FAFF',
-    borderColor: '#A5B4FC',
-  },
-  voiceHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  voiceIconCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 18,
-    backgroundColor: '#E0E7FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-    borderWidth: 1.5,
-    borderColor: '#818CF8',
-  },
-  selectedScriptBox: {
-    backgroundColor: '#EEF2FF',
-    borderRadius: 18,
-    padding: 14,
-    borderWidth: 1.5,
-    borderColor: '#C7D2FE',
-    marginBottom: 4,
-  },
-  weeklyCard: {
-    backgroundColor: '#FFFBEB',
-    borderColor: '#FCD34D',
-  },
-  weeklyHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    marginTop: 10,
   },
   weekDaysRow: {
     flexDirection: 'row',
@@ -691,17 +610,5 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     paddingVertical: 8,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-  },
-  weeklyPointBox: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 14,
-    borderWidth: 1.5,
-    borderColor: '#FDE68A',
-  },
-  footer: {
-    marginTop: 14,
   },
 });
