@@ -6,7 +6,11 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "prebuild": "expo prebuild --clean --no-install && node scripts/patch-prebuild.js",
+    "prebuild:android": "expo prebuild --platform android --clean --no-install && node scripts/patch-prebuild.js",
+    "prebuild:ios": "expo prebuild --platform ios --clean --no-install && node scripts/patch-prebuild.js",
+    "prebuild:all": "expo prebuild --platform all --clean --no-install && node scripts/patch-prebuild.js"
   },
   "dependencies": {
     "@babel/runtime": "^7.24.0",
@@ -17,6 +21,7 @@
     "expo-asset": "~10.0.10",
     "expo-constants": "~16.0.2",
     "expo-status-bar": "~1.12.1",
+    "expo-system-ui": "~3.0.7",
     "nativewind": "^2.0.11",
     "react": "18.2.0",
     "react-native": "0.74.5",

@@ -21,6 +21,12 @@ dist/
 *.mobileprovision
 *.orig.*
 
+# Expo Prebuild generated native directories (generated dynamically in CI)
+apps/mobile/android/
+apps/mobile/ios/
+android/
+ios/
+
 # Environment
 .env
 .env.local

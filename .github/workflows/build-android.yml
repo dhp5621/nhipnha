@@ -32,7 +32,7 @@ jobs:
       - name: ⚡ Install pnpm
         uses: pnpm/action-setup@v3
         with:
-          version: 12.16.1
+          version: 9
 
       - name: 🟢 Set up Node.js 20
         uses: actions/setup-node@v4
@@ -43,7 +43,7 @@ jobs:
       - name: 📦 Install Dependencies
         run: |
           pnpm approve-builds --all || true
-          pnpm install
+          pnpm install --frozen-lockfile=false
 
       - name: 🔑 Restore Android Keystore from Secret
         if: env.KEYSTORE_BASE64 != ''
@@ -53,22 +53,9 @@ jobs:
           echo "$KEYSTORE_BASE64" | base64 --decode > apps/mobile/release-key.jks
           echo "Keystore restored successfully."
 
-      - name: 🏗️ Setup Native Android Project
+      - name: 🏗️ Expo Prebuild Cross-Platform (Android & iOS)
         run: |
-          cd apps/mobile
-          if [ ! -d "android" ]; then
-            npx expo prebuild --platform android --no-install
-          fi
-          # Ensure monorepo gradle plugin resolution in settings.gradle
-          node -e "
-            const fs = require('fs');
-            let content = fs.readFileSync('android/settings.gradle', 'utf8');
-            content = content.replace(
-              \"require.resolve('@react-native/gradle-plugin/package.json')\",
-              \"require.resolve('@react-native/gradle-plugin/package.json', { paths: [require.resolve('react-native/package.json')] })\"
-            );
-            fs.writeFileSync('android/settings.gradle', content);
-          "
+          CI=1 pnpm --filter @nhipnha/mobile run prebuild:all
 
       - name: 📜 Accept Android SDK Licenses
         run: |
