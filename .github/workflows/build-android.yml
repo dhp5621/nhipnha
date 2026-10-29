@@ -11,6 +11,8 @@ jobs:
   build:
     name: Build & Sign Android APK
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: 📥 Checkout Repository
@@ -105,3 +107,23 @@ jobs:
           path: |
             apps/mobile/android/app/build/outputs/apk/**/*.apk
           retention-days: 14
+
+      - name: 🚀 Release APK to GitHub Release 'dev'
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/heads/main') || startsWith(github.ref, 'refs/heads/master')
+        with:
+          tag_name: dev
+          name: "Nhịp Nhà (Home Rhythm) - Dev Build"
+          body: |
+            ## 📱 Nhịp Nhà – Gần nhau dù cách xa (Home Rhythm)
+            **RMIT University Vietnam • RBPC 2026 (SDG 3, 4, 8)**
+
+            - **Commit**: `${{ github.sha }}`
+            - **Build Date**: ${{ github.event.head_commit.timestamp || 'Latest' }}
+            - **Language Support**: English & Tiếng Việt (System Default / In-app selectable)
+            - **Accessibility**: Nút bấm $\ge 56\text{px}$, font chữ lớn, Zero-Type QR Pairing.
+          files: |
+            apps/mobile/android/app/build/outputs/apk/release/*.apk
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
