@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { THEME } from '../constants/theme';
+import { useLanguage } from '../context/LanguageContext';
 
 interface EmpathyPromptCardProps {
   prompt: string;
@@ -15,42 +16,59 @@ export const EmpathyPromptCard: React.FC<EmpathyPromptCardProps> = ({
   onSelectPrompt,
   isSelected = false,
 }) => {
+  const { activeLanguage } = useLanguage();
+  const isVi = activeLanguage === 'vi';
+
   return (
     <TouchableOpacity
-      activeOpacity={0.8}
+      activeOpacity={0.82}
       onPress={() => onSelectPrompt(prompt)}
       style={[
         styles.card,
         {
-          borderColor: isSelected ? '#15803D' : '#E2E8F0',
-          backgroundColor: isSelected ? '#F0FDF4' : '#FFFFFF',
-          borderWidth: isSelected ? 3 : 1.5,
+          borderColor: isSelected ? '#15803D' : '#CBEAD6',
+          backgroundColor: isSelected ? '#ECFDF3' : '#FFFFFF',
+          borderWidth: isSelected ? 3 : 2,
+          borderBottomWidth: isSelected ? 5 : 2,
         },
       ]}
       accessibilityRole="button"
-      accessibilityLabel={`Gợi ý ${index + 1}: ${prompt}`}
+      accessibilityState={{ selected: isSelected }}
+      accessibilityLabel={`${isVi ? 'Gợi ý' : 'Prompt'} ${index + 1}: ${prompt}`}
     >
       <View style={styles.headerRow}>
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>Gợi ý {index + 1}</Text>
+        <View
+          style={[
+            styles.badge,
+            { backgroundColor: isSelected ? '#15803D' : '#DCFCE7' },
+          ]}
+        >
+          <Text
+            style={[
+              styles.badgeText,
+              { color: isSelected ? '#FFFFFF' : '#166534' },
+            ]}
+          >
+            {isSelected ? '✓ ' : '💬 '}
+            {isVi ? `Câu hỏi mở ${index + 1}` : `Open Prompt ${index + 1}`}
+          </Text>
         </View>
-        <Text style={styles.tip}>30s phản hồi</Text>
+        <View style={styles.tipPill}>
+          <Text style={styles.tip}>
+            {isVi ? 'Không hỏi điểm số' : 'No score pressure'}
+          </Text>
+        </View>
       </View>
-      <Text style={styles.promptText}>{prompt}</Text>
+      <Text style={styles.promptText}>“{prompt}”</Text>
     </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: THEME.borderRadius.button,
+    borderRadius: 22,
     padding: 16,
     marginVertical: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 2,
   },
   headerRow: {
     flexDirection: 'row',
@@ -59,25 +77,29 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   badge: {
-    backgroundColor: '#DCFCE7',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
+    paddingHorizontal: 11,
+    paddingVertical: 4,
+    borderRadius: 999,
   },
   badgeText: {
-    color: '#15803D',
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
+  },
+  tipPill: {
+    backgroundColor: '#F0FDF4',
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 999,
   },
   tip: {
-    color: '#64748B',
-    fontSize: 13,
-    fontWeight: '600',
+    color: '#15803D',
+    fontSize: 12,
+    fontWeight: '700',
   },
   promptText: {
     fontSize: THEME.typography.bodyLarge,
-    lineHeight: 28,
+    lineHeight: 27,
     color: THEME.colors.textDark,
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });

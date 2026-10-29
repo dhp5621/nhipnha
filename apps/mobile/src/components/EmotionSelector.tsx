@@ -38,31 +38,57 @@ export const EmotionSelector: React.FC<EmotionSelectorProps> = ({
         return (
           <TouchableOpacity
             key={item.id}
-            activeOpacity={0.8}
+            activeOpacity={0.85}
             onPress={() => onSelectMood(item.id)}
             style={[
               styles.card,
+              THEME.shadows.card,
               {
-                backgroundColor: item.colorBg,
-                borderColor: isSelected ? item.colorBorder : '#E2E8F0',
-                borderWidth: isSelected ? 4 : 2,
-                transform: [{ scale: isSelected ? 1.04 : 1 }],
+                backgroundColor: isSelected ? item.colorBg : '#FFFFFF',
+                borderColor: isSelected ? item.colorBorder : '#E6DFD7',
+                borderWidth: isSelected ? 3 : 2,
+                borderBottomWidth: isSelected ? 6 : 3,
+                transform: [{ scale: isSelected ? 1.02 : 1 }],
               },
             ]}
             accessibilityRole="radio"
             accessibilityState={{ selected: isSelected }}
             accessibilityLabel={`${localized.label}, ${localized.sublabel}`}
           >
-            <Text style={styles.emoji}>{item.emoji}</Text>
-            <Text style={[styles.label, { color: item.colorText }]}>
+            {/* Top Selection Indicator */}
+            <View style={styles.cardTopRow}>
+              <View
+                style={[
+                  styles.emojiCircle,
+                  { backgroundColor: isSelected ? '#FFFFFF' : item.colorBg },
+                ]}
+              >
+                <Text style={styles.emoji}>{item.emoji}</Text>
+              </View>
+              <View
+                style={[
+                  styles.radioCircle,
+                  isSelected
+                    ? { backgroundColor: item.colorBorder, borderColor: item.colorBorder }
+                    : { backgroundColor: '#F8F2EA', borderColor: '#CFC5BA' },
+                ]}
+              >
+                {isSelected && <Text style={styles.radioCheck}>✓</Text>}
+              </View>
+            </View>
+
+            <Text style={[styles.label, { color: item.colorText }]} numberOfLines={1}>
               {localized.label}
             </Text>
-            <Text style={[styles.sublabel, { color: item.colorText }]}>
+            <Text style={[styles.sublabel, { color: item.colorText }]} numberOfLines={2}>
               {localized.sublabel}
             </Text>
+
             {isSelected && (
-              <View style={[styles.badge, { backgroundColor: item.colorBorder }]}>
-                <Text style={styles.badgeText}>✓ {activeLanguage === 'vi' ? 'Đã chọn' : 'Selected'}</Text>
+              <View style={[styles.selectedPill, { backgroundColor: item.colorBorder }]}>
+                <Text style={styles.selectedPillText}>
+                  {activeLanguage === 'vi' ? 'Đang chọn' : 'Selected'}
+                </Text>
               </View>
             )}
           </TouchableOpacity>
@@ -78,48 +104,71 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'space-between',
     width: '100%',
-    marginVertical: 10,
+    marginTop: 12,
   },
   card: {
-    width: '48%',
+    width: '48.2%',
     borderRadius: THEME.borderRadius.card,
-    paddingVertical: 18,
-    paddingHorizontal: 12,
-    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 14,
     marginBottom: 14,
-    minHeight: 125,
+    minHeight: 150,
+    justifyContent: 'space-between',
+  },
+  cardTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    width: '100%',
+    marginBottom: 10,
+  },
+  emojiCircle: {
+    width: 58,
+    height: 58,
+    borderRadius: 22,
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    alignItems: 'center',
   },
   emoji: {
-    fontSize: 48,
-    marginBottom: 6,
+    fontSize: 34,
+  },
+  radioCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 999,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  radioCheck: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
   },
   label: {
     fontSize: THEME.typography.h2,
     fontWeight: '800',
-    textAlign: 'center',
+    textAlign: 'left',
+    letterSpacing: -0.3,
   },
   sublabel: {
     fontSize: THEME.typography.label,
     fontWeight: '600',
-    textAlign: 'center',
+    textAlign: 'left',
     marginTop: 2,
     opacity: 0.9,
+    lineHeight: 20,
   },
-  badge: {
+  selectedPill: {
+    alignSelf: 'flex-start',
     marginTop: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 999,
   },
-  badgeText: {
+  selectedPillText: {
     color: '#FFFFFF',
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '800',
   },
 });

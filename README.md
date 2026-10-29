@@ -1,5 +1,5 @@
 # Nhịp Nhà – Gần nhau dù cách xa (Home Rhythm)
-### Đề án RBPC 2026 (Rice Bowl Pitch Competition) • Hướng tới SDG 3, 4, 8
+### Đề án RBPC 2026 • Hướng tới SDG 3, 4, 8
 
 Monorepo hoàn chỉnh xây dựng bằng **Turborepo** và **pnpm**, bao gồm:
 1. `apps/api`: **Next.js Serverless API** (sẵn sàng deploy Vercel), kết nối **Neon / PostgreSQL** thông qua **Drizzle ORM** (kèm bộ nhớ đệm in-memory fallback mượt mà khi chạy demo ngoại tuyến). Quản lý 4 thực thể chính: `Family`, `Member`, `CheckIn`, `Messages`.

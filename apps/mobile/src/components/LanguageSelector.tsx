@@ -9,56 +9,65 @@ export const LanguageSelector: React.FC = () => {
 
   const options: { id: LanguagePreference; label: string; sublabel: string; flag: string }[] = [
     {
-      id: 'system',
-      label: t('systemDefault'),
-      sublabel: `Active: ${activeLanguage === 'vi' ? 'Tiếng Việt' : 'English'}`,
-      flag: '⚙️',
+      id: 'vi',
+      label: 'Tiếng Việt',
+      sublabel: 'Gia đình Việt Nam',
+      flag: '🇻🇳',
     },
     {
       id: 'en',
       label: 'English',
-      sublabel: 'RMIT Competition Standard',
+      sublabel: 'RBPC Global',
       flag: '🇬🇧',
     },
     {
-      id: 'vi',
-      label: 'Tiếng Việt',
-      sublabel: 'Gia đình nông thôn',
-      flag: '🇻🇳',
+      id: 'system',
+      label: activeLanguage === 'vi' ? 'Tự động' : 'Auto',
+      sublabel: activeLanguage === 'vi' ? 'Theo máy' : 'System',
+      flag: '🌐',
     },
   ];
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>{t('languageSettingTitle')}</Text>
-      <View style={styles.optionsRow}>
+    <View style={[styles.container, THEME.shadows.card]}>
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>🌐 {t('languageSettingTitle')}</Text>
+        <View style={styles.activeBadge}>
+          <Text style={styles.activeBadgeText}>
+            {activeLanguage === 'vi' ? '🇻🇳 Tiếng Việt' : '🇬🇧 English'}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.segmentedRow}>
         {options.map((opt) => {
           const isSelected = preference === opt.id;
           return (
             <TouchableOpacity
               key={opt.id}
-              activeOpacity={0.8}
+              activeOpacity={0.82}
               onPress={() => setLanguagePreference(opt.id)}
               style={[
-                styles.optionBtn,
-                {
-                  backgroundColor: isSelected ? '#EFF6FF' : '#FFFFFF',
-                  borderColor: isSelected ? '#2563EB' : '#CBD5E1',
-                  borderWidth: isSelected ? 3 : 1.5,
-                },
+                styles.segmentBtn,
+                isSelected ? styles.segmentSelected : styles.segmentUnselected,
               ]}
               accessibilityRole="radio"
               accessibilityState={{ selected: isSelected }}
               accessibilityLabel={`${opt.label}, ${opt.sublabel}`}
             >
               <Text style={styles.flag}>{opt.flag}</Text>
-              <Text style={[styles.label, isSelected && styles.selectedLabel]} numberOfLines={1}>
+              <Text
+                style={[styles.label, isSelected && styles.selectedLabel]}
+                numberOfLines={1}
+              >
                 {opt.label}
               </Text>
-              <Text style={styles.sublabel} numberOfLines={1}>
+              <Text
+                style={[styles.sublabel, isSelected && styles.selectedSublabel]}
+                numberOfLines={1}
+              >
                 {opt.sublabel}
               </Text>
-              {isSelected && <Text style={styles.checkBadge}>✓</Text>}
             </TouchableOpacity>
           );
         })}
@@ -74,49 +83,87 @@ const styles = StyleSheet.create({
     padding: 16,
     marginVertical: 10,
     borderWidth: 2,
-    borderColor: '#E2E8F0',
+    borderColor: '#E6DFD7',
     width: '100%',
   },
-  title: {
-    fontSize: THEME.typography.h2,
-    fontWeight: '800',
-    color: THEME.colors.textDark,
-    marginBottom: 10,
-  },
-  optionsRow: {
-    flexDirection: 'column',
-    gap: 8,
-  },
-  optionBtn: {
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+  headerRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    minHeight: 56, // Accessible touch target
+    marginBottom: 12,
   },
-  flag: {
-    fontSize: 26,
-    marginRight: 12,
-  },
-  label: {
+  title: {
     fontSize: THEME.typography.bodyLarge,
-    fontWeight: '700',
+    fontWeight: '800',
     color: THEME.colors.textDark,
     flex: 1,
   },
+  activeBadge: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+  },
+  activeBadgeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#92400E',
+  },
+  segmentedRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: '#F6EFE6',
+    padding: 5,
+    borderRadius: 20,
+    gap: 6,
+  },
+  segmentBtn: {
+    flex: 1,
+    borderRadius: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 68,
+  },
+  segmentSelected: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#D97706',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  segmentUnselected: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  flag: {
+    fontSize: 22,
+    marginBottom: 2,
+  },
+  label: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: THEME.colors.textDark,
+    textAlign: 'center',
+  },
   selectedLabel: {
-    color: '#1D4ED8',
+    color: '#B45309',
   },
   sublabel: {
-    fontSize: 13,
-    color: '#64748B',
+    fontSize: 11,
+    color: THEME.colors.textMuted,
     fontWeight: '600',
-    marginRight: 8,
+    textAlign: 'center',
+    marginTop: 1,
   },
-  checkBadge: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#2563EB',
+  selectedSublabel: {
+    color: '#92400E',
   },
 });

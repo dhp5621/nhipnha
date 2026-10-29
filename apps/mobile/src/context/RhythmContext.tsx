@@ -1,5 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import type { CheckIn, MoodType } from '@nhipnha/shared';
+import {
+  CREATIVE_ATTACHMENTS,
+  type CheckIn,
+  type CreativeAttachment,
+  type MoodType,
+} from '@nhipnha/shared';
 import { apiClient } from '../services/api';
 import { offlineStorage } from '../services/offlineStorage';
 import { useAuth } from './AuthContext';
@@ -7,16 +12,19 @@ import { useAuth } from './AuthContext';
 interface RhythmState {
   morningCompleted: boolean;
   morningTime?: string;
+  morningBellListened: boolean;
 
   afternoonCompleted: boolean;
   afternoonMood?: MoodType;
   afternoonVoiceDuration?: number;
   afternoonVoiceUrl?: string;
+  afternoonAttachment?: CreativeAttachment;
   afternoonTime?: string;
   afternoonSyncStatus: 'SYNCED' | 'PENDING';
 
   eveningCompleted: boolean;
   eveningListened: boolean;
+  eveningExtraReplied: boolean;
   eveningMessageText: string;
 
   pendingOfflineCount: number;
@@ -24,9 +32,15 @@ interface RhythmState {
 
 interface RhythmContextType {
   state: RhythmState;
+  markMorningBellListened: () => void;
   submitMorningTouch: () => Promise<void>;
-  submitAfternoonTouch: (mood: MoodType, voiceData?: { url: string; duration: number; waveform: number[] }) => Promise<void>;
+  submitAfternoonTouch: (
+    mood: MoodType,
+    voiceData?: { url: string; duration: number; waveform: number[] },
+    attachment?: CreativeAttachment
+  ) => Promise<void>;
   markEveningListened: () => Promise<void>;
+  submitEveningExtraReply: () => Promise<void>;
   refreshRhythm: () => Promise<void>;
 }
 
@@ -37,11 +51,16 @@ export const RhythmProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [state, setState] = useState<RhythmState>({
     morningCompleted: true, // seeded demo state
     morningTime: '06:45',
+    morningBellListened: true,
     afternoonCompleted: false,
+    afternoonMood: 'JOYFUL',
+    afternoonAttachment: CREATIVE_ATTACHMENTS[0], // Default lotus doodle
     afternoonSyncStatus: 'SYNCED',
     eveningCompleted: false,
     eveningListened: false,
-    eveningMessageText: 'An ơi, mẹ tăng ca về rồi nè. Con nhớ uống ly nước ấm bà pha rồi đi ngủ sớm nhé. Mẹ thương con!',
+    eveningExtraReplied: false,
+    eveningMessageText:
+      'An ơi, mẹ tăng ca về rồi nè. Mẹ thấy bức vẽ hoa sen hồng của con đẹp quá! Con nhớ uống ly nước ấm bà pha rồi đi ngủ sớm nhé. Cuối tuần bố mẹ về thăm con!',
     pendingOfflineCount: 0,
   });
 
@@ -54,13 +73,17 @@ export const RhythmProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     refreshRhythm();
   }, []);
 
+  const markMorningBellListened = () => {
+    setState((prev) => ({ ...prev, morningBellListened: true }));
+  };
+
   const submitMorningTouch = async () => {
     const checkIn: Partial<CheckIn> = {
       familyId: family?.id || 'fam_dongthap_001',
       memberId: member?.id || 'mem_child_an',
       memberName: member?.name || 'Bé An',
       rhythmType: 'MORNING',
-      note: 'Con thức dậy rồi, chuẩn bị đi học đây ạ! Chúc ba mẹ làm việc vui vẻ!',
+      note: 'Con chuẩn bị đi học đây ạ! Chúc bố mẹ đi làm vui vẻ!',
     };
 
     await apiClient.submitCheckIn(checkIn);
@@ -75,7 +98,8 @@ export const RhythmProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const submitAfternoonTouch = async (
     mood: MoodType,
-    voiceData?: { url: string; duration: number; waveform: number[] }
+    voiceData?: { url: string; duration: number; waveform: number[] },
+    attachment?: CreativeAttachment
   ) => {
     const checkIn: Partial<CheckIn> = {
       familyId: family?.id || 'fam_dongthap_001',
@@ -86,7 +110,8 @@ export const RhythmProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       voiceDurationSec: voiceData?.duration || 15,
       voiceUrl: voiceData?.url,
       waveform: voiceData?.waveform,
-      note: 'Lời nhắn 15 giây sau giờ tan trường.',
+      attachment: attachment || CREATIVE_ATTACHMENTS[0],
+      note: 'Nhật ký tương tác 15 giây (Cảm xúc + Giọng nói + Nét vẽ/Ảnh chụp).',
     };
 
     const saved = await apiClient.submitCheckIn(checkIn);
@@ -97,6 +122,7 @@ export const RhythmProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       afternoonMood: mood,
       afternoonVoiceDuration: voiceData?.duration || 15,
       afternoonVoiceUrl: voiceData?.url,
+      afternoonAttachment: attachment || prev.afternoonAttachment,
       afternoonTime: `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`,
       afternoonSyncStatus: saved.syncStatus || 'SYNCED',
     }));
@@ -111,13 +137,32 @@ export const RhythmProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }));
   };
 
+  const submitEveningExtraReply = async () => {
+    const checkIn: Partial<CheckIn> = {
+      familyId: family?.id || 'fam_dongthap_001',
+      memberId: member?.id || 'mem_child_an',
+      memberName: member?.name || 'Bé An',
+      rhythmType: 'EVENING',
+      note: 'Tâm sự tối qua hộp thư thoại: Con chúc bố mẹ ngủ ngon ạ!',
+    };
+    await apiClient.submitCheckIn(checkIn);
+    setState((prev) => ({
+      ...prev,
+      eveningCompleted: true,
+      eveningExtraReplied: true,
+    }));
+    await refreshRhythm();
+  };
+
   return (
     <RhythmContext.Provider
       value={{
         state,
+        markMorningBellListened,
         submitMorningTouch,
         submitAfternoonTouch,
         markEveningListened,
+        submitEveningExtraReply,
         refreshRhythm,
       }}
     >

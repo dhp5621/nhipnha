@@ -1,5 +1,12 @@
-import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, View, ActivityIndicator } from 'react-native';
+import React, { useRef } from 'react';
+import {
+  Pressable,
+  Text,
+  StyleSheet,
+  View,
+  ActivityIndicator,
+  Animated,
+} from 'react-native';
 import { THEME } from '../constants/theme';
 
 interface BigButtonProps {
@@ -11,6 +18,7 @@ interface BigButtonProps {
   size?: 'normal' | 'hero';
   disabled?: boolean;
   loading?: boolean;
+  showArrow?: boolean;
 }
 
 export const BigButton: React.FC<BigButtonProps> = ({
@@ -22,143 +30,218 @@ export const BigButton: React.FC<BigButtonProps> = ({
   size = 'normal',
   disabled = false,
   loading = false,
+  showArrow = false,
 }) => {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.96,
+      useNativeDriver: true,
+      speed: 35,
+      bounciness: 6,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 25,
+      bounciness: 8,
+    }).start();
+  };
+
   const getColors = () => {
     switch (variant) {
       case 'morning':
         return {
-          bg: THEME.colors.morningYellow,
-          border: THEME.colors.morningBorder,
-          text: '#78350F',
-          subtext: '#92400E',
+          bg: '#F59E0B',        // Rich Sunlit Amber
+          border: '#D97706',
+          iconBg: '#FEF3C7',
+          text: '#3B1800',      // High contrast espresso brown on amber
+          subtext: '#5C2804',
+          arrowBg: 'rgba(59, 24, 0, 0.1)',
+          arrowText: '#3B1800',
         };
       case 'afternoon':
         return {
-          bg: THEME.colors.afternoonOrange,
-          border: THEME.colors.afternoonBorder,
+          bg: '#EA580C',        // Warm Terracotta Orange
+          border: '#C2410C',
+          iconBg: '#FFEDD5',
           text: '#FFFFFF',
-          subtext: '#FED7AA',
+          subtext: '#FFEDD5',
+          arrowBg: 'rgba(255, 255, 255, 0.2)',
+          arrowText: '#FFFFFF',
         };
       case 'evening':
         return {
-          bg: THEME.colors.eveningPurple,
-          border: THEME.colors.eveningBorder,
+          bg: '#4338CA',        // Deep Starry Indigo
+          border: '#312E81',
+          iconBg: '#E0E7FF',
           text: '#FFFFFF',
-          subtext: '#C7D2FE',
+          subtext: '#E0E7FF',
+          arrowBg: 'rgba(255, 255, 255, 0.2)',
+          arrowText: '#FFFFFF',
         };
       case 'success':
         return {
-          bg: THEME.colors.success,
-          border: '#15803D',
+          bg: '#15803D',        // Bamboo Leaf Emerald
+          border: '#166534',
+          iconBg: '#DCFCE7',
           text: '#FFFFFF',
           subtext: '#DCFCE7',
+          arrowBg: 'rgba(255, 255, 255, 0.2)',
+          arrowText: '#FFFFFF',
         };
       case 'secondary':
         return {
-          bg: THEME.colors.surface,
-          border: THEME.colors.borderBold,
+          bg: '#FFFFFF',        // Clean M3 Outlined Tonal Surface
+          border: '#D8C2B9',
+          iconBg: '#F6EFE6',
           text: THEME.colors.textDark,
           subtext: THEME.colors.textSecondary,
+          arrowBg: '#F2EAE0',
+          arrowText: THEME.colors.textDark,
         };
       case 'primary':
       default:
         return {
-          bg: '#D97706', // Warm amber-600
-          border: '#B45309',
+          bg: THEME.colors.primary,
+          border: '#8E3211',
+          iconBg: '#FFDBCF',
           text: '#FFFFFF',
-          subtext: '#FEF3C7',
+          subtext: '#FFDBCF',
+          arrowBg: 'rgba(255, 255, 255, 0.2)',
+          arrowText: '#FFFFFF',
         };
     }
   };
 
   const colors = getColors();
   const isHero = size === 'hero';
+  const shouldShowArrow = showArrow || (isHero && variant !== 'secondary');
 
   return (
-    <TouchableOpacity
-      activeOpacity={0.85}
-      onPress={onPress}
-      disabled={disabled || loading}
-      style={[
-        styles.button,
-        {
-          backgroundColor: disabled ? '#E2E8F0' : colors.bg,
-          borderColor: disabled ? '#CBD5E1' : colors.border,
-          minHeight: isHero ? THEME.spacing.rhythmTouchTarget : THEME.spacing.touchTargetMin,
-          paddingVertical: isHero ? 18 : 14,
-        },
-      ]}
-      accessibilityRole="button"
-      accessibilityLabel={title}
-      accessibilityHint={subtitle}
-    >
-      {loading ? (
-        <ActivityIndicator color={colors.text} size="large" />
-      ) : (
-        <View style={styles.contentRow}>
-          {icon ? <Text style={[styles.icon, isHero && styles.heroIcon]}>{icon}</Text> : null}
-          <View style={styles.textContainer}>
-            <Text
-              style={[
-                styles.title,
-                {
-                  color: disabled ? '#94A3B8' : colors.text,
-                  fontSize: isHero ? THEME.typography.h1 : THEME.typography.h2,
-                  lineHeight: isHero ? THEME.typography.lineHeightHeading : THEME.typography.lineHeightBody,
-                },
-              ]}
-              numberOfLines={2}
-            >
-              {title}
-            </Text>
-            {subtitle ? (
-              <Text
+    <Animated.View style={[styles.wrapper, { transform: [{ scale: scaleAnim }] }]}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        disabled={disabled || loading}
+        style={[
+          styles.button,
+          isHero ? THEME.shadows.expressive : THEME.shadows.button,
+          {
+            backgroundColor: disabled ? '#E6DFD7' : colors.bg,
+            borderColor: disabled ? '#CFC5BA' : colors.border,
+            minHeight: isHero ? THEME.spacing.rhythmTouchTarget : THEME.spacing.touchTargetMin,
+            paddingVertical: isHero ? 16 : 12,
+            borderRadius: isHero ? THEME.borderRadius.card : THEME.borderRadius.button,
+          },
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel={title}
+        accessibilityHint={subtitle}
+      >
+        {loading ? (
+          <ActivityIndicator color={colors.text} size="large" />
+        ) : (
+          <View style={styles.contentRow}>
+            {icon ? (
+              <View
                 style={[
-                  styles.subtitle,
-                  {
-                    color: disabled ? '#94A3B8' : colors.subtext,
-                    fontSize: THEME.typography.bodyRegular,
-                  },
+                  styles.iconBadge,
+                  isHero && styles.heroIconBadge,
+                  { backgroundColor: disabled ? '#D8D0C7' : colors.iconBg },
                 ]}
               >
-                {subtitle}
+                <Text style={[styles.icon, isHero && styles.heroIcon]}>{icon}</Text>
+              </View>
+            ) : null}
+
+            <View style={[styles.textContainer, !icon && !shouldShowArrow && { alignItems: 'center' }]}>
+              <Text
+                style={[
+                  styles.title,
+                  !icon && !shouldShowArrow && { textAlign: 'center' },
+                  {
+                    color: disabled ? '#8C827A' : colors.text,
+                    fontSize: isHero ? THEME.typography.h2 + 1 : THEME.typography.bodyLarge,
+                    lineHeight: isHero ? 29 : 25,
+                  },
+                ]}
+                numberOfLines={2}
+              >
+                {title}
               </Text>
+              {subtitle ? (
+                <Text
+                  style={[
+                    styles.subtitle,
+                    !icon && !shouldShowArrow && { textAlign: 'center' },
+                    {
+                      color: disabled ? '#8C827A' : colors.subtext,
+                      fontSize: THEME.typography.label,
+                    },
+                  ]}
+                  numberOfLines={2}
+                >
+                  {subtitle}
+                </Text>
+              ) : null}
+            </View>
+
+            {shouldShowArrow ? (
+              <View style={[styles.arrowPill, { backgroundColor: colors.arrowBg }]}>
+                <Text style={[styles.arrowIcon, { color: colors.arrowText }]}>→</Text>
+              </View>
             ) : null}
           </View>
-        </View>
-      )}
-    </TouchableOpacity>
+        )}
+      </Pressable>
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
+  wrapper: {
+    width: '100%',
+    marginVertical: 7,
+  },
   button: {
     width: '100%',
-    borderRadius: THEME.borderRadius.button,
-    borderWidth: 3,
-    paddingHorizontal: 20,
+    borderWidth: 2,
+    borderBottomWidth: 5, // M3 Expressive tactile 3D cushion bottom lip
+    paddingHorizontal: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginVertical: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 5,
-    elevation: 4, // Android elevation for old devices
   },
   contentRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     width: '100%',
   },
-  icon: {
-    fontSize: 34,
+  iconBadge: {
+    width: 46,
+    height: 46,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 14,
   },
+  heroIconBadge: {
+    width: 56,
+    height: 56,
+    borderRadius: 20,
+    marginRight: 14,
+  },
+  icon: {
+    fontSize: 24,
+  },
   heroIcon: {
-    fontSize: 44,
-    marginRight: 16,
+    fontSize: 30,
   },
   textContainer: {
     flex: 1,
@@ -167,10 +250,24 @@ const styles = StyleSheet.create({
   title: {
     fontWeight: '800',
     textAlign: 'left',
+    letterSpacing: -0.2,
   },
   subtitle: {
     fontWeight: '600',
-    marginTop: 3,
+    marginTop: 2,
     textAlign: 'left',
+    lineHeight: 20,
+  },
+  arrowPill: {
+    width: 38,
+    height: 38,
+    borderRadius: 999,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 10,
+  },
+  arrowIcon: {
+    fontSize: 20,
+    fontWeight: '900',
   },
 });

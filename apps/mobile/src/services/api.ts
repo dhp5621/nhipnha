@@ -100,6 +100,7 @@ export const apiClient = {
       voiceDurationSec: checkIn.voiceDurationSec,
       voiceUrl: checkIn.voiceUrl,
       waveform: checkIn.waveform,
+      attachment: checkIn.attachment,
       syncStatus: 'SYNCED',
       createdAt: new Date().toISOString(),
     };
@@ -159,26 +160,26 @@ export const apiClient = {
         {
           id: 'morning_slot',
           type: 'MORNING',
-          title: 'Chạm Sáng – Báo thức & Đi học',
-          timeWindow: '06:00 - 08:30',
+          title: 'Nhịp Sáng – Tiếng chuông & Hộp thư thoại',
+          timeWindow: '06:30 - 07:15',
           status: 'COMPLETED',
-          summary: 'Bé đã chạm sáng lúc 06:45: "Con đã dậy và chuẩn bị đến trường!"',
+          summary: 'Bé đã gửi lời chào sáng lúc 06:45: "Con chuẩn bị đi học đây ạ!"',
         },
         {
           id: 'afternoon_slot',
           type: 'AFTERNOON',
-          title: 'Chạm Chiều – Cảm xúc tan trường',
-          timeWindow: '16:00 - 18:30',
+          title: 'Nhịp Chiều – Nhật ký tương tác 15s',
+          timeWindow: '17:00 - 18:30',
           status: 'COMPLETED',
-          summary: 'Tâm trạng: Vui vẻ 😄 • Lời nhắn voice: 14s',
+          summary: 'Tâm trạng: Vui vẻ 😄 • Voice: 14s • Nét vẽ hoa sen hồng',
         },
         {
           id: 'evening_slot',
           type: 'EVENING',
-          title: 'Chạm Tối – Lời dặn dò ấm áp',
-          timeWindow: '20:00 - 22:00',
+          title: 'Nhịp Tối – Hộp thư thoại chúc ngủ ngon',
+          timeWindow: '20:30 - 21:00',
           status: 'PENDING',
-          summary: 'Đang đợi ba mẹ gửi lời dặn dò trước khi bé đi ngủ',
+          summary: 'Đang đợi ba mẹ gửi lời chúc ngủ ngon qua hộp thư thoại',
         },
       ],
     };
@@ -201,11 +202,11 @@ export const apiClient = {
     }
 
     return {
-      summary: 'Bé An hôm nay có nhiều chuyện vui ở lớp học, được cô giáo khen và ăn cơm ngon cùng bà.',
+      summary: 'Bé An hôm nay có nhiều chuyện vui ở lớp học, được cô giáo khen vẽ hoa sen và ăn cơm ngon cùng bà.',
       suggestedPrompts: [
         'Hôm nay ở trường có chuyện gì làm con cười nhiều nhất thế?',
-        'Bà nấu món canh gì cho An ăn chiều thế kể mẹ nghe nào?',
-        'Mẹ ở xưởng nhớ con nhiều lắm, con ngủ ngoan nhé!',
+        'Bức tranh hoa sen hồng con vẽ có mấy cánh thế, kể mẹ nghe với!',
+        'Bà nấu món canh chua gì cho An ăn chiều thế? Mẹ nhớ con nhiều lắm!',
       ],
       toneExplanation: 'Khuyến khích trò chuyện thấu cảm, tránh hoàn toàn câu hỏi gây áp lực điểm số.',
     };

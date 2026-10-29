@@ -1,5 +1,5 @@
 /**
- * Nhịp Nhà – Gần nhau dù cách xa (Home Rhythm - RBPC 2026, SDG 3, 4, 8)
+ * Nhịp Nhà – Hệ sinh thái gắn kết và tự lập "Bước Chân Nhỏ" (Little Footsteps)
  * Core Domain Models, Enums and Constants
  */
 
@@ -8,6 +8,19 @@ export type Role = 'CHILD' | 'PARENT' | 'GRANDPARENT';
 export type RhythmType = 'MORNING' | 'AFTERNOON' | 'EVENING';
 
 export type MoodType = 'JOYFUL' | 'CALM' | 'TIRED' | 'NEED_HUG';
+
+export type AttachmentType = 'DOODLE' | 'PHOTO' | 'STICKER';
+
+export interface CreativeAttachment {
+  type: 'DOODLE' | 'PHOTO' | 'STICKER';
+  id: string;
+  titleVi: string;
+  titleEn: string;
+  emoji: string;
+  dominantColor: string;
+  cvSignalVi: string; // Computer Vision non-diagnostic supplemental signal
+  cvSignalEn: string;
+}
 
 export interface Family {
   id: string;
@@ -39,6 +52,7 @@ export interface CheckIn {
   voiceDurationSec?: number;
   voiceUrl?: string; // audio data url or cdn link
   waveform?: number[]; // simulated or recorded amplitude array
+  attachment?: CreativeAttachment; // Quick doodle or photo from 15s interactive diary
   syncStatus: 'SYNCED' | 'PENDING';
   createdAt: string;
 }
@@ -59,7 +73,7 @@ export interface Message {
   createdAt: string;
 }
 
-// 4 Vietnamese Friendly Emotions for Rural Children (Chạm Chiều)
+// 4 Friendly Emotions for Rural Children (Chạm Chiều - Nhật ký tương tác 15s)
 export interface EmotionOption {
   id: MoodType;
   label: string;
@@ -76,40 +90,84 @@ export const EMOTIONS: EmotionOption[] = [
     label: 'Vui vẻ',
     sublabel: 'Nhiều chuyện vui',
     emoji: '😄',
-    colorBg: '#FEF3C7', // amber-100
-    colorBorder: '#F59E0B', // amber-500
-    colorText: '#92400E', // amber-800
+    colorBg: '#FEF3C7',
+    colorBorder: '#F59E0B',
+    colorText: '#92400E',
   },
   {
     id: 'CALM',
     label: 'Bình yên',
     sublabel: 'Một ngày êm đềm',
     emoji: '⛅',
-    colorBg: '#E0F2FE', // sky-100
-    colorBorder: '#0284C7', // sky-600
-    colorText: '#075985', // sky-800
+    colorBg: '#E0F2FE',
+    colorBorder: '#0284C7',
+    colorText: '#075985',
   },
   {
     id: 'TIRED',
     label: 'Hơi mệt',
     sublabel: 'Cần nghỉ ngơi xíu',
     emoji: '🌧️',
-    colorBg: '#F3F4F6', // gray-100
-    colorBorder: '#6B7280', // gray-500
-    colorText: '#374151', // gray-700
+    colorBg: '#F3F4F6',
+    colorBorder: '#6B7280',
+    colorText: '#374151',
   },
   {
     id: 'NEED_HUG',
     label: 'Cần ôm',
     sublabel: 'Nhớ bố mẹ nhiều',
     emoji: '🫂',
-    colorBg: '#FCE7F3', // pink-100
-    colorBorder: '#EC4899', // pink-500
-    colorText: '#9D174D', // pink-800
+    colorBg: '#FCE7F3',
+    colorBorder: '#EC4899',
+    colorText: '#9D174D',
   },
 ];
 
-// 3 Daily Rhythms Definitions
+// Preset Doodle / Photo Canvas options for 15s Interactive Flash Diary (Section 5.1 & 5.3)
+export const CREATIVE_ATTACHMENTS: CreativeAttachment[] = [
+  {
+    id: 'doodle_lotus',
+    type: 'DOODLE',
+    titleVi: 'Nét vẽ: Hoa sen hồng tặng mẹ',
+    titleEn: 'Doodle: Pink lotus flower for Mom',
+    emoji: '🪷',
+    dominantColor: '#F472B6',
+    cvSignalVi: 'Màu hồng ấm & vàng tươi — Tín hiệu thị giác tích cực, giàu tình cảm hướng về gia đình.',
+    cvSignalEn: 'Warm pink & bright yellow — Positive visual signal showing strong family affection.',
+  },
+  {
+    id: 'doodle_house',
+    type: 'DOODLE',
+    titleVi: 'Nét vẽ: Cả nhà mình sum họp',
+    titleEn: 'Doodle: Our family together at home',
+    emoji: '🏡',
+    dominantColor: '#F59E0B',
+    cvSignalVi: 'Chủ đề ngôi nhà & mặt trời — Trẻ mong ngóng ngày cuối tuần bố mẹ về thăm.',
+    cvSignalEn: 'Home & sunshine theme — Child is looking forward to parents visiting on the weekend.',
+  },
+  {
+    id: 'photo_meal',
+    type: 'PHOTO',
+    titleVi: 'Ảnh chụp: Bữa cơm canh chua bà nấu',
+    titleEn: "Photo: Grandma's sour soup dinner",
+    emoji: '🍲',
+    dominantColor: '#10B981',
+    cvSignalVi: 'Chủ đề sinh hoạt gia đình — Bữa ăn đầy đủ cùng ông bà tại quê nhà.',
+    cvSignalEn: 'Daily home life theme — Nutritious meal shared with grandparents at home.',
+  },
+  {
+    id: 'doodle_rain',
+    type: 'DOODLE',
+    titleVi: 'Nét vẽ: Chiều mưa ngoài hiên nhà',
+    titleEn: 'Doodle: Rainy afternoon on the porch',
+    emoji: '🌧️',
+    dominantColor: '#60A5FA',
+    cvSignalVi: 'Gam màu xanh trầm — Tín hiệu bổ trợ: Trẻ có chút lắng đọng, cần lời hỏi thăm ấm áp.',
+    cvSignalEn: 'Cool blue palette — Supplemental signal: Child feels quiet and needs warm reassurance.',
+  },
+];
+
+// 3 Daily Rhythms Definitions (Section 5.2: Khung hoạt động 3 nhịp gắn kết)
 export interface RhythmConfig {
   type: RhythmType;
   title: string;
@@ -122,27 +180,27 @@ export interface RhythmConfig {
 export const RHYTHM_CONFIGS: Record<RhythmType, RhythmConfig> = {
   MORNING: {
     type: 'MORNING',
-    title: 'Chạm Sáng',
-    subtitle: 'Chào ngày mới cùng ba mẹ',
-    timeWindow: '06:00 - 08:30',
+    title: 'Nhịp Sáng',
+    subtitle: 'Tiếng chuông buổi sáng & Hộp thư thoại 1 chạm',
+    timeWindow: '06:30 - 07:15',
     icon: '☀️',
-    actionTitle: 'Chạm 1 lần để báo thức & chào ngày mới',
+    actionTitle: 'Nghe lời chúc hẹn giờ & bấm gửi lời chào đi học',
   },
   AFTERNOON: {
     type: 'AFTERNOON',
-    title: 'Chạm Chiều',
-    subtitle: 'Kể chuyện tan trường & tâm trạng',
-    timeWindow: '16:00 - 18:30',
+    title: 'Nhịp Chiều',
+    subtitle: 'Nhật ký tương tác 15s (Cảm xúc, Giọng nói & Nét vẽ)',
+    timeWindow: '17:00 - 18:30',
     icon: '🎒',
-    actionTitle: 'Chọn cảm xúc & gửi lời nói 15 giây',
+    actionTitle: 'Chọn cảm xúc, thu âm 15s & đính kèm nét vẽ/ảnh chụp',
   },
   EVENING: {
     type: 'EVENING',
-    title: 'Chạm Tối',
-    subtitle: 'Nghe lời dặn dò ấm áp từ ba mẹ',
-    timeWindow: '20:00 - 22:00',
+    title: 'Nhịp Tối & Cuối Tuần',
+    subtitle: 'Hộp thư thoại chúc ngủ ngon & Bản tin tổng kết tuần',
+    timeWindow: '20:30 - 21:00',
     icon: '🌙',
-    actionTitle: 'Bấm nghe lời dặn dò trước khi ngủ',
+    actionTitle: 'Nghe thông điệp yêu thương & tâm sự trước giờ ngủ',
   },
 };
 
@@ -159,9 +217,11 @@ export interface QRPairingPayload {
   generatedAt: number;
 }
 
-// Empathy AI Prompt Generation DTO
+// Empathy AI Prompt Generation DTO (Human-Centered AI Level 1 & Level 2)
 export interface EmpathyAssistantResponse {
   summary: string;
+  keywords?: string[];
   suggestedPrompts: string[];
   toneExplanation: string;
+  cvInsight?: string;
 }
