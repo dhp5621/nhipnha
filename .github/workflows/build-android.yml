@@ -22,6 +22,11 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: 🐘 Set up Gradle & Cache
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          cache-read-only: false
+
       - name: ⚡ Install pnpm
         uses: pnpm/action-setup@v3
         with:
