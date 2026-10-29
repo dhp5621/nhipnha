@@ -5,10 +5,6 @@ on:
     branches:
       - main
       - master
-    paths:
-      - 'apps/mobile/**'
-      - 'packages/shared/**'
-      - '.github/workflows/build-android.yml'
   workflow_dispatch:
 
 jobs:
@@ -40,7 +36,7 @@ jobs:
       - name: 📦 Install Dependencies
         run: |
           pnpm approve-builds --all || true
-          pnpm install --frozen-lockfile
+          pnpm install
 
       - name: 🔑 Restore Android Keystore from Secret
         if: env.KEYSTORE_BASE64 != ''
@@ -50,14 +46,26 @@ jobs:
           echo "$KEYSTORE_BASE64" | base64 --decode > apps/mobile/release-key.jks
           echo "Keystore restored successfully."
 
-      - name: 🏗️ Expo Prebuild (Generate Native Android Project)
+      - name: 🏗️ Setup Native Android Project
         run: |
           cd apps/mobile
-          npx expo prebuild --platform android --no-install
+          if [ ! -d "android" ]; then
+            npx expo prebuild --platform android --no-install
+          fi
+          # Ensure monorepo gradle plugin resolution in settings.gradle
+          node -e "
+            const fs = require('fs');
+            let content = fs.readFileSync('android/settings.gradle', 'utf8');
+            content = content.replace(
+              \"require.resolve('@react-native/gradle-plugin/package.json')\",
+              \"require.resolve('@react-native/gradle-plugin/package.json', { paths: [require.resolve('react-native/package.json')] })\"
+            );
+            fs.writeFileSync('android/settings.gradle', content);
+          "
 
       - name: 📜 Accept Android SDK Licenses
         run: |
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          yes | sdkmanager --licenses || yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
       - name: ⚙️ Build Android Release APK
         run: |
