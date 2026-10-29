@@ -17,4 +17,7 @@ config.resolver.nodeModulesPaths = [
   path.resolve(monorepoRoot, 'node_modules'),
 ];
 
+// 3. Ensure symlinked packages from pnpm resolve correctly
+config.resolver.disableHierarchicalLookup = false;
+
 module.exports = config;
