@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import { offlineStorage } from './offlineStorage';
+import { permissionService } from './permissions';
 
 export interface RecordedAudioResult {
   url: string;
@@ -119,11 +120,19 @@ class MediaCaptureService {
   }
 
   /**
-   * Starts real microphone recording across Web and modern engines
+   * Starts real microphone recording across Web and modern OS engines.
+   * Automatically requests runtime OS microphone permission beforehand if needed.
    */
-  async startAudioRecording(): Promise<boolean> {
+  async startAudioRecording(isVi: boolean = true): Promise<boolean> {
     this.startTime = Date.now();
     this.audioChunks = [];
+
+    // Automatically check and request OS / browser microphone permission
+    const granted = await permissionService.requestPermission('microphone', isVi);
+    if (!granted) {
+      console.warn('Microphone permission not granted by user.');
+      return false;
+    }
 
     if (
       Platform.OS === 'web' &&
@@ -303,7 +312,6 @@ class MediaCaptureService {
         utterance.onend = done;
         utterance.onerror = done;
 
-        // Safety fallback timer in case browser fails to trigger onend
         const safeTimeout = Math.max(3000, Math.min(text.length * 90, 15000));
         setTimeout(done, safeTimeout);
 
@@ -337,9 +345,17 @@ class MediaCaptureService {
   }
 
   /**
-   * Opens OS file picker or camera cleanly via HTML5 file input with fallback compression
+   * Opens OS photo picker intent or camera intent automatically.
+   * In Web/Android WebView, leverages HTML5 file input with `capture="environment"`
+   * which instructs OS (Android/iOS) to directly launch the native camera intent,
+   * or the system photo gallery picker intent.
    */
-  pickOrCapturePhoto(useCamera: boolean = false): Promise<PickedPhotoResult | null> {
+  async pickOrCapturePhoto(useCamera: boolean = false): Promise<PickedPhotoResult | null> {
+    // If requesting Camera, automatically ensure Camera permission is requested if on native Android
+    if (useCamera && Platform.OS === 'android') {
+      await permissionService.requestPermission('camera');
+    }
+
     if (Platform.OS === 'web' && typeof document !== 'undefined') {
       return new Promise((resolve) => {
         const input = document.createElement('input');
@@ -351,6 +367,7 @@ class MediaCaptureService {
         input.style.opacity = '0';
         input.style.pointerEvents = 'none';
 
+        // When useCamera is true, attribute triggers OS Camera Intent directly
         if (useCamera) {
           input.setAttribute('capture', 'environment');
         }
@@ -436,6 +453,7 @@ class MediaCaptureService {
         window.addEventListener('focus', handleWindowFocus);
 
         document.body.appendChild(input);
+        // Synchronously click to fire OS file picker/camera intent dialog
         input.click();
       });
     }

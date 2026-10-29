@@ -33,7 +33,7 @@ export const permissionService = {
             if (status.state === 'denied') return 'denied';
             return 'undetermined';
           } catch {
-            // Some browsers do not support microphone/camera query in permissions API
+            // Permissions API might not support camera/mic in some browsers
           }
         }
       }
@@ -48,12 +48,16 @@ export const permissionService = {
     return 'undetermined';
   },
 
+  /**
+   * Automatically requests runtime OS permission if not yet granted.
+   * Directly triggers native Android/Browser intent dialog.
+   */
   async requestPermission(
     type: PermissionType,
     isVi: boolean = true
   ): Promise<boolean> {
     try {
-      // 1. Android Native Permissions Check & Request
+      // 1. Android: Native system prompt intent via PermissionsAndroid
       if (Platform.OS === 'android') {
         const targetPerm =
           type === 'microphone'
@@ -63,12 +67,13 @@ export const permissionService = {
             : null;
 
         if (targetPerm) {
-          const has = await PermissionsAndroid.check(targetPerm);
-          if (has) {
+          const alreadyGranted = await PermissionsAndroid.check(targetPerm);
+          if (alreadyGranted) {
             await AsyncStorage.setItem(`${PERM_STORAGE_PREFIX}${type}`, 'granted');
             return true;
           }
 
+          // Trigger OS native intent dialog immediately
           const result = await PermissionsAndroid.request(targetPerm, {
             title: isVi
               ? type === 'microphone'
@@ -101,7 +106,7 @@ export const permissionService = {
         }
       }
 
-      // 2. Web Platform: Check live hardware permissions and probe mediaDevices
+      // 2. Web: Directly trigger browser device permission prompt via getUserMedia
       if (Platform.OS === 'web') {
         if (type === 'microphone') {
           if (
@@ -115,7 +120,7 @@ export const permissionService = {
               await AsyncStorage.setItem(`${PERM_STORAGE_PREFIX}${type}`, 'granted');
               return true;
             } catch (err: any) {
-              console.warn('Microphone permission request rejected:', err);
+              console.warn('Microphone permission denied by browser:', err);
               await AsyncStorage.setItem(`${PERM_STORAGE_PREFIX}${type}`, 'denied');
               return false;
             }
@@ -124,15 +129,29 @@ export const permissionService = {
         }
 
         if (type === 'camera') {
-          // In web browsers, file input with capture or camera works via browser prompt without pre-blocking
-          await AsyncStorage.setItem(`${PERM_STORAGE_PREFIX}${type}`, 'granted');
+          if (
+            typeof navigator !== 'undefined' &&
+            navigator.mediaDevices &&
+            navigator.mediaDevices.getUserMedia
+          ) {
+            try {
+              const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+              stream.getTracks().forEach((track) => track.stop());
+              await AsyncStorage.setItem(`${PERM_STORAGE_PREFIX}${type}`, 'granted');
+              return true;
+            } catch (err: any) {
+              console.warn('Camera permission denied by browser:', err);
+              await AsyncStorage.setItem(`${PERM_STORAGE_PREFIX}${type}`, 'denied');
+              return false;
+            }
+          }
           return true;
         }
 
         return true;
       }
 
-      // 3. iOS Fallback via Alert Dialog
+      // 3. iOS Fallback
       const current = await AsyncStorage.getItem(`${PERM_STORAGE_PREFIX}${type}`);
       if (current === 'granted') return true;
 

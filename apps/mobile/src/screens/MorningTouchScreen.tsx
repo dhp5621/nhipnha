@@ -4,7 +4,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useRhythm } from '../context/RhythmContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
-import { permissionService } from '../services/permissions';
+import { mediaCaptureService } from '../services/mediaCapture';
 import { BigButton } from '../components/BigButton';
 import { AccessibleText } from '../components/AccessibleText';
 import { AudioWaveform } from '../components/AudioWaveform';

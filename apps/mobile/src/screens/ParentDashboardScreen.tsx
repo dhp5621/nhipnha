@@ -5,7 +5,6 @@ import { useAuth } from '../context/AuthContext';
 import { useRhythm } from '../context/RhythmContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
-import { permissionService } from '../services/permissions';
 import { mediaCaptureService } from '../services/mediaCapture';
 import { apiClient } from '../services/api';
 import { EmpathyPromptCard } from '../components/EmpathyPromptCard';
@@ -83,10 +82,9 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = () =>
   }, [isRecording30s, durationLeft]);
 
   const handleStartRecording = async () => {
-    const granted = await permissionService.requestPermission('microphone', isVi);
-    if (!granted) return;
+    const started = await mediaCaptureService.startAudioRecording(isVi);
+    if (!started) return;
 
-    await mediaCaptureService.startAudioRecording();
     setIsRecording30s(true);
     setDurationLeft(30);
   };

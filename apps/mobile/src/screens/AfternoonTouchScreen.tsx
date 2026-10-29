@@ -9,7 +9,6 @@ import {
 import { useRhythm } from '../context/RhythmContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
-import { permissionService } from '../services/permissions';
 import { mediaCaptureService } from '../services/mediaCapture';
 import { EmotionSelector } from '../components/EmotionSelector';
 import { AudioWaveform } from '../components/AudioWaveform';
@@ -56,10 +55,10 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
   }, [isRecording, durationLeft]);
 
   const handleStartRecording = async () => {
-    const granted = await permissionService.requestPermission('microphone', isVi);
-    if (!granted) return;
+    // Automatically prompts microphone permission if not yet granted
+    const started = await mediaCaptureService.startAudioRecording(isVi);
+    if (!started) return;
 
-    await mediaCaptureService.startAudioRecording();
     setIsRecording(true);
     setDurationLeft(15);
   };
@@ -70,11 +69,7 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
     setRecordedVoice(audioResult);
   };
 
-  const handleSelectAttachment = async (item: CreativeAttachment) => {
-    if (item.type === 'PHOTO') {
-      const granted = await permissionService.requestPermission('camera', isVi);
-      if (!granted) return;
-    }
+  const handleSelectAttachment = (item: CreativeAttachment) => {
     setSelectedAttachment(item);
   };
 
