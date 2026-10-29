@@ -14,15 +14,30 @@ export const permissionService = {
           const has = await PermissionsAndroid.check(
             PermissionsAndroid.PERMISSIONS.RECORD_AUDIO
           );
-          if (has) return 'granted';
+          return has ? 'granted' : 'denied';
         }
         if (type === 'camera') {
           const has = await PermissionsAndroid.check(
             PermissionsAndroid.PERMISSIONS.CAMERA
           );
-          if (has) return 'granted';
+          return has ? 'granted' : 'denied';
         }
       }
+
+      if (Platform.OS === 'web') {
+        if (typeof navigator !== 'undefined' && (navigator as any).permissions) {
+          try {
+            const permName = type === 'microphone' ? 'microphone' : type === 'camera' ? 'camera' : 'notifications';
+            const status = await (navigator as any).permissions.query({ name: permName });
+            if (status.state === 'granted') return 'granted';
+            if (status.state === 'denied') return 'denied';
+            return 'undetermined';
+          } catch {
+            // Some browsers do not support microphone/camera query in permissions API
+          }
+        }
+      }
+
       const saved = await AsyncStorage.getItem(`${PERM_STORAGE_PREFIX}${type}`);
       if (saved === 'granted' || saved === 'denied') {
         return saved;
@@ -38,65 +53,89 @@ export const permissionService = {
     isVi: boolean = true
   ): Promise<boolean> {
     try {
+      // 1. Android Native Permissions Check & Request
       if (Platform.OS === 'android') {
-        if (type === 'microphone') {
-          const result = await PermissionsAndroid.request(
-            PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-            {
-              title: isVi ? 'Cho phép sử dụng Micro' : 'Microphone Permission',
-              message: isVi
-                ? 'Nhịp Nhà cần quyền micro để ghi âm lời nhắn thoại gửi cho gia đình.'
-                : 'Nhịp Nhà needs microphone access to record voice notes for your family.',
-              buttonPositive: isVi ? 'Cho phép' : 'Allow',
-              buttonNegative: isVi ? 'Để sau' : 'Not now',
-            }
-          );
+        const targetPerm =
+          type === 'microphone'
+            ? PermissionsAndroid.PERMISSIONS.RECORD_AUDIO
+            : type === 'camera'
+            ? PermissionsAndroid.PERMISSIONS.CAMERA
+            : null;
+
+        if (targetPerm) {
+          const has = await PermissionsAndroid.check(targetPerm);
+          if (has) {
+            await AsyncStorage.setItem(`${PERM_STORAGE_PREFIX}${type}`, 'granted');
+            return true;
+          }
+
+          const result = await PermissionsAndroid.request(targetPerm, {
+            title: isVi
+              ? type === 'microphone'
+                ? 'Cho phép sử dụng Micro'
+                : 'Cho phép sử dụng Máy ảnh'
+              : type === 'microphone'
+              ? 'Microphone Permission'
+              : 'Camera Permission',
+            message: isVi
+              ? type === 'microphone'
+                ? 'Nhịp Nhà cần quyền micro để gửi tin nhắn thoại yêu thương kết nối gia đình.'
+                : 'Nhịp Nhà cần quyền máy ảnh để chụp ảnh và quét mã kết nối.'
+              : type === 'microphone'
+              ? 'Nhịp Nhà needs microphone access to record voice messages for family.'
+              : 'Nhịp Nhà needs camera access to capture moments and scan QR codes.',
+            buttonPositive: isVi ? 'Cho phép' : 'Allow',
+            buttonNegative: isVi ? 'Để sau' : 'Not now',
+          });
+
           const granted = result === PermissionsAndroid.RESULTS.GRANTED;
           await AsyncStorage.setItem(
             `${PERM_STORAGE_PREFIX}${type}`,
             granted ? 'granted' : 'denied'
           );
+
           if (!granted && result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
             this.promptOpenSettings(type, isVi);
           }
           return granted;
+        }
+      }
+
+      // 2. Web Platform: Check live hardware permissions and probe mediaDevices
+      if (Platform.OS === 'web') {
+        if (type === 'microphone') {
+          if (
+            typeof navigator !== 'undefined' &&
+            navigator.mediaDevices &&
+            navigator.mediaDevices.getUserMedia
+          ) {
+            try {
+              const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+              stream.getTracks().forEach((track) => track.stop());
+              await AsyncStorage.setItem(`${PERM_STORAGE_PREFIX}${type}`, 'granted');
+              return true;
+            } catch (err: any) {
+              console.warn('Microphone permission request rejected:', err);
+              await AsyncStorage.setItem(`${PERM_STORAGE_PREFIX}${type}`, 'denied');
+              return false;
+            }
+          }
+          return true;
         }
 
         if (type === 'camera') {
-          const result = await PermissionsAndroid.request(
-            PermissionsAndroid.PERMISSIONS.CAMERA,
-            {
-              title: isVi ? 'Cho phép sử dụng Máy ảnh' : 'Camera Permission',
-              message: isVi
-                ? 'Nhịp Nhà cần quyền máy ảnh để quét mã QR gia đình và chụp ảnh nhật ký.'
-                : 'Nhịp Nhà needs camera access to scan family QR codes and capture photos.',
-              buttonPositive: isVi ? 'Cho phép' : 'Allow',
-              buttonNegative: isVi ? 'Để sau' : 'Not now',
-            }
-          );
-          const granted = result === PermissionsAndroid.RESULTS.GRANTED;
-          await AsyncStorage.setItem(
-            `${PERM_STORAGE_PREFIX}${type}`,
-            granted ? 'granted' : 'denied'
-          );
-          if (!granted && result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
-            this.promptOpenSettings(type, isVi);
-          }
-          return granted;
+          // In web browsers, file input with capture or camera works via browser prompt without pre-blocking
+          await AsyncStorage.setItem(`${PERM_STORAGE_PREFIX}${type}`, 'granted');
+          return true;
         }
-      }
 
-      const current = await AsyncStorage.getItem(`${PERM_STORAGE_PREFIX}${type}`);
-      if (current === 'granted') return true;
-
-      // On Web, React Native's Alert.alert does not support multi-button callbacks.
-      // Auto-grant and persist so web actions never hang.
-      if (Platform.OS === 'web') {
-        await AsyncStorage.setItem(`${PERM_STORAGE_PREFIX}${type}`, 'granted');
         return true;
       }
 
-      // iOS fallback: ask once via native alert
+      // 3. iOS Fallback via Alert Dialog
+      const current = await AsyncStorage.getItem(`${PERM_STORAGE_PREFIX}${type}`);
+      if (current === 'granted') return true;
+
       return new Promise((resolve) => {
         const title =
           type === 'microphone'

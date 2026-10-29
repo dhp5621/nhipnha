@@ -37,9 +37,6 @@ export const MorningTouchScreen: React.FC<MorningTouchScreenProps> = ({ onBack }
   };
 
   const handleTouch = async () => {
-    const granted = await permissionService.requestPermission('microphone', isVi);
-    if (!granted) return;
-
     setSubmitting(true);
     try {
       await submitMorningTouch();

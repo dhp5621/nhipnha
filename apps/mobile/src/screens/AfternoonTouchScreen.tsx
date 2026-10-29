@@ -78,27 +78,25 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
     setSelectedAttachment(item);
   };
 
-  const handleCaptureOrUploadPhoto = async (useCamera: boolean) => {
-    const granted = await permissionService.requestPermission('camera', isVi);
-    if (!granted) return;
-
-    const photo = await mediaCaptureService.pickOrCapturePhoto(useCamera);
-    if (!photo) return;
-
-    const customPhotoAttachment: CreativeAttachment = {
-      id: `photo_custom_${Date.now()}`,
-      type: 'PHOTO',
-      titleVi: useCamera ? 'Ảnh chụp trực tiếp từ máy ảnh' : `Ảnh tải lên: ${photo.name}`,
-      titleEn: useCamera ? 'Captured camera photo' : `Uploaded photo: ${photo.name}`,
-      emoji: 'photo-camera',
-      dominantColor: photo.dominantColor,
-      imageUrl: photo.dataUrl,
-      cvSignalVi:
-        'Ảnh thực tế từ gia đình — Khoảnh khắc sinh hoạt đời thường được chia sẻ trực tiếp từ quê nhà.',
-      cvSignalEn:
-        'Real family photo — Everyday moment shared directly from home.',
-    };
-    setSelectedAttachment(customPhotoAttachment);
+  const handleCaptureOrUploadPhoto = (useCamera: boolean) => {
+    // Open picker immediately in the user interaction event to avoid popup/gesture blocking
+    mediaCaptureService.pickOrCapturePhoto(useCamera).then((photo) => {
+      if (!photo) return;
+      const customPhotoAttachment: CreativeAttachment = {
+        id: `photo_custom_${Date.now()}`,
+        type: 'PHOTO',
+        titleVi: useCamera ? 'Ảnh chụp trực tiếp từ máy ảnh' : `Ảnh tải lên: ${photo.name}`,
+        titleEn: useCamera ? 'Captured camera photo' : `Uploaded photo: ${photo.name}`,
+        emoji: 'photo-camera',
+        dominantColor: photo.dominantColor,
+        imageUrl: photo.dataUrl,
+        cvSignalVi:
+          'Ảnh thực tế từ gia đình — Khoảnh khắc sinh hoạt đời thường được chia sẻ trực tiếp từ quê nhà.',
+        cvSignalEn:
+          'Real family photo — Everyday moment shared directly from home.',
+      };
+      setSelectedAttachment(customPhotoAttachment);
+    });
   };
 
   const handleSaveAfternoonRhythm = async () => {

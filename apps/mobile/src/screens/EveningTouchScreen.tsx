@@ -26,12 +26,12 @@ export const EveningTouchScreen: React.FC<EveningTouchScreenProps> = ({ onBack }
   const togglePlayback = () => {
     if (!isPlaying) {
       setIsPlaying(true);
-      mediaCaptureService.playAudioUrl(state.eveningAudioUrl);
       markEveningListened();
-      setTimeout(() => {
+      mediaCaptureService.playAudioUrl(state.eveningAudioUrl, () => {
         setIsPlaying(false);
-      }, 5000);
+      });
     } else {
+      mediaCaptureService.stopAudioPlayback();
       setIsPlaying(false);
     }
   };
