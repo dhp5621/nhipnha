@@ -7,29 +7,34 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "prebuild": "expo prebuild --clean --no-install && node scripts/patch-prebuild.js",
-    "prebuild:android": "expo prebuild --platform android --clean --no-install && node scripts/patch-prebuild.js",
-    "prebuild:ios": "expo prebuild --platform ios --clean --no-install && node scripts/patch-prebuild.js",
-    "prebuild:all": "expo prebuild --platform all --clean --no-install && node scripts/patch-prebuild.js"
+    "prebuild": "expo prebuild --clean --no-install",
+    "prebuild:android": "expo prebuild --platform android --clean --no-install",
+    "prebuild:ios": "expo prebuild --platform ios --clean --no-install",
+    "prebuild:all": "expo prebuild --platform all --clean --no-install"
   },
   "dependencies": {
     "@babel/runtime": "^7.24.0",
     "@nhipnha/shared": "workspace:*",
     "@react-native-async-storage/async-storage": "1.23.1",
     "@react-native/assets-registry": "0.74.87",
+    "@react-native/gradle-plugin": "0.74.87",
     "expo": "~51.0.0",
     "expo-asset": "~10.0.10",
+    "expo-build-properties": "~0.12.5",
     "expo-constants": "~16.0.2",
     "expo-status-bar": "~1.12.1",
     "expo-system-ui": "~3.0.7",
     "nativewind": "^2.0.11",
     "react": "18.2.0",
+    "react-dom": "18.2.0",
     "react-native": "0.74.5",
-    "react-native-safe-area-context": "4.10.5"
+    "react-native-safe-area-context": "4.10.5",
+    "react-native-web": "~0.19.10"
   },
   "devDependencies": {
     "@babel/core": "^7.24.0",
     "@types/react": "~18.2.79",
+    "@types/react-dom": "~18.2.22",
     "babel-preset-expo": "~11.0.11",
     "tailwindcss": "3.3.2",
     "typescript": "^5.4.5"

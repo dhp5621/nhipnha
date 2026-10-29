@@ -9,6 +9,9 @@
       "backgroundColor": "#FFFBEB",
       "resizeMode": "contain"
     },
+    "web": {
+      "bundler": "metro"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.nhipnha.app",
@@ -23,6 +26,29 @@
         "backgroundColor": "#FFFBEB",
         "resizeMode": "contain"
       }
-    }
+    },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 34,
+            "targetSdkVersion": 34,
+            "buildToolsVersion": "34.0.0",
+            "extraGradleProperties": {
+              "org.gradle.jvmargs": "-Xmx4096m -XX:MaxMetaspaceSize=1024m",
+              "android.useAndroidX": "true",
+              "android.enableJetifier": "true",
+              "android.lint.abortOnError": "false",
+              "android.lint.checkReleaseBuilds": "false"
+            }
+          },
+          "ios": {
+            "deploymentTarget": "15.1",
+            "useFrameworks": "static"
+          }
+        }
+      ]
+    ]
   }
 }
