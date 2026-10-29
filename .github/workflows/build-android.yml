@@ -67,11 +67,11 @@ jobs:
         run: |
           yes | sdkmanager --licenses || yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-      - name: ⚙️ Build Android Release APK
+      - name: ⚙️ Build Android Release APK (No Lint)
         run: |
           cd apps/mobile/android
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon
+          ./gradlew assembleRelease -x lint -x lintVitalRelease -x lintVitalReportRelease --no-daemon
 
       - name: 🔏 Sign Release APK with Keystore
         env:

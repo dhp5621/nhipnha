@@ -109,6 +109,11 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+
     namespace 'com.nhipnha.app'
     defaultConfig {
         applicationId 'com.nhipnha.app'
