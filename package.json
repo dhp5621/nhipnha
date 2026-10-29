@@ -1,0 +1,26 @@
+{
+  "name": "nhipnha-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Nhịp Nhà – Gần nhau dù cách xa (RBPC 2026, SDG 3, 4, 8) - Monorepo",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "clean": "turbo run clean",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json}\""
+  },
+  "devDependencies": {
+    "turbo": "^2.4.0",
+    "typescript": "^5.4.5",
+    "prettier": "^3.2.5"
+  },
+  "packageManager": "pnpm@12.16.1",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
