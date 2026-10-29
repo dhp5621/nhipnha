@@ -1,10 +1,17 @@
 import { NextResponse } from 'next/server';
 import { dataRepository } from '@/db';
+import { authenticate } from '@/lib/auth';
 import type { Message } from '@nhipnha/shared';
 
 export const dynamic = 'force-dynamic';
 
-// POST: Parent sends evening bedtime message or child marks message listened
+const MAX_AUDIO_CHARS = 3_000_000;
+
+function fail(status: number, error: string) {
+  return NextResponse.json({ success: false, error }, { status });
+}
+
+// POST: A parent / grandparent sends a bedtime message, or a member marks a message listened
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -22,23 +29,40 @@ export async function POST(request: Request) {
       aiSuggestedPrompts,
     } = body;
 
+    const auth = await authenticate(request, familyId);
+    if (!auth.ok) return auth.response;
+
     if (action === 'mark_listened' && messageId) {
+      const familyMessages = await dataRepository.getMessages(familyId);
+      if (!familyMessages.some((m) => m.id === messageId)) {
+        return fail(404, 'Không tìm thấy tin nhắn trong gia đình.');
+      }
       await dataRepository.markMessageListened(messageId);
       return NextResponse.json({ success: true, message: 'Đã đánh dấu đã nghe' });
     }
 
-    if (!familyId) {
-      return NextResponse.json(
-        { success: false, error: 'Thiếu mã định danh gia đình (familyId)' },
-        { status: 400 }
-      );
+    // Children receive bedtime messages; they do not send them
+    if (!auth.isDemo && auth.member!.role === 'CHILD') {
+      return fail(403, 'Tài khoản trẻ em không thể gửi lời dặn dò.');
+    }
+
+    if (typeof audioUrl === 'string' && audioUrl.length > MAX_AUDIO_CHARS) {
+      return fail(413, 'Tệp ghi âm quá lớn, vui lòng ghi âm ngắn hơn.');
+    }
+
+    if (!auth.isDemo && recipientId) {
+      const recipient = await dataRepository.getMember(recipientId);
+      if (!recipient || recipient.familyId !== familyId) {
+        return fail(400, 'Người nhận không thuộc gia đình này.');
+      }
     }
 
     const newMsg: Message = {
       id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       familyId,
-      senderId: senderId || `mem_parent_${Date.now().toString(36)}`,
-      senderName: senderName || 'Bố / Mẹ',
+      // Real families: the sender is always the signed-in member
+      senderId: auth.member?.id || senderId || `mem_parent_${Date.now().toString(36)}`,
+      senderName: auth.member?.name || senderName || 'Bố / Mẹ',
       recipientId,
       rhythmType: 'EVENING',
       durationSec: durationSec || 20,
@@ -57,10 +81,7 @@ export async function POST(request: Request) {
       data: newMsg,
     });
   } catch (err: any) {
-    return NextResponse.json(
-      { success: false, error: err?.message || 'Lỗi gửi tin nhắn dặn dò' },
-      { status: 500 }
-    );
+    return fail(500, err?.message || 'Lỗi gửi tin nhắn dặn dò');
   }
 }
 
@@ -75,6 +96,9 @@ export async function GET(request: Request) {
       { status: 400 }
     );
   }
+
+  const auth = await authenticate(request, familyId);
+  if (!auth.ok) return auth.response;
 
   const msgs = await dataRepository.getMessages(familyId);
   return NextResponse.json({

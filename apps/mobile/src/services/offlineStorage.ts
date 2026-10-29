@@ -4,6 +4,8 @@ import type { CheckIn, Family, Member } from '@nhipnha/shared';
 const STORAGE_KEYS = {
   CURRENT_MEMBER: 'nhipnha_current_member',
   CURRENT_FAMILY: 'nhipnha_current_family',
+  SESSION_TOKEN: 'nhipnha_session_token',
+  PERSONAL_LOGIN_CODE: 'nhipnha_personal_login_code',
   OFFLINE_QUEUE: 'nhipnha_offline_queue',
   VOICE_CACHE: 'nhipnha_voice_cache',
 };
@@ -45,23 +47,57 @@ async function removeItem(key: string): Promise<void> {
 }
 
 export const offlineStorage = {
-  async saveAuth(family: Family, member: Member): Promise<void> {
+  async saveAuth(
+    family: Family,
+    member: Member,
+    token?: string,
+    loginCode?: string
+  ): Promise<void> {
     await setItem(STORAGE_KEYS.CURRENT_FAMILY, JSON.stringify(family));
     await setItem(STORAGE_KEYS.CURRENT_MEMBER, JSON.stringify(member));
+    if (token !== undefined) {
+      if (token) {
+        await setItem(STORAGE_KEYS.SESSION_TOKEN, token);
+      } else {
+        await removeItem(STORAGE_KEYS.SESSION_TOKEN);
+      }
+    }
+    if (loginCode !== undefined) {
+      if (loginCode) {
+        await setItem(STORAGE_KEYS.PERSONAL_LOGIN_CODE, loginCode);
+      } else {
+        await removeItem(STORAGE_KEYS.PERSONAL_LOGIN_CODE);
+      }
+    }
   },
 
-  async getAuth(): Promise<{ family: Family | null; member: Member | null }> {
+  async savePersonalLoginCode(loginCode: string): Promise<void> {
+    await setItem(STORAGE_KEYS.PERSONAL_LOGIN_CODE, loginCode);
+  },
+
+  async getAuth(): Promise<{
+    family: Family | null;
+    member: Member | null;
+    token: string | null;
+    loginCode: string | null;
+  }> {
     const famStr = await getItem(STORAGE_KEYS.CURRENT_FAMILY);
     const memStr = await getItem(STORAGE_KEYS.CURRENT_MEMBER);
+    const token = await getItem(STORAGE_KEYS.SESSION_TOKEN);
+    const loginCode = await getItem(STORAGE_KEYS.PERSONAL_LOGIN_CODE);
     return {
       family: famStr ? JSON.parse(famStr) : null,
       member: memStr ? JSON.parse(memStr) : null,
+      token: token || null,
+      loginCode: loginCode || null,
     };
   },
 
   async clearAuth(): Promise<void> {
     await removeItem(STORAGE_KEYS.CURRENT_FAMILY);
     await removeItem(STORAGE_KEYS.CURRENT_MEMBER);
+    await removeItem(STORAGE_KEYS.SESSION_TOKEN);
+    await removeItem(STORAGE_KEYS.PERSONAL_LOGIN_CODE);
   },
 
   async enqueueOfflineCheckIn(checkIn: CheckIn): Promise<void> {
@@ -93,11 +129,9 @@ export const offlineStorage = {
     waveform: number[];
     durationSec: number;
   }> {
-    // Generate realistic fluctuating amplitude waveform
     const sampleCount = Math.min(20, Math.max(10, durationSec));
     const waveform: number[] = [];
     for (let i = 0; i < sampleCount; i++) {
-      // Natural speech-like envelope
       const base = Math.sin((i / sampleCount) * Math.PI) * 75;
       const noise = (Math.random() - 0.5) * 25;
       waveform.push(Math.round(Math.max(15, Math.min(100, base + noise))));

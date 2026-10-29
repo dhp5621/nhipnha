@@ -1,4 +1,12 @@
-import { pgTable, text, timestamp, varchar, integer, jsonb } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  text,
+  timestamp,
+  varchar,
+  integer,
+  jsonb,
+  boolean,
+} from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 export const families = pgTable('families', {
@@ -19,7 +27,42 @@ export const members = pgTable('members', {
   role: varchar('role', { length: 32 }).notNull(), // 'CHILD' | 'PARENT' | 'GRANDPARENT'
   avatarUrl: text('avatar_url'),
   deviceId: text('device_id'),
+  isOwner: boolean('is_owner').default(false).notNull(),
+  // Optional email + password login (both or neither). Stored lowercase / scrypt-hashed.
+  email: varchar('email', { length: 254 }).unique(),
+  passwordHash: text('password_hash'),
+  // SHA-256 of the member's QR login secret; the secret itself is shown only once.
+  qrSecretHash: text('qr_secret_hash'),
+  failedLogins: integer('failed_logins').default(0).notNull(),
+  lockedUntil: timestamp('locked_until'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// One row per signed-in device. Only the SHA-256 of the session token is stored.
+export const sessions = pgTable('sessions', {
+  id: varchar('id', { length: 64 }).primaryKey(),
+  memberId: varchar('member_id', { length: 64 })
+    .notNull()
+    .references(() => members.id, { onDelete: 'cascade' }),
+  tokenHash: text('token_hash').notNull(),
+  deviceLabel: varchar('device_label', { length: 128 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const invites = pgTable('invites', {
+  id: varchar('id', { length: 64 }).primaryKey(),
+  familyId: varchar('family_id', { length: 64 })
+    .notNull()
+    .references(() => families.id, { onDelete: 'cascade' }),
+  code: varchar('code', { length: 32 }).notNull().unique(),
+  role: varchar('role', { length: 32 }).notNull(),
+  memberName: varchar('member_name', { length: 128 }),
+  createdBy: varchar('created_by', { length: 64 }).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
+  usedAt: timestamp('used_at'),
+  usedByName: varchar('used_by_name', { length: 128 }),
+  revokedAt: timestamp('revoked_at'),
 });
 
 export const checkIns = pgTable('check_ins', {

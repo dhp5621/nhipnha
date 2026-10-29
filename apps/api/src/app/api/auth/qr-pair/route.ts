@@ -1,141 +1,211 @@
 import { NextResponse } from 'next/server';
-import { dataRepository } from '@/db';
-import type { QRPairingPayload, Role } from '@nhipnha/shared';
+import { dataRepository, DEMO_FAMILY_ID } from '@/db';
+import {
+  buildLoginPayload,
+  generateQrSecret,
+  hashPassword,
+  hashToken,
+  issueSession,
+  normalizeEmail,
+  validatePassword,
+} from '@/lib/auth';
+import { getInviteStatus, isRole, type Member, type QRPairingPayload, type Role } from '@nhipnha/shared';
 
 export const dynamic = 'force-dynamic';
 
-// POST: Validate or generate QR Pairing session (Zero-type login)
+const DEFAULT_NAMES: Record<Role, string> = {
+  CHILD: 'Con',
+  PARENT: 'Bố / Mẹ',
+  GRANDPARENT: 'Ông / Bà',
+};
+
+function fail(status: number, error: string) {
+  return NextResponse.json({ success: false, error }, { status });
+}
+
+function cleanText(value: unknown, max: number): string {
+  return typeof value === 'string' ? value.trim().slice(0, max) : '';
+}
+
+/** Accepts a raw code, or the JSON payload of a scanned QR, and returns the code inside. */
+function extractCode(body: { code?: unknown; qrPayload?: unknown }): string {
+  if (body.qrPayload) {
+    try {
+      const parsed: QRPairingPayload =
+        typeof body.qrPayload === 'string' ? JSON.parse(body.qrPayload) : (body.qrPayload as QRPairingPayload);
+      return String(parsed.inviteCode || parsed.familyCode || '').trim().toUpperCase();
+    } catch {
+      return String(body.qrPayload).trim().toUpperCase();
+    }
+  }
+  return String(body.code || '').trim().toUpperCase();
+}
+
+/**
+ * Gives a brand-new member their QR login secret and first signed-in device.
+ * The plain token and login code are returned once and never stored.
+ */
+async function provisionAccess(member: Member, deviceLabel: string) {
+  const qrSecret = generateQrSecret();
+  await dataRepository.setSecrets(member.id, { qrSecretHash: hashToken(qrSecret) });
+  const token = await issueSession(member.id, deviceLabel);
+  return { token, loginCode: buildLoginPayload(member.id, qrSecret) };
+}
+
+/**
+ * POST /api/auth/qr-pair
+ *  - action "create": a new family is created and the caller becomes its owner. Email and
+ *    password are optional (both or neither); the QR login code is always issued.
+ *  - otherwise: join with an owner-generated invite code. The role comes from the invite,
+ *    never from the client. The public demo family keeps its open code for testing.
+ */
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { action, qrPayload, code, memberRole, memberName, deviceId } = body;
+    const deviceLabel = cleanText(body.deviceLabel, 100) || 'Thiết bị mới';
+    const deviceId = cleanText(body.deviceId, 100) || `dev_${Math.random().toString(36).slice(2, 8)}`;
 
-    // 1. Generation action: Create a new QR pairing code for a family in database
-    if (action === 'generate') {
-      const familyId = `fam_${Date.now().toString(36)}`;
-      const familyCode = `NHIP-${Math.floor(1000 + Math.random() * 9000)}`;
-      const familyName = body.familyName || 'Gia đình Nhịp Nhà';
-      const targetRole: Role = (memberRole as Role) || 'PARENT';
-      const targetName =
-        memberName ||
-        (targetRole === 'CHILD' ? 'Con' : targetRole === 'PARENT' ? 'Bố / Mẹ' : 'Ông / Bà');
+    // 1. Create a new family. The creator is the owner (host) of the family.
+    if (body.action === 'create' || body.action === 'generate') {
+      const familyName = cleanText(body.familyName, 80);
+      if (!familyName) return fail(400, 'Vui lòng đặt tên cho gia đình.');
+      if (!isRole(body.memberRole)) return fail(400, 'Vai trò không hợp lệ.');
 
-      const payload: QRPairingPayload = {
-        version: '1.0',
-        app: 'nhipnha',
-        familyId,
-        familyCode,
-        familyName,
-        token: `tok_${Math.random().toString(36).substring(2)}`,
-        suggestedRole: targetRole,
-        suggestedName: targetName,
-        generatedAt: Date.now(),
-      };
+      // Email and password come as a pair
+      const hasEmail = typeof body.email === 'string' && body.email.trim() !== '';
+      const hasPassword = typeof body.password === 'string' && body.password !== '';
+      if (hasEmail !== hasPassword) {
+        return fail(400, 'Cần nhập cả email và mật khẩu, hoặc bỏ trống cả hai.');
+      }
+      let email: string | undefined;
+      let passwordHash: string | undefined;
+      if (hasEmail) {
+        const normalized = normalizeEmail(body.email);
+        if (!normalized) return fail(400, 'Email không hợp lệ.');
+        const passwordError = validatePassword(body.password);
+        if (passwordError) return fail(400, passwordError);
+        if (await dataRepository.findMemberIdByEmail(normalized)) {
+          return fail(409, 'Email này đã được sử dụng cho tài khoản khác.');
+        }
+        email = normalized;
+        passwordHash = hashPassword(body.password);
+      }
+
+      const role: Role = body.memberRole;
+      const memberName = cleanText(body.memberName, 60) || DEFAULT_NAMES[role];
+      const familyId = `fam_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+      const familyCode = `NHIP-${Math.floor(1000 + Math.random() * 9000)}${Math.random()
+        .toString(36)
+        .slice(2, 4)
+        .toUpperCase()}`;
 
       const family = await dataRepository.saveFamily({
         id: familyId,
         code: familyCode,
         name: familyName,
-        qrPayload: JSON.stringify(payload),
-        addressProvince: body.addressProvince || 'Việt Nam',
+        // The family itself is not joinable by code; members join through invites / login codes.
+        qrPayload: JSON.stringify({ version: '1.0', app: 'nhipnha', familyId, familyName }),
+        addressProvince: cleanText(body.addressProvince, 80) || 'Việt Nam',
         createdAt: new Date().toISOString(),
       });
 
-      const memberId = `mem_${targetRole.toLowerCase()}_${Date.now().toString(36)}`;
       const member = await dataRepository.saveMember({
-        id: memberId,
+        id: `mem_${role.toLowerCase()}_${Date.now().toString(36)}`,
         familyId: family.id,
-        name: targetName,
-        role: targetRole,
-        deviceId: deviceId || `dev_${Math.random().toString(36).slice(2, 8)}`,
+        name: memberName,
+        role,
+        isOwner: true,
+        deviceId,
         createdAt: new Date().toISOString(),
       });
+      if (email && passwordHash) {
+        await dataRepository.setSecrets(member.id, { email, passwordHash });
+      }
 
+      const access = await provisionAccess(member, deviceLabel);
       return NextResponse.json({
         success: true,
         family,
         member,
-        qrPayload: payload,
+        token: access.token,
+        loginCode: access.loginCode,
+        hasPassword: !!passwordHash,
       });
     }
 
-    // 2. Pair action: Zero-type 1-touch pairing via scanned QR data or family code
-    let matchedFamily;
-    let targetRole: Role = (memberRole as Role) || 'CHILD';
-    let targetName = memberName;
+    // 2. Join an existing family
+    const code = extractCode(body);
+    if (!code) return fail(400, 'Vui lòng nhập mã mời từ chủ nhà.');
 
-    if (qrPayload) {
-      try {
-        const parsed: QRPairingPayload =
-          typeof qrPayload === 'string' ? JSON.parse(qrPayload) : qrPayload;
-        if (parsed.familyId) {
-          matchedFamily = await dataRepository.getFamily(parsed.familyId);
-        }
-        if (!matchedFamily && parsed.familyCode) {
-          matchedFamily = await dataRepository.getFamilyByCode(parsed.familyCode);
-        }
-        if (parsed.suggestedRole && !memberRole) targetRole = parsed.suggestedRole;
-        if (parsed.suggestedName && !targetName) targetName = parsed.suggestedName;
-      } catch {
-        matchedFamily = await dataRepository.getFamilyByCode(String(qrPayload));
+    // 2a. Owner-generated invite: single use, fixed role, expires
+    const invite = await dataRepository.getInviteByCode(code);
+    if (invite) {
+      const status = getInviteStatus(invite);
+      if (status !== 'ACTIVE') {
+        const reason =
+          status === 'USED'
+            ? 'Mã mời này đã được sử dụng.'
+            : status === 'EXPIRED'
+            ? 'Mã mời đã hết hạn. Hãy nhờ chủ nhà tạo mã mới.'
+            : 'Mã mời đã bị chủ nhà thu hồi.';
+        return fail(410, reason);
       }
-    } else if (code) {
-      matchedFamily = await dataRepository.getFamilyByCode(String(code));
-    }
 
-    if (!matchedFamily) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Mã gia đình không tồn tại trên hệ thống. Vui lòng kiểm tra lại hoặc dùng mã mẫu NHIP-8868.',
-        },
-        { status: 404 }
-      );
-    }
+      const family = await dataRepository.getFamily(invite.familyId);
+      if (!family) return fail(404, 'Gia đình của mã mời này không còn tồn tại.');
 
-    // Reuse existing member of the same role in the family if found, or create a new member
-    const existingMembers = await dataRepository.getMembers(matchedFamily.id);
-    const matchedRoleMember = existingMembers.find((m) => m.role === targetRole);
+      const memberName = invite.memberName || cleanText(body.memberName, 60) || DEFAULT_NAMES[invite.role];
 
-    if (matchedRoleMember && (!targetName || targetName === matchedRoleMember.name)) {
+      // Claim first: if two people race for the same code, only one wins
+      const claimed = await dataRepository.claimInvite(invite.id, memberName);
+      if (!claimed) return fail(410, 'Mã mời này vừa được người khác sử dụng.');
+
+      const member = await dataRepository.saveMember({
+        id: `mem_${invite.role.toLowerCase()}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 4)}`,
+        familyId: family.id,
+        name: memberName,
+        role: invite.role,
+        isOwner: false,
+        deviceId,
+        createdAt: new Date().toISOString(),
+      });
+
+      const access = await provisionAccess(member, deviceLabel);
       return NextResponse.json({
         success: true,
-        message: 'Ghép đôi gia đình thành công!',
-        family: matchedFamily,
-        member: matchedRoleMember,
+        message: 'Tham gia gia đình thành công!',
+        family,
+        member,
+        token: access.token,
+        loginCode: access.loginCode,
       });
     }
 
-    const memberId = `mem_${targetRole.toLowerCase()}_${Date.now().toString(36)}`;
-    const newMember = await dataRepository.saveMember({
-      id: memberId,
-      familyId: matchedFamily.id,
-      name:
-        targetName ||
-        matchedRoleMember?.name ||
-        (targetRole === 'CHILD' ? 'Con' : targetRole === 'PARENT' ? 'Bố / Mẹ' : 'Ông / Bà'),
-      role: targetRole,
-      deviceId: deviceId || `dev_${Math.random().toString(36).slice(2, 8)}`,
-      createdAt: new Date().toISOString(),
-    });
+    // 2b. Public demo family: open code, role chosen freely, reuses the seeded accounts
+    const demoFamily = await dataRepository.getFamilyByCode(code);
+    if (demoFamily && demoFamily.id === DEMO_FAMILY_ID) {
+      const role: Role = isRole(body.memberRole) ? body.memberRole : 'CHILD';
+      const members = await dataRepository.getMembers(demoFamily.id);
+      const seeded: Member | undefined = members.find((m) => m.role === role);
+      if (!seeded) return fail(404, 'Không tìm thấy tài khoản demo cho vai trò này.');
+      return NextResponse.json({
+        success: true,
+        message: 'Đã vào gia đình demo.',
+        family: demoFamily,
+        member: seeded,
+        demo: true,
+      });
+    }
 
-    return NextResponse.json({
-      success: true,
-      message: 'Ghép đôi gia đình thành công!',
-      family: matchedFamily,
-      member: newMember,
-    });
+    return fail(404, 'Mã mời không hợp lệ. Hãy kiểm tra lại hoặc nhờ chủ nhà tạo mã mới.');
   } catch (err: any) {
-    return NextResponse.json(
-      { success: false, error: err?.message || 'Lỗi xử lý ghép đôi QR' },
-      { status: 500 }
-    );
+    return fail(500, err?.message || 'Lỗi xử lý ghép đôi');
   }
 }
 
 // GET: Return active demo QR payload from database
 export async function GET() {
-  const demoFamily = await dataRepository.getFamily('fam_dongthap_001');
+  const demoFamily = await dataRepository.getFamily(DEMO_FAMILY_ID);
   return NextResponse.json({
     family: demoFamily,
     demoCode: demoFamily?.code || 'NHIP-8868',

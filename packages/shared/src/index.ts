@@ -39,7 +39,52 @@ export interface Member {
   role: Role;
   avatarUrl?: string;
   deviceId?: string;
+  /** The family host. Only the owner can invite, change roles or remove members. */
+  isOwner?: boolean;
+  /** Only filled in for the owner's view of the roster, and for the member themself. */
+  email?: string;
+  hasPassword?: boolean;
   createdAt: string;
+}
+
+/** Public demo family used for testing. Its data is seeded on the server only. */
+export const DEMO_FAMILY_ID = 'fam_dongthap_001';
+export const DEMO_FAMILY_CODE = 'NHIP-8868';
+
+export const ALL_ROLES: Role[] = ['CHILD', 'PARENT', 'GRANDPARENT'];
+
+export function isRole(value: unknown): value is Role {
+  return typeof value === 'string' && (ALL_ROLES as string[]).includes(value);
+}
+
+/**
+ * A single-use invitation created by the family owner. The role is fixed by the
+ * owner at creation time, so the person joining cannot choose it.
+ */
+export interface FamilyInvite {
+  id: string;
+  familyId: string;
+  code: string; // e.g. MOI-7K3F9QXA
+  role: Role;
+  memberName?: string; // optional pre-filled display name
+  createdBy: string; // owner member id
+  createdAt: string;
+  expiresAt: string;
+  usedAt?: string;
+  usedByName?: string;
+  revokedAt?: string;
+}
+
+export type InviteStatus = 'ACTIVE' | 'USED' | 'EXPIRED' | 'REVOKED';
+
+export const INVITE_TTL_OPTIONS_HOURS = [24, 72, 168];
+export const INVITE_DEFAULT_TTL_HOURS = 72;
+
+export function getInviteStatus(invite: FamilyInvite, now: number = Date.now()): InviteStatus {
+  if (invite.revokedAt) return 'REVOKED';
+  if (invite.usedAt) return 'USED';
+  if (new Date(invite.expiresAt).getTime() <= now) return 'EXPIRED';
+  return 'ACTIVE';
 }
 
 export interface CheckIn {
@@ -215,6 +260,8 @@ export interface QRPairingPayload {
   token: string;
   suggestedRole?: Role;
   suggestedName?: string;
+  /** Present on owner-generated invites: the single-use code to join with. */
+  inviteCode?: string;
   generatedAt: number;
 }
 

@@ -16,6 +16,7 @@ import { AfternoonTouchScreen } from './src/screens/AfternoonTouchScreen';
 import { EveningTouchScreen } from './src/screens/EveningTouchScreen';
 import { ParentDashboardScreen } from './src/screens/ParentDashboardScreen';
 import { RoleSwitchScreen } from './src/screens/RoleSwitchScreen';
+import { OwnerManagementScreen } from './src/screens/OwnerManagementScreen';
 import { AccessibleText } from './src/components/AccessibleText';
 
 type ScreenName =
@@ -25,7 +26,8 @@ type ScreenName =
   | 'AFTERNOON_TOUCH'
   | 'EVENING_TOUCH'
   | 'PARENT_DASHBOARD'
-  | 'ROLE_SWITCH';
+  | 'ROLE_SWITCH'
+  | 'OWNER_CONSOLE';
 
 function NavigationRoot() {
   const { isPaired, isLoading, member } = useAuth();
@@ -78,11 +80,16 @@ function NavigationRoot() {
       return <EveningTouchScreen onBack={() => setCurrentScreen(null)} />;
     }
 
+    if (currentScreen === 'OWNER_CONSOLE') {
+      return <OwnerManagementScreen onBack={() => setCurrentScreen('ROLE_SWITCH')} />;
+    }
+
     if (currentScreen === 'ROLE_SWITCH') {
       return (
         <RoleSwitchScreen
           onBack={() => setCurrentScreen(null)}
           onGoToLogin={() => setCurrentScreen('QR_LOGIN')}
+          onOpenOwnerConsole={() => setCurrentScreen('OWNER_CONSOLE')}
         />
       );
     }
@@ -105,7 +112,7 @@ function NavigationRoot() {
     );
   };
 
-  const isHomeTab = currentScreen !== 'ROLE_SWITCH';
+  const isHomeTab = currentScreen !== 'ROLE_SWITCH' && currentScreen !== 'OWNER_CONSOLE';
 
   return (
     <View style={[styles.rootContainer, { backgroundColor: colors.background }]}>

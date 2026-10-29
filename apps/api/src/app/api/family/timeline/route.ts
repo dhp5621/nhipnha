@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { dataRepository } from '@/db';
+import { authenticate } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +14,9 @@ export async function GET(request: Request) {
       { status: 400 }
     );
   }
+
+  const auth = await authenticate(request, familyId);
+  if (!auth.ok) return auth.response;
 
   const [family, members, checkIns, messages] = await Promise.all([
     dataRepository.getFamily(familyId),

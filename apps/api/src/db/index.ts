@@ -1,10 +1,13 @@
 import { neon } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
-import { eq, desc, sql } from 'drizzle-orm';
+import { eq, desc, sql, and, isNull } from 'drizzle-orm';
 import * as schema from './schema';
 import {
   CREATIVE_ATTACHMENTS,
+  DEMO_FAMILY_ID,
+  DEMO_FAMILY_CODE,
   type Family,
+  type FamilyInvite,
   type Member,
   type CheckIn,
   type Message,
@@ -23,8 +26,59 @@ const databaseUrl =
 const sqlClient = databaseUrl ? neon(databaseUrl) : null;
 export const db = sqlClient ? drizzle(sqlClient, { schema }) : null;
 
-export const DEMO_FAMILY_ID = 'fam_dongthap_001';
-export const DEMO_FAMILY_CODE = 'NHIP-8868';
+export { DEMO_FAMILY_ID, DEMO_FAMILY_CODE };
+
+/** Seeded demo accounts cannot be edited or removed, so the demo always resets cleanly. */
+export const DEMO_PROTECTED_MEMBER_IDS = ['mem_child_an', 'mem_parent_hoa', 'mem_grand_ba'];
+
+/** A member can be signed in on a few devices at once; the oldest sign-in is dropped first. */
+export const MAX_SESSIONS_PER_MEMBER = 3;
+
+/** Login secrets of a member. Never sent to clients. */
+export interface MemberSecrets {
+  email?: string;
+  passwordHash?: string;
+  qrSecretHash?: string;
+  failedLogins: number;
+  lockedUntil?: string;
+}
+
+export interface SessionRecord {
+  id: string;
+  memberId: string;
+  tokenHash: string;
+  deviceLabel?: string;
+  createdAt: string;
+}
+
+function toMember(r: typeof schema.members.$inferSelect): Member {
+  return {
+    id: r.id,
+    familyId: r.familyId,
+    name: r.name,
+    role: r.role as Role,
+    avatarUrl: r.avatarUrl || undefined,
+    deviceId: r.deviceId || undefined,
+    isOwner: r.isOwner,
+    createdAt: r.createdAt.toISOString(),
+  };
+}
+
+function toInvite(r: typeof schema.invites.$inferSelect): FamilyInvite {
+  return {
+    id: r.id,
+    familyId: r.familyId,
+    code: r.code,
+    role: r.role as Role,
+    memberName: r.memberName || undefined,
+    createdBy: r.createdBy,
+    createdAt: r.createdAt.toISOString(),
+    expiresAt: r.expiresAt.toISOString(),
+    usedAt: r.usedAt ? r.usedAt.toISOString() : undefined,
+    usedByName: r.usedByName || undefined,
+    revokedAt: r.revokedAt ? r.revokedAt.toISOString() : undefined,
+  };
+}
 
 const DEMO_FAMILY: Family = {
   id: DEMO_FAMILY_ID,
@@ -60,6 +114,7 @@ const DEMO_MEMBERS: Member[] = [
     familyId: DEMO_FAMILY_ID,
     name: 'Mẹ Hoa (Công nhân KCN Bình Dương)',
     role: 'PARENT',
+    isOwner: true,
     avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150',
     deviceId: 'dev_samsung_a12',
     createdAt: new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString(),
@@ -135,6 +190,9 @@ class MemoryRepository {
   private members: Map<string, Member> = new Map();
   private checkIns: CheckIn[] = [];
   private messages: Message[] = [];
+  private invites: Map<string, FamilyInvite> = new Map();
+  private secrets: Map<string, MemberSecrets> = new Map();
+  private sessions: SessionRecord[] = [];
 
   constructor() {
     this.seedDefaults();
@@ -176,6 +234,98 @@ class MemoryRepository {
   saveMember(member: Member): Member {
     this.members.set(member.id, member);
     return member;
+  }
+
+  getSecrets(memberId: string): MemberSecrets {
+    return this.secrets.get(memberId) || { failedLogins: 0 };
+  }
+
+  setSecrets(memberId: string, patch: Partial<MemberSecrets>): void {
+    this.secrets.set(memberId, { ...this.getSecrets(memberId), ...patch });
+  }
+
+  findMemberIdByEmail(email: string): string | undefined {
+    for (const [memberId, s] of this.secrets.entries()) {
+      if (s.email === email) return memberId;
+    }
+    return undefined;
+  }
+
+  addSession(session: SessionRecord): void {
+    this.sessions.push(session);
+    const mine = this.sessions
+      .filter((s) => s.memberId === session.memberId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const evict = new Set(mine.slice(MAX_SESSIONS_PER_MEMBER).map((s) => s.id));
+    if (evict.size > 0) this.sessions = this.sessions.filter((s) => !evict.has(s.id));
+  }
+
+  hasSession(memberId: string, tokenHash: string): boolean {
+    return this.sessions.some((s) => s.memberId === memberId && s.tokenHash === tokenHash);
+  }
+
+  deleteSessions(memberId: string, exceptTokenHash?: string): void {
+    this.sessions = this.sessions.filter(
+      (s) => s.memberId !== memberId || (exceptTokenHash !== undefined && s.tokenHash === exceptTokenHash)
+    );
+  }
+
+  countSessions(memberId: string): number {
+    return this.sessions.filter((s) => s.memberId === memberId).length;
+  }
+
+  updateMember(memberId: string, patch: { name?: string; role?: Role }): Member | undefined {
+    const current = this.members.get(memberId);
+    if (!current) return undefined;
+    const next: Member = {
+      ...current,
+      name: patch.name ?? current.name,
+      role: patch.role ?? current.role,
+    };
+    this.members.set(memberId, next);
+    return next;
+  }
+
+  deleteMember(memberId: string): void {
+    this.members.delete(memberId);
+    this.secrets.delete(memberId);
+    this.sessions = this.sessions.filter((s) => s.memberId !== memberId);
+    this.checkIns = this.checkIns.filter((c) => c.memberId !== memberId);
+    this.messages = this.messages.filter((m) => m.senderId !== memberId);
+  }
+
+  saveInvite(invite: FamilyInvite): FamilyInvite {
+    this.invites.set(invite.id, invite);
+    return invite;
+  }
+
+  getInviteByCode(code: string): FamilyInvite | undefined {
+    for (const inv of this.invites.values()) {
+      if (inv.code === code) return inv;
+    }
+    return undefined;
+  }
+
+  listInvites(familyId: string): FamilyInvite[] {
+    return Array.from(this.invites.values())
+      .filter((i) => i.familyId === familyId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  /** Returns true only for the single caller that actually claimed the invite. */
+  claimInvite(inviteId: string, usedByName: string): boolean {
+    const inv = this.invites.get(inviteId);
+    if (!inv || inv.usedAt || inv.revokedAt) return false;
+    inv.usedAt = new Date().toISOString();
+    inv.usedByName = usedByName;
+    return true;
+  }
+
+  revokeInvite(familyId: string, inviteId: string): boolean {
+    const inv = this.invites.get(inviteId);
+    if (!inv || inv.familyId !== familyId || inv.usedAt || inv.revokedAt) return false;
+    inv.revokedAt = new Date().toISOString();
+    return true;
   }
 
   getCheckIns(familyId: string): CheckIn[] {
@@ -284,6 +434,42 @@ async function ensurePgBootstrap(): Promise<boolean> {
     `;
     await sqlClient`ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_name VARCHAR(128);`;
 
+    // Roles & invitations: owner flag, hashed session token and single-use invites
+    await sqlClient`ALTER TABLE members ADD COLUMN IF NOT EXISTS is_owner BOOLEAN DEFAULT FALSE NOT NULL;`;
+    await sqlClient`ALTER TABLE members DROP COLUMN IF EXISTS token_hash;`;
+    await sqlClient`ALTER TABLE members ADD COLUMN IF NOT EXISTS email VARCHAR(254);`;
+    await sqlClient`ALTER TABLE members ADD COLUMN IF NOT EXISTS password_hash TEXT;`;
+    await sqlClient`ALTER TABLE members ADD COLUMN IF NOT EXISTS qr_secret_hash TEXT;`;
+    await sqlClient`ALTER TABLE members ADD COLUMN IF NOT EXISTS failed_logins INTEGER DEFAULT 0 NOT NULL;`;
+    await sqlClient`ALTER TABLE members ADD COLUMN IF NOT EXISTS locked_until TIMESTAMP;`;
+    await sqlClient`CREATE UNIQUE INDEX IF NOT EXISTS members_email_unique ON members (email);`;
+    await sqlClient`
+      CREATE TABLE IF NOT EXISTS sessions (
+        id VARCHAR(64) PRIMARY KEY,
+        member_id VARCHAR(64) NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+        token_hash TEXT NOT NULL,
+        device_label VARCHAR(128),
+        created_at TIMESTAMP DEFAULT NOW() NOT NULL
+      );
+    `;
+    await sqlClient`CREATE INDEX IF NOT EXISTS sessions_lookup_idx ON sessions (member_id, token_hash);`;
+    await sqlClient`
+      CREATE TABLE IF NOT EXISTS invites (
+        id VARCHAR(64) PRIMARY KEY,
+        family_id VARCHAR(64) NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+        code VARCHAR(32) NOT NULL UNIQUE,
+        role VARCHAR(32) NOT NULL,
+        member_name VARCHAR(128),
+        created_by VARCHAR(64) NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        used_at TIMESTAMP,
+        used_by_name VARCHAR(128),
+        revoked_at TIMESTAMP
+      );
+    `;
+    await sqlClient`CREATE INDEX IF NOT EXISTS invites_family_idx ON invites (family_id, created_at);`;
+
     // Idempotently seed Demo Family in Postgres
     await db
       .insert(schema.families)
@@ -306,9 +492,12 @@ async function ensurePgBootstrap(): Promise<boolean> {
           role: m.role,
           avatarUrl: m.avatarUrl,
           deviceId: m.deviceId,
+          isOwner: !!m.isOwner,
         })
         .onConflictDoNothing();
     }
+    // Existing demo databases were seeded before owners existed
+    await sqlClient`UPDATE members SET is_owner = TRUE WHERE id = 'mem_parent_hoa';`;
 
     for (const c of DEMO_CHECKINS) {
       await db
@@ -440,15 +629,7 @@ export const dataRepository = {
           .select()
           .from(schema.members)
           .where(eq(schema.members.familyId, familyId));
-        return rows.map((r) => ({
-          id: r.id,
-          familyId: r.familyId,
-          name: r.name,
-          role: r.role as Role,
-          avatarUrl: r.avatarUrl || undefined,
-          deviceId: r.deviceId || undefined,
-          createdAt: r.createdAt.toISOString(),
-        }));
+        return rows.map(toMember);
       } catch (e) {
         console.warn('getMembers pg error:', e);
       }
@@ -465,15 +646,7 @@ export const dataRepository = {
           .where(eq(schema.members.id, memberId))
           .limit(1);
         if (rows[0]) {
-          return {
-            id: rows[0].id,
-            familyId: rows[0].familyId,
-            name: rows[0].name,
-            role: rows[0].role as Role,
-            avatarUrl: rows[0].avatarUrl || undefined,
-            deviceId: rows[0].deviceId || undefined,
-            createdAt: rows[0].createdAt.toISOString(),
-          };
+          return toMember(rows[0]);
         }
       } catch (e) {
         console.warn('getMember pg error:', e);
@@ -495,13 +668,294 @@ export const dataRepository = {
             role: member.role,
             avatarUrl: member.avatarUrl,
             deviceId: member.deviceId,
+            isOwner: !!member.isOwner,
           })
           .onConflictDoNothing();
       } catch (e) {
         console.warn('saveMember pg error:', e);
+        throw e;
       }
     }
     return member;
+  },
+
+  // ----- Login secrets (email / password / QR secret). Errors are thrown, never swallowed. -----
+
+  async getSecrets(memberId: string): Promise<MemberSecrets> {
+    if (await ensurePgBootstrap()) {
+      const rows = await db!
+        .select()
+        .from(schema.members)
+        .where(eq(schema.members.id, memberId))
+        .limit(1);
+      const r = rows[0];
+      if (!r) return { failedLogins: 0 };
+      return {
+        email: r.email || undefined,
+        passwordHash: r.passwordHash || undefined,
+        qrSecretHash: r.qrSecretHash || undefined,
+        failedLogins: r.failedLogins,
+        lockedUntil: r.lockedUntil ? r.lockedUntil.toISOString() : undefined,
+      };
+    }
+    return memoryStore.getSecrets(memberId);
+  },
+
+  async setSecrets(memberId: string, patch: Partial<MemberSecrets>): Promise<void> {
+    memoryStore.setSecrets(memberId, patch);
+    if (await ensurePgBootstrap()) {
+      const values: Partial<typeof schema.members.$inferInsert> = {};
+      if ('email' in patch) values.email = patch.email ?? null;
+      if ('passwordHash' in patch) values.passwordHash = patch.passwordHash ?? null;
+      if ('qrSecretHash' in patch) values.qrSecretHash = patch.qrSecretHash ?? null;
+      if ('failedLogins' in patch) values.failedLogins = patch.failedLogins ?? 0;
+      if ('lockedUntil' in patch) values.lockedUntil = patch.lockedUntil ? new Date(patch.lockedUntil) : null;
+      if (Object.keys(values).length > 0) {
+        await db!.update(schema.members).set(values).where(eq(schema.members.id, memberId));
+      }
+    }
+  },
+
+  /** Email → member id (emails are stored lowercase). */
+  async findMemberIdByEmail(email: string): Promise<string | undefined> {
+    if (await ensurePgBootstrap()) {
+      const rows = await db!
+        .select({ id: schema.members.id })
+        .from(schema.members)
+        .where(eq(schema.members.email, email))
+        .limit(1);
+      return rows[0]?.id;
+    }
+    return memoryStore.findMemberIdByEmail(email);
+  },
+
+  /** Credential summary for every member of a family (email is only shown to owner / self). */
+  async getCredentialSummaries(
+    familyId: string
+  ): Promise<Map<string, { email?: string; hasPassword: boolean }>> {
+    const result = new Map<string, { email?: string; hasPassword: boolean }>();
+    if (await ensurePgBootstrap()) {
+      const rows = await db!
+        .select({
+          id: schema.members.id,
+          email: schema.members.email,
+          passwordHash: schema.members.passwordHash,
+        })
+        .from(schema.members)
+        .where(eq(schema.members.familyId, familyId));
+      for (const r of rows) {
+        result.set(r.id, { email: r.email || undefined, hasPassword: !!r.passwordHash });
+      }
+      return result;
+    }
+    for (const m of memoryStore.getMembers(familyId)) {
+      const s = memoryStore.getSecrets(m.id);
+      result.set(m.id, { email: s.email, hasPassword: !!s.passwordHash });
+    }
+    return result;
+  },
+
+  // ----- Sessions (one per signed-in device, capped per member) -----
+
+  async createSession(session: SessionRecord): Promise<void> {
+    memoryStore.addSession(session);
+    if (await ensurePgBootstrap()) {
+      await db!.insert(schema.sessions).values({
+        id: session.id,
+        memberId: session.memberId,
+        tokenHash: session.tokenHash,
+        deviceLabel: session.deviceLabel,
+      });
+      // Keep only the newest MAX_SESSIONS_PER_MEMBER devices
+      const rows = await db!
+        .select({ id: schema.sessions.id })
+        .from(schema.sessions)
+        .where(eq(schema.sessions.memberId, session.memberId))
+        .orderBy(desc(schema.sessions.createdAt));
+      for (const old of rows.slice(MAX_SESSIONS_PER_MEMBER)) {
+        await db!.delete(schema.sessions).where(eq(schema.sessions.id, old.id));
+      }
+    }
+  },
+
+  async hasSession(memberId: string, tokenHash: string): Promise<boolean> {
+    if (await ensurePgBootstrap()) {
+      const rows = await db!
+        .select({ id: schema.sessions.id })
+        .from(schema.sessions)
+        .where(and(eq(schema.sessions.memberId, memberId), eq(schema.sessions.tokenHash, tokenHash)))
+        .limit(1);
+      return rows.length > 0;
+    }
+    return memoryStore.hasSession(memberId, tokenHash);
+  },
+
+  /** Signs a member out of every device (optionally keeping the current one). */
+  async deleteSessions(memberId: string, exceptTokenHash?: string): Promise<void> {
+    memoryStore.deleteSessions(memberId, exceptTokenHash);
+    if (await ensurePgBootstrap()) {
+      const rows = await db!
+        .select({ id: schema.sessions.id, tokenHash: schema.sessions.tokenHash })
+        .from(schema.sessions)
+        .where(eq(schema.sessions.memberId, memberId));
+      for (const r of rows) {
+        if (exceptTokenHash !== undefined && r.tokenHash === exceptTokenHash) continue;
+        await db!.delete(schema.sessions).where(eq(schema.sessions.id, r.id));
+      }
+    }
+  },
+
+  async countSessions(memberId: string): Promise<number> {
+    if (await ensurePgBootstrap()) {
+      const rows = await db!
+        .select({ id: schema.sessions.id })
+        .from(schema.sessions)
+        .where(eq(schema.sessions.memberId, memberId));
+      return rows.length;
+    }
+    return memoryStore.countSessions(memberId);
+  },
+
+  async updateMember(
+    memberId: string,
+    patch: { name?: string; role?: Role }
+  ): Promise<Member | undefined> {
+    const memoryResult = memoryStore.updateMember(memberId, patch);
+    if (await ensurePgBootstrap()) {
+      try {
+        const values: { name?: string; role?: string } = {};
+        if (patch.name !== undefined) values.name = patch.name;
+        if (patch.role !== undefined) values.role = patch.role;
+        if (Object.keys(values).length > 0) {
+          await db!.update(schema.members).set(values).where(eq(schema.members.id, memberId));
+        }
+        return await this.getMember(memberId);
+      } catch (e) {
+        console.warn('updateMember pg error:', e);
+      }
+    }
+    return memoryResult;
+  },
+
+  async deleteMember(memberId: string): Promise<void> {
+    memoryStore.deleteMember(memberId);
+    if (await ensurePgBootstrap()) {
+      try {
+        // check_ins and messages of this member are removed by ON DELETE CASCADE
+        await db!.delete(schema.members).where(eq(schema.members.id, memberId));
+      } catch (e) {
+        console.warn('deleteMember pg error:', e);
+      }
+    }
+  },
+
+  async createInvite(invite: FamilyInvite): Promise<FamilyInvite> {
+    memoryStore.saveInvite(invite);
+    if (await ensurePgBootstrap()) {
+      try {
+        await db!.insert(schema.invites).values({
+          id: invite.id,
+          familyId: invite.familyId,
+          code: invite.code,
+          role: invite.role,
+          memberName: invite.memberName,
+          createdBy: invite.createdBy,
+          expiresAt: new Date(invite.expiresAt),
+        });
+      } catch (e) {
+        console.warn('createInvite pg error:', e);
+        throw e;
+      }
+    }
+    return invite;
+  },
+
+  async getInviteByCode(code: string): Promise<FamilyInvite | undefined> {
+    const clean = code.trim().toUpperCase();
+    if (await ensurePgBootstrap()) {
+      try {
+        const rows = await db!
+          .select()
+          .from(schema.invites)
+          .where(eq(schema.invites.code, clean))
+          .limit(1);
+        return rows[0] ? toInvite(rows[0]) : undefined;
+      } catch (e) {
+        console.warn('getInviteByCode pg error:', e);
+      }
+    }
+    return memoryStore.getInviteByCode(clean);
+  },
+
+  async listInvites(familyId: string): Promise<FamilyInvite[]> {
+    if (await ensurePgBootstrap()) {
+      try {
+        const rows = await db!
+          .select()
+          .from(schema.invites)
+          .where(eq(schema.invites.familyId, familyId))
+          .orderBy(desc(schema.invites.createdAt))
+          .limit(50);
+        return rows.map(toInvite);
+      } catch (e) {
+        console.warn('listInvites pg error:', e);
+      }
+    }
+    return memoryStore.listInvites(familyId);
+  },
+
+  /**
+   * Atomically marks an invite as used. Only one concurrent caller can win,
+   * so a single-use code can never create two members.
+   */
+  async claimInvite(inviteId: string, usedByName: string): Promise<boolean> {
+    if (await ensurePgBootstrap()) {
+      try {
+        const rows = await db!
+          .update(schema.invites)
+          .set({ usedAt: new Date(), usedByName })
+          .where(
+            and(
+              eq(schema.invites.id, inviteId),
+              isNull(schema.invites.usedAt),
+              isNull(schema.invites.revokedAt)
+            )
+          )
+          .returning({ id: schema.invites.id });
+        if (rows.length > 0) {
+          memoryStore.claimInvite(inviteId, usedByName);
+          return true;
+        }
+        return false;
+      } catch (e) {
+        console.warn('claimInvite pg error:', e);
+      }
+    }
+    return memoryStore.claimInvite(inviteId, usedByName);
+  },
+
+  async revokeInvite(familyId: string, inviteId: string): Promise<boolean> {
+    if (await ensurePgBootstrap()) {
+      try {
+        const rows = await db!
+          .update(schema.invites)
+          .set({ revokedAt: new Date() })
+          .where(
+            and(
+              eq(schema.invites.id, inviteId),
+              eq(schema.invites.familyId, familyId),
+              isNull(schema.invites.usedAt),
+              isNull(schema.invites.revokedAt)
+            )
+          )
+          .returning({ id: schema.invites.id });
+        memoryStore.revokeInvite(familyId, inviteId);
+        return rows.length > 0;
+      } catch (e) {
+        console.warn('revokeInvite pg error:', e);
+      }
+    }
+    return memoryStore.revokeInvite(familyId, inviteId);
   },
 
   async getCheckIns(familyId: string): Promise<CheckIn[]> {
@@ -538,9 +992,10 @@ export const dataRepository = {
     memoryStore.addCheckIn(checkIn);
     if (await ensurePgBootstrap()) {
       try {
-        // Ensure member exists before foreign-key insert
+        // Only the public demo family may auto-create unknown members; real families
+        // are managed exclusively through invitations by the family owner.
         const existingMember = await this.getMember(checkIn.memberId);
-        if (!existingMember) {
+        if (!existingMember && checkIn.familyId === DEMO_FAMILY_ID) {
           await this.saveMember({
             id: checkIn.memberId,
             familyId: checkIn.familyId,
@@ -609,7 +1064,7 @@ export const dataRepository = {
     if (await ensurePgBootstrap()) {
       try {
         const existingSender = await this.getMember(msg.senderId);
-        if (!existingSender) {
+        if (!existingSender && msg.familyId === DEMO_FAMILY_ID) {
           await this.saveMember({
             id: msg.senderId,
             familyId: msg.familyId,

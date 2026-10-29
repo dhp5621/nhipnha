@@ -3,6 +3,7 @@ declare const process: any;
 import type {
   CheckIn,
   Family,
+  FamilyInvite,
   Member,
   Message,
   QRPairingPayload,
@@ -35,13 +36,54 @@ export interface FamilyTimelineResponse {
   }>;
 }
 
+// Session credentials attached to every request (set by AuthContext after login / join)
+let apiSession: { memberId: string; token?: string } | null = null;
+let unauthorizedHandler: (() => void) | null = null;
+
+export function setApiSession(session: { memberId: string; token?: string } | null) {
+  apiSession = session;
+}
+
+/** Called when the server rejects our credentials (e.g. the owner removed this member). */
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  unauthorizedHandler = handler;
+}
+
+function authHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (apiSession?.memberId) headers['x-member-id'] = apiSession.memberId;
+  if (apiSession?.token) headers['Authorization'] = `Bearer ${apiSession.token}`;
+  return headers;
+}
+
+/** JSON request that throws the server's own error message on failure. */
+async function request<T = any>(path: string, init: RequestInit = {}): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    headers: { ...authHeaders(), ...(init.headers as Record<string, string> | undefined) },
+  });
+  let data: any = null;
+  try {
+    data = await res.json();
+  } catch {
+    // Non-JSON error body
+  }
+  if (res.status === 401 && apiSession?.token && unauthorizedHandler) {
+    unauthorizedHandler();
+  }
+  if (!res.ok || !data || data.success === false) {
+    throw new Error(data?.error || `Yêu cầu thất bại (${res.status})`);
+  }
+  return data as T;
+}
+
 export const apiClient = {
-  // Zero-type QR Pairing against database
+  // Join a family through a scanned QR payload (owner-generated invite or demo code)
   async pairWithQR(
     qrPayload: string | QRPairingPayload,
     memberRole?: Role,
     memberName?: string
-  ): Promise<{ family: Family; member: Member }> {
+  ): Promise<{ family: Family; member: Member; token?: string; loginCode?: string }> {
     const res = await fetch(`${API_BASE}/auth/qr-pair`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -49,18 +91,24 @@ export const apiClient = {
     });
     const data = await res.json();
     if (data.success && data.family && data.member) {
-      await offlineStorage.saveAuth(data.family, data.member);
-      return { family: data.family, member: data.member };
+      await offlineStorage.saveAuth(data.family, data.member, data.token, data.loginCode);
+      return {
+        family: data.family,
+        member: data.member,
+        token: data.token,
+        loginCode: data.loginCode,
+      };
     }
     throw new Error(data.error || 'Không thể kết nối gia đình qua mã QR');
   },
 
-  // Pair by family code (e.g. NHIP-8868 or user's created code) against database
+  // Join with an invite code from the family owner (role is decided by the invite).
+  // `role` is only honoured by the public demo family.
   async pairWithCode(
     code: string,
-    role: Role,
-    name: string
-  ): Promise<{ family: Family; member: Member }> {
+    role?: Role,
+    name?: string
+  ): Promise<{ family: Family; member: Member; token?: string; loginCode?: string }> {
     const res = await fetch(`${API_BASE}/auth/qr-pair`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -68,36 +116,214 @@ export const apiClient = {
     });
     const data = await res.json();
     if (data.success && data.family && data.member) {
-      await offlineStorage.saveAuth(data.family, data.member);
-      return { family: data.family, member: data.member };
+      await offlineStorage.saveAuth(data.family, data.member, data.token, data.loginCode);
+      return {
+        family: data.family,
+        member: data.member,
+        token: data.token,
+        loginCode: data.loginCode,
+      };
     }
-    throw new Error(data.error || 'Mã gia đình không tồn tại hoặc không hợp lệ');
+    throw new Error(data.error || 'Mã mời không hợp lệ');
   },
 
-  // Create a new family in the database
+  // Create a new family; the creator becomes its owner
   async createFamily(
     familyName: string,
     addressProvince: string,
     memberRole: Role,
-    memberName: string
-  ): Promise<{ family: Family; member: Member }> {
+    memberName: string,
+    email?: string,
+    password?: string
+  ): Promise<{ family: Family; member: Member; token?: string; loginCode?: string }> {
     const res = await fetch(`${API_BASE}/auth/qr-pair`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        action: 'generate',
+        action: 'create',
         familyName,
         addressProvince,
         memberRole,
         memberName,
+        email,
+        password,
       }),
     });
     const data = await res.json();
     if (data.success && data.family && data.member) {
-      await offlineStorage.saveAuth(data.family, data.member);
-      return { family: data.family, member: data.member };
+      await offlineStorage.saveAuth(data.family, data.member, data.token, data.loginCode);
+      return {
+        family: data.family,
+        member: data.member,
+        token: data.token,
+        loginCode: data.loginCode,
+      };
     }
     throw new Error(data.error || 'Không thể tạo không gian gia đình mới');
+  },
+
+  // Login with Email + Password
+  async loginWithEmail(
+    email: string,
+    password: string
+  ): Promise<{ family: Family; member: Member; token?: string }> {
+    const res = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+    });
+    const data = await res.json();
+    if (data.success && data.family && data.member) {
+      await offlineStorage.saveAuth(data.family, data.member, data.token);
+      return { family: data.family, member: data.member, token: data.token };
+    }
+    throw new Error(data.error || 'Email hoặc mật khẩu không đúng');
+  },
+
+  // Login by scanning personal QR login code
+  async loginWithQR(
+    payload: string | { memberId: string; secret: string }
+  ): Promise<{ family: Family; member: Member; token?: string }> {
+    const res = await fetch(`${API_BASE}/auth/qr-login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ payload }),
+    });
+    const data = await res.json();
+    if (data.success && data.family && data.member) {
+      const loginStr = typeof payload === 'string' ? payload : JSON.stringify(payload);
+      await offlineStorage.saveAuth(data.family, data.member, data.token, loginStr);
+      return { family: data.family, member: data.member, token: data.token };
+    }
+    throw new Error(data.error || 'Mã QR đăng nhập không hợp lệ hoặc đã bị thay thế');
+  },
+
+  // ----- Family & permissions -----
+
+  async getMembers(familyId: string): Promise<Member[]> {
+    const data = await request<{ data: Member[] }>(
+      `/family/members?familyId=${encodeURIComponent(familyId)}`
+    );
+    return data.data;
+  },
+
+  /** Owner only: add a member directly with role, custom name, and optional email+password */
+  async addMemberByOwner(
+    familyId: string,
+    input: { name: string; role: Role; email?: string; password?: string }
+  ): Promise<{ member: Member; loginCode: string }> {
+    const data = await request<{ member: Member; loginCode: string }>('/family/members', {
+      method: 'POST',
+      body: JSON.stringify({ familyId, ...input }),
+    });
+    return { member: data.member, loginCode: data.loginCode };
+  },
+
+  /** Owner only (or self for display name) */
+  async updateMember(
+    familyId: string,
+    memberId: string,
+    patch: { role?: Role; name?: string }
+  ): Promise<Member> {
+    const data = await request<{ member: Member }>('/family/members', {
+      method: 'PATCH',
+      body: JSON.stringify({ familyId, memberId, ...patch }),
+    });
+    return data.member;
+  },
+
+  /** Owner only: set or clear a member's email + password */
+  async setMemberCredentials(
+    familyId: string,
+    memberId: string,
+    email?: string,
+    password?: string
+  ): Promise<void> {
+    const action = email && password ? 'set_credentials' : 'clear_credentials';
+    await request('/family/members', {
+      method: 'PATCH',
+      body: JSON.stringify({ familyId, memberId, action, email, password }),
+    });
+  },
+
+  /** Owner only: regenerate a member's personal QR login code and revoke old sessions */
+  async regenerateMemberQR(
+    familyId: string,
+    memberId: string,
+    currentPassword?: string
+  ): Promise<string> {
+    const data = await request<{ loginCode: string }>('/family/members', {
+      method: 'PATCH',
+      body: JSON.stringify({
+        familyId,
+        memberId,
+        action: 'regenerate_qr',
+        currentPassword,
+      }),
+    });
+    return data.loginCode;
+  },
+
+  /** Owner only: sign a member out of all devices */
+  async signOutMemberDevices(familyId: string, memberId: string): Promise<void> {
+    await request('/family/members', {
+      method: 'PATCH',
+      body: JSON.stringify({ familyId, memberId, action: 'sign_out_devices' }),
+    });
+  },
+
+  /** Get signed-in member's account status */
+  async getAccountInfo(
+    familyId: string
+  ): Promise<{ email?: string; hasPassword: boolean; activeSessions: number }> {
+    return request(`/account?familyId=${encodeURIComponent(familyId)}`);
+  },
+
+  /** Change signed-in member's own password (and optionally email if owner) */
+  async changeOwnPassword(
+    familyId: string,
+    input: { currentPassword?: string; newPassword: string; email?: string }
+  ): Promise<{ email?: string; hasPassword: boolean }> {
+    return request('/account', {
+      method: 'PATCH',
+      body: JSON.stringify({ familyId, ...input }),
+    });
+  },
+
+  /** Owner removes a member, or a member removes themself (leave family) */
+  async removeMember(familyId: string, memberId: string): Promise<void> {
+    await request(
+      `/family/members?familyId=${encodeURIComponent(familyId)}&memberId=${encodeURIComponent(memberId)}`,
+      { method: 'DELETE' }
+    );
+  },
+
+  /** Owner only */
+  async listInvites(familyId: string): Promise<FamilyInvite[]> {
+    const data = await request<{ data: FamilyInvite[] }>(
+      `/family/invites?familyId=${encodeURIComponent(familyId)}`
+    );
+    return data.data;
+  },
+
+  /** Owner only: creates a single-use invite with a fixed role */
+  async createInvite(
+    familyId: string,
+    input: { role: Role; memberName?: string; ttlHours?: number }
+  ): Promise<{ invite: FamilyInvite; qrPayload: QRPairingPayload }> {
+    const data = await request<{ data: FamilyInvite; qrPayload: QRPairingPayload }>(
+      '/family/invites',
+      { method: 'POST', body: JSON.stringify({ familyId, ...input }) }
+    );
+    return { invite: data.data, qrPayload: data.qrPayload };
+  },
+
+  /** Owner only */
+  async revokeInvite(familyId: string, inviteId: string): Promise<void> {
+    await request(
+      `/family/invites?familyId=${encodeURIComponent(familyId)}&inviteId=${encodeURIComponent(inviteId)}`,
+      { method: 'DELETE' }
+    );
   },
 
   // Record CheckIn (Morning, Afternoon, Evening) - with offline queuing
@@ -122,22 +348,35 @@ export const apiClient = {
       createdAt: new Date().toISOString(),
     };
 
+    let res: Response;
     try {
-      const res = await fetch(`${API_BASE}/checkins`, {
+      res = await fetch(`${API_BASE}/checkins`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify(fullCheckIn),
       });
-      const data = await res.json();
-      if (data.success && data.data) {
-        return data.data;
-      }
     } catch {
-      // Offline-first: save into local queue for deferred upload when network returns
+      // No network: keep it in the local queue and upload when the connection returns
       fullCheckIn.syncStatus = 'PENDING';
       await offlineStorage.enqueueOfflineCheckIn(fullCheckIn);
+      return fullCheckIn;
     }
 
+    const data = await res.json().catch(() => null);
+    if (res.status === 401 && apiSession?.token && unauthorizedHandler) {
+      unauthorizedHandler();
+    }
+    if (res.ok && data?.success && data.data) {
+      return data.data;
+    }
+    if (res.status >= 400 && res.status < 500) {
+      // The server refused this check-in (permissions or validation); retrying will not help
+      throw new Error(data?.error || 'Không thể lưu nhịp kết nối');
+    }
+
+    // Server error: queue it so nothing is lost
+    fullCheckIn.syncStatus = 'PENDING';
+    await offlineStorage.enqueueOfflineCheckIn(fullCheckIn);
     return fullCheckIn;
   },
 
@@ -149,7 +388,7 @@ export const apiClient = {
     try {
       const res = await fetch(`${API_BASE}/checkins`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify({ batch: queue }),
       });
       const data = await res.json();
@@ -165,14 +404,9 @@ export const apiClient = {
 
   // Get Family Timeline & database check-ins/messages
   async getFamilyTimeline(familyId: string): Promise<FamilyTimelineResponse> {
-    const res = await fetch(
-      `${API_BASE}/family/timeline?familyId=${encodeURIComponent(familyId)}`
+    return request<FamilyTimelineResponse>(
+      `/family/timeline?familyId=${encodeURIComponent(familyId)}`
     );
-    const data = await res.json();
-    if (data.success) {
-      return data as FamilyTimelineResponse;
-    }
-    throw new Error(data.error || 'Failed to load family timeline');
   },
 
   // AI Empathy Assistant: Server-side call to generate non-academic empathy prompts
@@ -210,24 +444,18 @@ export const apiClient = {
     if (!message.familyId) {
       throw new Error('Missing familyId for bedtime message');
     }
-    const res = await fetch(`${API_BASE}/messages`, {
+    const data = await request<{ data: Message }>('/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(message),
     });
-    const data = await res.json();
-    if (data.success && data.data) {
-      return data.data;
-    }
-    throw new Error(data.error || 'Không thể gửi tin nhắn chúc ngủ ngon');
+    return data.data;
   },
 
   // Mark Evening Message as listened in database
   async markMessageListened(familyId: string, messageId: string): Promise<void> {
     try {
-      await fetch(`${API_BASE}/messages`, {
+      await request('/messages', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'mark_listened',
           familyId,
