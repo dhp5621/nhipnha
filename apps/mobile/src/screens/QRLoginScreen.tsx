@@ -20,9 +20,10 @@ import type { Role } from '@nhipnha/shared';
 
 interface QRLoginScreenProps {
   onSuccess: () => void;
+  onBackToLogin?: () => void;
 }
 
-export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess }) => {
+export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess, onBackToLogin }) => {
   const { pairWithQR, pairWithCode, createNewFamily, loginDemoAccount, isLoading } = useAuth();
   const { t, activeLanguage, setLanguagePreference } = useLanguage();
   const { colors, isDark, toggleTheme } = useTheme();
@@ -129,6 +130,24 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess }) => {
     >
       {/* Top Quick Controls (Theme + Language) */}
       <View style={styles.topUtilityBar}>
+        {onBackToLogin && (
+          <TouchableOpacity
+            onPress={onBackToLogin}
+            style={[styles.utilityChip, { backgroundColor: colors.surfaceContainerHigh, marginRight: 'auto' }]}
+            accessibilityRole="button"
+          >
+            <MaterialIcons
+              name="arrow-back"
+              size={18}
+              color={colors.primary}
+              style={{ marginRight: 6 }}
+            />
+            <AccessibleText variant="label" color={colors.textDark} weight="700">
+              {isVi ? 'Đăng nhập' : 'Log in'}
+            </AccessibleText>
+          </TouchableOpacity>
+        )}
+
         <TouchableOpacity
           onPress={toggleTheme}
           style={[styles.utilityChip, { backgroundColor: colors.surfaceContainerHigh }]}

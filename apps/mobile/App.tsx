@@ -8,6 +8,7 @@ import { LanguageProvider, useLanguage } from './src/context/LanguageContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { RhythmProvider } from './src/context/RhythmContext';
+import { LoginScreen } from './src/screens/LoginScreen';
 import { QRLoginScreen } from './src/screens/QRLoginScreen';
 import { ChildHomeScreen } from './src/screens/ChildHomeScreen';
 import { MorningTouchScreen } from './src/screens/MorningTouchScreen';
@@ -31,6 +32,7 @@ function NavigationRoot() {
   const { activeLanguage } = useLanguage();
   const { colors, isDark } = useTheme();
   const [currentScreen, setCurrentScreen] = useState<ScreenName | null>(null);
+  const [showFamilyCode, setShowFamilyCode] = useState(false);
 
   const isVi = activeLanguage === 'vi';
 
@@ -42,12 +44,23 @@ function NavigationRoot() {
     );
   }
 
-  // Not paired -> Show Zero-type QR / Family Code login
+  // Not paired -> account login page first, with family code / QR pairing one tap away
   if (!isPaired || currentScreen === 'QR_LOGIN') {
+    const showPairing = showFamilyCode || currentScreen === 'QR_LOGIN';
     return (
       <View style={[styles.rootContainer, { backgroundColor: colors.background }]}>
         <StatusBar style={isDark ? 'light' : 'dark'} backgroundColor={colors.background} />
-        <QRLoginScreen onSuccess={() => setCurrentScreen(null)} />
+        {showPairing ? (
+          <QRLoginScreen
+            onSuccess={() => {
+              setShowFamilyCode(false);
+              setCurrentScreen(null);
+            }}
+            onBackToLogin={() => setShowFamilyCode(false)}
+          />
+        ) : (
+          <LoginScreen onJoinWithCode={() => setShowFamilyCode(true)} />
+        )}
       </View>
     );
   }
