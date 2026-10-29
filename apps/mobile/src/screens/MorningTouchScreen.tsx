@@ -28,10 +28,11 @@ export const MorningTouchScreen: React.FC<MorningTouchScreenProps> = ({ onBack }
     if (!isPlayingBell) {
       setIsPlayingBell(true);
       markMorningBellListened();
-      setTimeout(() => {
+      mediaCaptureService.playMorningBellChime(() => {
         setIsPlayingBell(false);
-      }, 4500);
+      });
     } else {
+      mediaCaptureService.stopAudioPlayback();
       setIsPlayingBell(false);
     }
   };

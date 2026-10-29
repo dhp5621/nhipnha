@@ -19,6 +19,24 @@ class MediaCaptureService {
   private startTime: number = 0;
   private stream: any = null;
   private currentAudioObject: any = null;
+  private audioContext: any = null;
+
+  /**
+   * Lazily initializes standard Web AudioContext with autoplay policy handling
+   */
+  private getAudioContext(): any {
+    if (typeof window === 'undefined') return null;
+    if (!this.audioContext) {
+      const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (AudioContextClass) {
+        this.audioContext = new AudioContextClass();
+      }
+    }
+    if (this.audioContext && this.audioContext.state === 'suspended') {
+      this.audioContext.resume().catch(() => {});
+    }
+    return this.audioContext;
+  }
 
   /**
    * Detects the best supported audio mime type for the current browser/engine
@@ -45,6 +63,59 @@ class MediaCaptureService {
       }
     }
     return '';
+  }
+
+  /**
+   * Plays a gentle, resonant Morning Bell chime using the Web Audio API synthesizer.
+   * Works on 100% of browsers without needing an external audio file.
+   */
+  playMorningBellChime(onEnded?: () => void): void {
+    const ctx = this.getAudioContext();
+    if (!ctx) {
+      if (onEnded) setTimeout(onEnded, 2500);
+      return;
+    }
+
+    try {
+      const now = ctx.currentTime;
+      const masterGain = ctx.createGain();
+      masterGain.connect(ctx.destination);
+      masterGain.gain.setValueAtTime(0.35, now);
+
+      // Chime harmonics: fundamental (D5 - 587.33Hz) + shimmering harmonic overtones
+      const baseFreq = 587.33;
+      const partials = [
+        { ratio: 1.0, volume: 1.0, decay: 2.4 },
+        { ratio: 2.02, volume: 0.55, decay: 1.8 },
+        { ratio: 3.0, volume: 0.3, decay: 1.2 },
+        { ratio: 4.16, volume: 0.12, decay: 0.8 },
+      ];
+
+      partials.forEach((partial) => {
+        const osc = ctx.createOscillator();
+        const partialGain = ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(baseFreq * partial.ratio, now);
+
+        partialGain.gain.setValueAtTime(0, now);
+        partialGain.gain.linearRampToValueAtTime(partial.volume, now + 0.02);
+        partialGain.gain.exponentialRampToValueAtTime(0.0001, now + partial.decay);
+
+        osc.connect(partialGain);
+        partialGain.connect(masterGain);
+
+        osc.start(now);
+        osc.stop(now + partial.decay);
+      });
+
+      if (onEnded) {
+        setTimeout(onEnded, 2400);
+      }
+    } catch (err) {
+      console.warn('Error playing morning bell chime:', err);
+      if (onEnded) onEnded();
+    }
   }
 
   /**
@@ -81,7 +152,7 @@ class MediaCaptureService {
             }
           };
 
-          this.mediaRecorder.start(250); // Slice chunks every 250ms for reliability
+          this.mediaRecorder.start(250);
           return true;
         }
       } catch (err: any) {
@@ -111,7 +182,7 @@ class MediaCaptureService {
 
             const activeMimeType = this.mediaRecorder?.mimeType || 'audio/webm';
             const blob = new Blob(this.audioChunks, { type: activeMimeType });
-            
+
             const reader = new FileReader();
             reader.onloadend = async () => {
               const dataUrl = reader.result as string;
@@ -153,55 +224,115 @@ class MediaCaptureService {
   }
 
   /**
-   * Plays an audio URL or base64 data URL cleanly across platforms
+   * Plays an audio URL or synthesized speech fallback with safety timeout
    */
-  playAudioUrl(url?: string, onEnded?: () => void): void {
-    if (!url || url.startsWith('mock://')) {
-      if (onEnded) setTimeout(onEnded, 3000);
+  playAudioUrl(url?: string, transcription?: string, onEnded?: () => void): void {
+    this.stopAudioPlayback();
+
+    // 1. If it's a real playable audio URL (HTTP / data:audio)
+    if (url && (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:audio'))) {
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && (window as any).Audio) {
+        try {
+          const audio = new (window as any).Audio(url);
+          this.currentAudioObject = audio;
+
+          let hasEnded = false;
+          const finish = () => {
+            if (!hasEnded) {
+              hasEnded = true;
+              this.currentAudioObject = null;
+              if (onEnded) onEnded();
+            }
+          };
+
+          audio.onended = finish;
+          audio.onerror = () => {
+            console.warn('Audio playback error, falling back to speech synthesis if available');
+            if (transcription) {
+              this.speakText(transcription, onEnded);
+            } else {
+              finish();
+            }
+          };
+
+          audio.play().catch((err: any) => {
+            console.warn('Audio play() rejected:', err);
+            if (transcription) {
+              this.speakText(transcription, onEnded);
+            } else {
+              finish();
+            }
+          });
+          return;
+        } catch (err) {
+          console.warn('Cannot instantiate Audio:', err);
+        }
+      }
+    }
+
+    // 2. Fallback: Synthesize speech from transcription if available
+    if (transcription) {
+      this.speakText(transcription, onEnded);
       return;
     }
 
-    if (Platform.OS === 'web' && typeof window !== 'undefined' && (window as any).Audio) {
-      try {
-        if (this.currentAudioObject) {
-          this.currentAudioObject.pause();
-          this.currentAudioObject = null;
-        }
-
-        const audio = new (window as any).Audio(url);
-        this.currentAudioObject = audio;
-
-        if (onEnded) {
-          audio.onended = () => {
-            onEnded();
-            this.currentAudioObject = null;
-          };
-          audio.onerror = () => {
-            onEnded();
-            this.currentAudioObject = null;
-          };
-        }
-
-        audio.play().catch((err: any) => {
-          console.warn('Audio playback error:', err);
-          if (onEnded) onEnded();
-        });
-      } catch (err) {
-        console.warn('Cannot initialize audio element:', err);
-        if (onEnded) onEnded();
-      }
-    }
+    // 3. Last fallback: Soft chime tone
+    this.playMorningBellChime(onEnded);
   }
 
   /**
-   * Stops any currently playing audio track
+   * Speech synthesis fallback for bedtime stories or transcription text
+   */
+  speakText(text: string, onEnded?: () => void): void {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'vi-VN';
+        utterance.rate = 0.95;
+        utterance.pitch = 1.0;
+
+        let finished = false;
+        const done = () => {
+          if (!finished) {
+            finished = true;
+            if (onEnded) onEnded();
+          }
+        };
+
+        utterance.onend = done;
+        utterance.onerror = done;
+
+        // Safety fallback timer in case browser fails to trigger onend
+        const safeTimeout = Math.max(3000, Math.min(text.length * 90, 15000));
+        setTimeout(done, safeTimeout);
+
+        window.speechSynthesis.speak(utterance);
+        return;
+      } catch (err) {
+        console.warn('SpeechSynthesis error:', err);
+      }
+    }
+
+    if (onEnded) setTimeout(onEnded, 3000);
+  }
+
+  /**
+   * Stops any currently playing audio or speech
    */
   stopAudioPlayback(): void {
     if (this.currentAudioObject) {
       try {
         this.currentAudioObject.pause();
+        this.currentAudioObject.currentTime = 0;
       } catch {}
       this.currentAudioObject = null;
+    }
+
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch {}
     }
   }
 
@@ -211,7 +342,6 @@ class MediaCaptureService {
   pickOrCapturePhoto(useCamera: boolean = false): Promise<PickedPhotoResult | null> {
     if (Platform.OS === 'web' && typeof document !== 'undefined') {
       return new Promise((resolve) => {
-        // Create file input element attached to DOM briefly for strict mobile Safari/Chrome gesture compatibility
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = 'image/*';
@@ -246,7 +376,6 @@ class MediaCaptureService {
           reader.onload = (ev) => {
             const rawDataUrl = ev.target?.result as string;
 
-            // Compress onto canvas (max 480px, quality 0.8) so it uploads swiftly & fits in PostgreSQL JSONB
             const img = new (window as any).Image();
             img.onload = () => {
               try {
@@ -296,13 +425,11 @@ class MediaCaptureService {
           reader.readAsDataURL(file);
         };
 
-        // Window focus listener to detect user cancel dialog on browsers
         const handleWindowFocus = () => {
           window.removeEventListener('focus', handleWindowFocus);
           setTimeout(() => {
             if (!input.files || input.files.length === 0) {
               cleanup();
-              // Don't reject, just let user re-click
             }
           }, 1000);
         };
@@ -313,7 +440,6 @@ class MediaCaptureService {
       });
     }
 
-    // Native fallback sample snapshot when running on standalone build without Expo Camera module
     return Promise.resolve({
       dataUrl: 'https://images.unsplash.com/photo-1516627145497-ae6968895b74?w=480&q=80',
       name: 'family_photo.jpg',

@@ -27,9 +27,13 @@ export const EveningTouchScreen: React.FC<EveningTouchScreenProps> = ({ onBack }
     if (!isPlaying) {
       setIsPlaying(true);
       markEveningListened();
-      mediaCaptureService.playAudioUrl(state.eveningAudioUrl, () => {
-        setIsPlaying(false);
-      });
+      mediaCaptureService.playAudioUrl(
+        state.eveningAudioUrl,
+        state.eveningMessageText || (isVi ? 'Con yêu ngủ ngon nhé, bố mẹ thương con nhiều!' : 'Good night my sweet child!'),
+        () => {
+          setIsPlaying(false);
+        }
+      );
     } else {
       mediaCaptureService.stopAudioPlayback();
       setIsPlaying(false);
