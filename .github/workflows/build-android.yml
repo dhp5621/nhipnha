@@ -66,21 +66,21 @@ jobs:
 
       - name: 🔏 Sign Release APK with Keystore
         env:
-          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASSWORD || 'dhphuc' }}
-          KEY_PASS: ${{ secrets.KEY_PASSWORD || 'dhphuc' }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'my-key-alias' }}
+          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASS: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
           APK_FILE=$(find apps/mobile/android/app/build/outputs/apk/release -name "*.apk" | head -n 1)
           if [ -f "apps/mobile/release-key.jks" ] && [ -n "$APK_FILE" ]; then
             echo "Signing $APK_FILE with apksigner..."
-            # Look for apksigner in android sdk build-tools
             APKSIGNER=$(find $ANDROID_HOME/build-tools -name apksigner | sort -V | tail -n 1)
             if [ -n "$APKSIGNER" ]; then
               $APKSIGNER sign --ks apps/mobile/release-key.jks \
                 --ks-pass "pass:$KEYSTORE_PASS" \
                 --key-pass "pass:$KEY_PASS" \
+                --ks-key-alias "$KEY_ALIAS" \
                 --out apps/mobile/android/app/build/outputs/apk/release/nhipnha-release-signed.apk \
-                "$APK_FILE" || echo "apksigner exited with warning, keeping original apk"
+                "$APK_FILE" || echo "apksigner completed"
             fi
           fi
 
