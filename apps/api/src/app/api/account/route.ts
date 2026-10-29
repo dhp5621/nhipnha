@@ -106,13 +106,7 @@ export async function PATCH(request: Request) {
   }
 }
 
-export async function GET() {
-  return NextResponse.json({
-    endpoint: '/api/account',
-    methods: ['POST', 'OPTIONS'],
-    description: 'Account settings & password update endpoint for Nhịp Nhà',
-  });
-}
+
 
 export async function OPTIONS() {
   return new NextResponse(null, {

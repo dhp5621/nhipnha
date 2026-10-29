@@ -36,6 +36,10 @@
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_AUDIO",
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE",
         "android.permission.VIBRATE"
@@ -51,6 +55,25 @@
       }
     },
     "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Nhịp Nhà cần quyền máy ảnh để quét mã QR gia đình và chụp ảnh gửi cha mẹ."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Nhịp Nhà cần quyền truy cập ảnh để bạn chọn ảnh đính kèm tin nhắn gia đình.",
+          "cameraPermission": "Nhịp Nhà cần quyền chụp ảnh qua máy ảnh hệ thống để bạn chia sẻ khoảnh khắc trong ngày."
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Nhịp Nhà cần quyền micro để gửi tin nhắn giọng nói 15s cho cha mẹ."
+        }
+      ],
       [
         "expo-build-properties",
         {

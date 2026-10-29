@@ -573,14 +573,14 @@ export const RoleSwitchScreen: React.FC<RoleSwitchScreenProps> = ({
               styles.permBadge,
               {
                 backgroundColor:
-                  micPerm === 'granted' ? colors.successContainer : colors.surfaceContainerHighest,
+                  micPerm === 'granted' ? colors.successBg : colors.surfaceContainerHighest,
               },
             ]}
           >
             <AccessibleText
               variant="caption"
               weight="800"
-              color={micPerm === 'granted' ? colors.onSuccessContainer : colors.primary}
+              color={micPerm === 'granted' ? colors.success : colors.primary}
             >
               {micPerm === 'granted'
                 ? isVi
@@ -611,14 +611,14 @@ export const RoleSwitchScreen: React.FC<RoleSwitchScreenProps> = ({
               styles.permBadge,
               {
                 backgroundColor:
-                  camPerm === 'granted' ? colors.successContainer : colors.surfaceContainerHighest,
+                  camPerm === 'granted' ? colors.successBg : colors.surfaceContainerHighest,
               },
             ]}
           >
             <AccessibleText
               variant="caption"
               weight="800"
-              color={camPerm === 'granted' ? colors.onSuccessContainer : colors.primary}
+              color={camPerm === 'granted' ? colors.success : colors.primary}
             >
               {camPerm === 'granted'
                 ? isVi

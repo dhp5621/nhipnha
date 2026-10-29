@@ -10,10 +10,13 @@ import {
   Platform,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { CameraView } from 'expo-camera';
+import jsQR from 'jsqr';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import { permissionService } from '../services/permissions';
+import { mediaCaptureService } from '../services/mediaCapture';
 import { BigButton } from '../components/BigButton';
 import { AccessibleText } from '../components/AccessibleText';
 import { THEME } from '../constants/theme';
@@ -94,7 +97,17 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess, onBackT
 
   const handleStartCameraScan = async () => {
     const granted = await permissionService.requestPermission('camera', isVi);
-    if (!granted) return;
+    if (!granted) {
+      Alert.alert(
+        isVi ? 'Chưa cấp quyền máy ảnh' : 'Camera Permission Required',
+        isVi
+          ? 'Vui lòng cho phép truy cập máy ảnh để quét mã QR kết nối gia đình.'
+          : 'Please grant camera access to scan the family QR code.'
+      );
+      return;
+    }
+
+    setScannerOpen(true);
 
     if (
       Platform.OS === 'web' &&
@@ -103,7 +116,6 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess, onBackT
       navigator.mediaDevices.getUserMedia
     ) {
       try {
-        setScannerOpen(true);
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'environment' },
         });
@@ -123,23 +135,61 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess, onBackT
             try {
               const barcodes = await detector.detect(videoRef.current);
               if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+                stopCameraScanner();
                 handleDecodedQR(barcodes[0].rawValue);
               }
             } catch {}
           }, 350);
         }
-        return;
       } catch {
         setScannerOpen(false);
       }
     }
+  };
 
-    Alert.alert(
-      isVi ? 'Nhập mã mời hoặc dán mã QR' : 'Enter Invite Code or Paste QR',
-      isVi
-        ? 'Thiết bị hiện tại không hỗ trợ quét trực tiếp. Vui lòng nhập mã mời (MOI-...) hoặc dán dữ liệu mã QR ở ô bên dưới.'
-        : 'Direct camera decoding is unavailable on this device. Please enter the invite code (MOI-...) or paste QR data below.'
-    );
+  const handlePickQRImage = async () => {
+    try {
+      const photo = await mediaCaptureService.pickOrCapturePhoto(false);
+      if (!photo || !photo.dataUrl) return;
+
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof document !== 'undefined') {
+        const img = new (window as any).Image();
+        img.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0);
+              const imgData = ctx.getImageData(0, 0, img.width, img.height);
+              const qr = jsQR(imgData.data, imgData.width, imgData.height);
+              if (qr && qr.data) {
+                handleDecodedQR(qr.data);
+                return;
+              }
+            }
+          } catch {}
+          Alert.alert(
+            isVi ? 'Không tìm thấy mã QR' : 'No QR Detected',
+            isVi
+              ? 'Không tìm thấy mã QR trong ảnh. Bạn có thể mở máy ảnh quét trực tiếp hoặc nhập mã mời.'
+              : 'No QR code found in image. You can scan live with camera or enter the invite code.'
+          );
+        };
+        img.src = photo.dataUrl;
+        return;
+      }
+
+      Alert.alert(
+        isVi ? 'Đã tải ảnh' : 'Photo Loaded',
+        isVi
+          ? 'Để kết nối nhanh nhất, vui lòng dùng nút "Mở máy ảnh quét mã QR" quét trực tiếp mã trên máy người thân.'
+          : 'For fastest pairing, use "Open Camera to Scan QR" to scan directly.'
+      );
+    } catch (err: any) {
+      console.warn('Pick QR error:', err);
+    }
   };
 
   const handleJoinByCode = async () => {
@@ -374,12 +424,28 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess, onBackT
             </AccessibleText>
           </View>
 
-          {scannerOpen && Platform.OS === 'web' ? (
+          {scannerOpen ? (
             <View style={styles.cameraBox}>
-              {React.createElement('video', {
-                ref: videoRef,
-                style: { width: '100%', height: 220, borderRadius: 20, objectFit: 'cover' },
-              })}
+              {Platform.OS !== 'web' ? (
+                <CameraView
+                  style={{ width: '100%', height: 260, borderRadius: 20, overflow: 'hidden' }}
+                  facing="back"
+                  barcodeScannerSettings={{
+                    barcodeTypes: ['qr'],
+                  }}
+                  onBarcodeScanned={(result) => {
+                    if (result.data) {
+                      stopCameraScanner();
+                      handleDecodedQR(result.data);
+                    }
+                  }}
+                />
+              ) : (
+                React.createElement('video', {
+                  ref: videoRef,
+                  style: { width: '100%', height: 260, borderRadius: 20, objectFit: 'cover' },
+                })
+              )}
               <View style={{ marginTop: 10 }}>
                 <BigButton
                   title={isVi ? 'Đóng máy ảnh' : 'Close Camera'}
@@ -390,15 +456,26 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess, onBackT
               </View>
             </View>
           ) : (
-            <BigButton
-              title={isVi ? 'Mở máy ảnh quét mã QR' : 'Open Camera to Scan QR'}
-              subtitle={isVi ? 'Quét trực tiếp từ màn hình máy Chủ nhà' : 'Scan directly from the Owner screen'}
-              icon="qr-code-scanner"
-              variant="morning"
-              size="hero"
-              loading={isLoading}
-              onPress={handleStartCameraScan}
-            />
+            <View>
+              <BigButton
+                title={isVi ? 'Mở máy ảnh quét mã QR' : 'Open Camera to Scan QR'}
+                subtitle={isVi ? 'Quét trực tiếp từ màn hình máy Chủ nhà' : 'Scan directly from the Owner screen'}
+                icon="qr-code-scanner"
+                variant="morning"
+                size="hero"
+                loading={isLoading}
+                onPress={handleStartCameraScan}
+              />
+              <View style={{ marginTop: 10 }}>
+                <BigButton
+                  title={isVi ? 'Chọn ảnh mã QR từ máy' : 'Pick QR Image from Gallery'}
+                  subtitle={isVi ? 'Nhận diện mã QR từ ảnh chụp màn hình' : 'Detect QR code from saved screenshot'}
+                  icon="photo-library"
+                  variant="secondary"
+                  onPress={handlePickQRImage}
+                />
+              </View>
+            </View>
           )}
 
           <View style={styles.orDivider}>

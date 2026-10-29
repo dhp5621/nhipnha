@@ -1,4 +1,7 @@
 import { Platform } from 'react-native';
+import { Audio } from 'expo-av';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import { offlineStorage } from './offlineStorage';
 import { permissionService } from './permissions';
 
@@ -15,125 +18,55 @@ export interface PickedPhotoResult {
 }
 
 class MediaCaptureService {
-  private mediaRecorder: any = null;
-  private audioChunks: Blob[] = [];
+  private recording: Audio.Recording | null = null;
+  private currentSound: Audio.Sound | null = null;
   private startTime: number = 0;
-  private stream: any = null;
-  private currentAudioObject: any = null;
-  private audioContext: any = null;
+  private fallbackWebRecorder: any = null;
+  private fallbackWebChunks: any[] = [];
+  private fallbackWebStream: any = null;
 
   /**
-   * Lazily initializes standard Web AudioContext with autoplay policy handling
-   */
-  private getAudioContext(): any {
-    if (typeof window === 'undefined') return null;
-    if (!this.audioContext) {
-      const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
-      if (AudioContextClass) {
-        this.audioContext = new AudioContextClass();
-      }
-    }
-    if (this.audioContext && this.audioContext.state === 'suspended') {
-      this.audioContext.resume().catch(() => {});
-    }
-    return this.audioContext;
-  }
-
-  /**
-   * Detects the best supported audio mime type for the current browser/engine
-   */
-  private getSupportedMimeType(): string {
-    if (typeof window === 'undefined') return '';
-    const MediaRecorderClass = (window as any).MediaRecorder;
-    if (!MediaRecorderClass || typeof MediaRecorderClass.isTypeSupported !== 'function') {
-      return '';
-    }
-
-    const candidates = [
-      'audio/webm;codecs=opus',
-      'audio/webm',
-      'audio/mp4;codecs=mp4a.40.2',
-      'audio/mp4',
-      'audio/aac',
-      'audio/ogg;codecs=opus',
-    ];
-
-    for (const candidate of candidates) {
-      if (MediaRecorderClass.isTypeSupported(candidate)) {
-        return candidate;
-      }
-    }
-    return '';
-  }
-
-  /**
-   * Plays a gentle, resonant Morning Bell chime using the Web Audio API synthesizer.
-   * Works on 100% of browsers without needing an external audio file.
-   */
-  playMorningBellChime(onEnded?: () => void): void {
-    const ctx = this.getAudioContext();
-    if (!ctx) {
-      if (onEnded) setTimeout(onEnded, 2500);
-      return;
-    }
-
-    try {
-      const now = ctx.currentTime;
-      const masterGain = ctx.createGain();
-      masterGain.connect(ctx.destination);
-      masterGain.gain.setValueAtTime(0.35, now);
-
-      // Chime harmonics: fundamental (D5 - 587.33Hz) + shimmering harmonic overtones
-      const baseFreq = 587.33;
-      const partials = [
-        { ratio: 1.0, volume: 1.0, decay: 2.4 },
-        { ratio: 2.02, volume: 0.55, decay: 1.8 },
-        { ratio: 3.0, volume: 0.3, decay: 1.2 },
-        { ratio: 4.16, volume: 0.12, decay: 0.8 },
-      ];
-
-      partials.forEach((partial) => {
-        const osc = ctx.createOscillator();
-        const partialGain = ctx.createGain();
-
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(baseFreq * partial.ratio, now);
-
-        partialGain.gain.setValueAtTime(0, now);
-        partialGain.gain.linearRampToValueAtTime(partial.volume, now + 0.02);
-        partialGain.gain.exponentialRampToValueAtTime(0.0001, now + partial.decay);
-
-        osc.connect(partialGain);
-        partialGain.connect(masterGain);
-
-        osc.start(now);
-        osc.stop(now + partial.decay);
-      });
-
-      if (onEnded) {
-        setTimeout(onEnded, 2400);
-      }
-    } catch (err) {
-      console.warn('Error playing morning bell chime:', err);
-      if (onEnded) onEnded();
-    }
-  }
-
-  /**
-   * Starts real microphone recording across Web and modern OS engines.
-   * Automatically requests runtime OS microphone permission beforehand if needed.
+   * Starts real microphone recording using official Expo Audio (native Android & iOS)
+   * or standard Web MediaRecorder on browsers.
    */
   async startAudioRecording(isVi: boolean = true): Promise<boolean> {
     this.startTime = Date.now();
-    this.audioChunks = [];
 
-    // Automatically check and request OS / browser microphone permission
     const granted = await permissionService.requestPermission('microphone', isVi);
     if (!granted) {
       console.warn('Microphone permission not granted by user.');
       return false;
     }
 
+    // Native Android & iOS using official expo-av
+    if (Platform.OS !== 'web') {
+      try {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false,
+          shouldDuckAndroid: true,
+          playThroughEarpieceAndroid: false,
+        });
+
+        if (this.recording) {
+          try {
+            await this.recording.stopAndUnloadAsync();
+          } catch {}
+          this.recording = null;
+        }
+
+        const newRecording = new Audio.Recording();
+        await newRecording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+        await newRecording.startAsync();
+        this.recording = newRecording;
+        return true;
+      } catch (err) {
+        console.warn('Native expo-av recording start error:', err);
+      }
+    }
+
+    // Web Fallback
     if (
       Platform.OS === 'web' &&
       typeof navigator !== 'undefined' &&
@@ -141,7 +74,8 @@ class MediaCaptureService {
       navigator.mediaDevices.getUserMedia
     ) {
       try {
-        this.stream = await navigator.mediaDevices.getUserMedia({
+        this.fallbackWebChunks = [];
+        this.fallbackWebStream = await navigator.mediaDevices.getUserMedia({
           audio: {
             echoCancellation: true,
             noiseSuppression: true,
@@ -151,28 +85,26 @@ class MediaCaptureService {
 
         const MediaRecorderClass = (window as any).MediaRecorder;
         if (MediaRecorderClass) {
-          const mimeType = this.getSupportedMimeType();
-          const options = mimeType ? { mimeType } : undefined;
-          this.mediaRecorder = new MediaRecorderClass(this.stream, options);
-
-          this.mediaRecorder.ondataavailable = (event: any) => {
+          const recorder = new MediaRecorderClass(this.fallbackWebStream);
+          recorder.ondataavailable = (event: any) => {
             if (event.data && event.data.size > 0) {
-              this.audioChunks.push(event.data);
+              this.fallbackWebChunks.push(event.data);
             }
           };
-
-          this.mediaRecorder.start(250);
+          recorder.start(250);
+          this.fallbackWebRecorder = recorder;
           return true;
         }
-      } catch (err: any) {
-        console.warn('Microphone hardware recording error, using fallback:', err);
+      } catch (err) {
+        console.warn('Web MediaRecorder error:', err);
       }
     }
+
     return true;
   }
 
   /**
-   * Stops audio recording and returns a playable base64 data URL with waveform data
+   * Stops audio recording and returns a playable URI / base64 URL with waveform data
    */
   async stopAudioRecording(fallbackDurationSec: number = 14): Promise<RecordedAudioResult> {
     const elapsedSec = Math.max(
@@ -180,18 +112,53 @@ class MediaCaptureService {
       Math.round((Date.now() - (this.startTime || Date.now())) / 1000) || fallbackDurationSec
     );
 
-    if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
-      return new Promise((resolve) => {
-        this.mediaRecorder.onstop = async () => {
+    // 1. Native expo-av recording stop
+    if (this.recording) {
+      try {
+        await this.recording.stopAndUnloadAsync();
+        const uri = this.recording.getURI();
+        this.recording = null;
+
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+        });
+
+        let dataUrl = uri || '';
+        if (uri && Platform.OS !== 'web') {
           try {
-            if (this.stream) {
-              this.stream.getTracks().forEach((t: any) => t.stop());
-              this.stream = null;
+            const base64 = await FileSystem.readAsStringAsync(uri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            dataUrl = `data:audio/mp4;base64,${base64}`;
+          } catch {
+            dataUrl = uri;
+          }
+        }
+
+        const mock = await offlineStorage.recordMockVoice(elapsedSec);
+        return {
+          url: dataUrl || mock.voiceUrl,
+          duration: elapsedSec,
+          waveform: mock.waveform,
+        };
+      } catch (err) {
+        console.warn('Error stopping native recording:', err);
+        this.recording = null;
+      }
+    }
+
+    // 2. Web fallback recorder stop
+    if (this.fallbackWebRecorder && this.fallbackWebRecorder.state !== 'inactive') {
+      return new Promise((resolve) => {
+        this.fallbackWebRecorder.onstop = async () => {
+          try {
+            if (this.fallbackWebStream) {
+              this.fallbackWebStream.getTracks().forEach((t: any) => t.stop());
+              this.fallbackWebStream = null;
             }
 
-            const activeMimeType = this.mediaRecorder?.mimeType || 'audio/webm';
-            const blob = new Blob(this.audioChunks, { type: activeMimeType });
-
+            const blob = new Blob(this.fallbackWebChunks, { type: 'audio/webm' });
             const reader = new FileReader();
             reader.onloadend = async () => {
               const dataUrl = reader.result as string;
@@ -214,12 +181,9 @@ class MediaCaptureService {
         };
 
         try {
-          this.mediaRecorder.stop();
+          this.fallbackWebRecorder.stop();
         } catch {
-          if (this.stream) {
-            this.stream.getTracks().forEach((t: any) => t.stop());
-            this.stream = null;
-          }
+          this.fallbackWebRecorder = null;
         }
       });
     }
@@ -233,111 +197,143 @@ class MediaCaptureService {
   }
 
   /**
-   * Plays an audio URL or synthesized speech fallback with safety timeout
+   * Plays an audio URL using official Expo Audio.Sound
    */
-  playAudioUrl(url?: string, transcription?: string, onEnded?: () => void): void {
-    this.stopAudioPlayback();
+  async playAudioUrl(
+    url?: string,
+    arg2?: string | (() => void),
+    arg3?: string | (() => void)
+  ): Promise<void> {
+    this.stopCurrentAudio();
 
-    // 1. If it's a real playable audio URL (HTTP / data:audio)
-    if (url && (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:audio'))) {
-      if (Platform.OS === 'web' && typeof window !== 'undefined' && (window as any).Audio) {
-        try {
-          const audio = new (window as any).Audio(url);
-          this.currentAudioObject = audio;
+    let onEnd: (() => void) | undefined;
+    let synthesizedText: string | undefined;
 
-          let hasEnded = false;
-          const finish = () => {
-            if (!hasEnded) {
-              hasEnded = true;
-              this.currentAudioObject = null;
-              if (onEnded) onEnded();
-            }
-          };
-
-          audio.onended = finish;
-          audio.onerror = () => {
-            console.warn('Audio playback error, falling back to speech synthesis if available');
-            if (transcription) {
-              this.speakText(transcription, onEnded);
-            } else {
-              finish();
-            }
-          };
-
-          audio.play().catch((err: any) => {
-            console.warn('Audio play() rejected:', err);
-            if (transcription) {
-              this.speakText(transcription, onEnded);
-            } else {
-              finish();
-            }
-          });
-          return;
-        } catch (err) {
-          console.warn('Cannot instantiate Audio:', err);
-        }
-      }
+    if (typeof arg2 === 'function') {
+      onEnd = arg2;
+      synthesizedText = typeof arg3 === 'string' ? arg3 : undefined;
+    } else if (typeof arg2 === 'string') {
+      synthesizedText = arg2;
+      onEnd = typeof arg3 === 'function' ? arg3 : undefined;
     }
 
-    // 2. Fallback: Synthesize speech from transcription if available
-    if (transcription) {
-      this.speakText(transcription, onEnded);
+    if (!url) {
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && 'speechSynthesis' in window && synthesizedText) {
+        try {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance(synthesizedText);
+          utterance.lang = 'vi-VN';
+          utterance.onend = () => onEnd?.();
+          utterance.onerror = () => onEnd?.();
+          window.speechSynthesis.speak(utterance);
+          return;
+        } catch {}
+      }
+      setTimeout(() => onEnd?.(), 1500);
       return;
     }
 
-    // 3. Last fallback: Soft chime tone
-    this.playMorningBellChime(onEnded);
-  }
+    try {
+      await Audio.setAudioModeAsync({
+        playsInSilentModeIOS: true,
+        allowsRecordingIOS: false,
+      });
 
-  /**
-   * Speech synthesis fallback for bedtime stories or transcription text
-   */
-  speakText(text: string, onEnded?: () => void): void {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: url },
+        { shouldPlay: true }
+      );
+
+      this.currentSound = sound;
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          this.stopCurrentAudio();
+          onEnd?.();
+        }
+      });
+      return;
+    } catch (nativeErr) {
+      console.warn('Native expo-av audio play failed, trying web audio / speech:', nativeErr);
+    }
+
+    // Web / DOM fallback
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && (window as any).Audio) {
+      try {
+        const audio = new (window as any).Audio(url);
+        audio.onended = () => onEnd?.();
+        audio.onerror = () => onEnd?.();
+        await audio.play();
+        return;
+      } catch {}
+    }
+
+    // TTS fallback if text provided
+    if (
+      Platform.OS === 'web' &&
+      typeof window !== 'undefined' &&
+      'speechSynthesis' in window &&
+      synthesizedText
+    ) {
       try {
         window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
+        const utterance = new SpeechSynthesisUtterance(synthesizedText);
         utterance.lang = 'vi-VN';
-        utterance.rate = 0.95;
-        utterance.pitch = 1.0;
-
-        let finished = false;
-        const done = () => {
-          if (!finished) {
-            finished = true;
-            if (onEnded) onEnded();
-          }
-        };
-
-        utterance.onend = done;
-        utterance.onerror = done;
-
-        const safeTimeout = Math.max(3000, Math.min(text.length * 90, 15000));
-        setTimeout(done, safeTimeout);
-
+        utterance.onend = () => onEnd?.();
+        utterance.onerror = () => onEnd?.();
         window.speechSynthesis.speak(utterance);
         return;
-      } catch (err) {
-        console.warn('SpeechSynthesis error:', err);
-      }
+      } catch {}
     }
 
-    if (onEnded) setTimeout(onEnded, 3000);
+    // Safety timeout
+    setTimeout(() => onEnd?.(), 2500);
+  }
+
+  stopAudioPlayback(): void {
+    this.stopCurrentAudio();
   }
 
   /**
-   * Stops any currently playing audio or speech
+   * Plays a warm, soothing morning chime sound
    */
-  stopAudioPlayback(): void {
-    if (this.currentAudioObject) {
+  playMorningBellChime(onEnd?: () => void): void {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
       try {
-        this.currentAudioObject.pause();
-        this.currentAudioObject.currentTime = 0;
+        const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+        if (AudioCtx) {
+          const ctx = new AudioCtx();
+          const frequencies = [523.25, 659.25, 783.99, 1046.5]; // C5, E5, G5, C6
+          frequencies.forEach((freq, idx) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.18);
+            gain.gain.setValueAtTime(0.2, ctx.currentTime + idx * 0.18);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + idx * 0.18 + 0.8);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(ctx.currentTime + idx * 0.18);
+            osc.stop(ctx.currentTime + idx * 0.18 + 0.85);
+          });
+        }
       } catch {}
-      this.currentAudioObject = null;
+    }
+    setTimeout(() => onEnd?.(), 1000);
+  }
+
+  /**
+   * Stops any currently playing audio
+   */
+  stopCurrentAudio(): void {
+    if (this.currentSound) {
+      try {
+        this.currentSound.stopAsync().catch(() => {});
+        this.currentSound.unloadAsync().catch(() => {});
+      } catch {}
+      this.currentSound = null;
     }
 
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && 'speechSynthesis' in window) {
       try {
         window.speechSynthesis.cancel();
       } catch {}
@@ -345,124 +341,66 @@ class MediaCaptureService {
   }
 
   /**
-   * Opens OS photo picker intent or camera intent automatically.
-   * In Web/Android WebView, leverages HTML5 file input with `capture="environment"`
-   * which instructs OS (Android/iOS) to directly launch the native camera intent,
-   * or the system photo gallery picker intent.
+   * Captures a photo using the native system camera app (Android Intent / iOS UIImagePickerController)
+   * or picks an image from the device's photo gallery via official `expo-image-picker`.
    */
   async pickOrCapturePhoto(useCamera: boolean = false): Promise<PickedPhotoResult | null> {
-    // If requesting Camera, automatically ensure Camera permission is requested if on native Android
-    if (useCamera && Platform.OS === 'android') {
-      await permissionService.requestPermission('camera');
-    }
-
-    if (Platform.OS === 'web' && typeof document !== 'undefined') {
-      return new Promise((resolve) => {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = 'image/*';
-        input.style.position = 'fixed';
-        input.style.top = '-1000px';
-        input.style.left = '-1000px';
-        input.style.opacity = '0';
-        input.style.pointerEvents = 'none';
-
-        // When useCamera is true, attribute triggers OS Camera Intent directly
-        if (useCamera) {
-          input.setAttribute('capture', 'environment');
+    try {
+      if (useCamera) {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) {
+          return null;
         }
 
-        const cleanup = () => {
-          try {
-            if (input.parentNode) {
-              document.body.removeChild(input);
-            }
-          } catch {}
-        };
+        const result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: false,
+          quality: 0.7,
+          base64: true,
+        });
 
-        input.onchange = () => {
-          const file = input.files?.[0];
-          cleanup();
-
-          if (!file) {
-            resolve(null);
-            return;
-          }
-
-          const reader = new FileReader();
-          reader.onload = (ev) => {
-            const rawDataUrl = ev.target?.result as string;
-
-            const img = new (window as any).Image();
-            img.onload = () => {
-              try {
-                const canvas = document.createElement('canvas');
-                const maxDim = 480;
-                let w = img.width;
-                let h = img.height;
-                if (w > h && w > maxDim) {
-                  h = Math.round((h * maxDim) / w);
-                  w = maxDim;
-                } else if (h > maxDim) {
-                  w = Math.round((w * maxDim) / h);
-                  h = maxDim;
-                }
-                canvas.width = w;
-                canvas.height = h;
-                const ctx = canvas.getContext('2d');
-                ctx?.drawImage(img, 0, 0, w, h);
-                const compressedUrl = canvas.toDataURL('image/jpeg', 0.8);
-                resolve({
-                  dataUrl: compressedUrl,
-                  name: file.name || 'photo.jpg',
-                  dominantColor: '#DF5018',
-                });
-              } catch {
-                resolve({
-                  dataUrl: rawDataUrl,
-                  name: file.name || 'photo.jpg',
-                  dominantColor: '#DF5018',
-                });
-              }
-            };
-            img.onerror = () => {
-              resolve({
-                dataUrl: rawDataUrl,
-                name: file.name || 'photo.jpg',
-                dominantColor: '#DF5018',
-              });
-            };
-            img.src = rawDataUrl;
+        if (!result.canceled && result.assets && result.assets.length > 0) {
+          const asset = result.assets[0];
+          const dataUrl = asset.base64
+            ? `data:image/jpeg;base64,${asset.base64}`
+            : asset.uri;
+          return {
+            dataUrl,
+            name: asset.fileName || 'camera_photo.jpg',
+            dominantColor: '#DF5018',
           };
+        }
+        return null;
+      } else {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) {
+          return null;
+        }
 
-          reader.onerror = () => {
-            resolve(null);
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: false,
+          quality: 0.7,
+          base64: true,
+        });
+
+        if (!result.canceled && result.assets && result.assets.length > 0) {
+          const asset = result.assets[0];
+          const dataUrl = asset.base64
+            ? `data:image/jpeg;base64,${asset.base64}`
+            : asset.uri;
+          return {
+            dataUrl,
+            name: asset.fileName || 'photo.jpg',
+            dominantColor: '#DF5018',
           };
-
-          reader.readAsDataURL(file);
-        };
-
-        const handleWindowFocus = () => {
-          window.removeEventListener('focus', handleWindowFocus);
-          setTimeout(() => {
-            if (!input.files || input.files.length === 0) {
-              cleanup();
-            }
-          }, 1000);
-        };
-        window.addEventListener('focus', handleWindowFocus);
-
-        document.body.appendChild(input);
-        // Synchronously click to fire OS file picker/camera intent dialog
-        input.click();
-      });
+        }
+        return null;
+      }
+    } catch (err) {
+      console.warn('ImagePicker error:', err);
+      return null;
     }
-
-    return Promise.resolve({
-      dataUrl: 'https://images.unsplash.com/photo-1516627145497-ae6968895b74?w=480&q=80',
-      name: 'family_photo.jpg',
-      dominantColor: '#DF5018',
-    });
   }
 }
 
