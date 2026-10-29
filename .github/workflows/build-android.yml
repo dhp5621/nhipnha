@@ -26,9 +26,6 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: 📱 Set up Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: ⚡ Install pnpm
         uses: pnpm/action-setup@v3
         with:
@@ -58,6 +55,10 @@ jobs:
           cd apps/mobile
           npx expo prebuild --platform android --no-install
 
+      - name: 📜 Accept Android SDK Licenses
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
       - name: ⚙️ Build Android Release APK
         run: |
           cd apps/mobile/android
@@ -80,7 +81,7 @@ jobs:
                 --key-pass "pass:$KEY_PASS" \
                 --ks-key-alias "$KEY_ALIAS" \
                 --out apps/mobile/android/app/build/outputs/apk/release/nhipnha-release-signed.apk \
-                "$APK_FILE" || echo "apksigner completed"
+                "$APK_FILE" || echo "apksigner signed or kept original apk"
             fi
           fi
 

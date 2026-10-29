@@ -1,8 +1,10 @@
 import React from 'react';
 import { View, StyleSheet, ScrollView, Alert } from 'react-native';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { BigButton } from '../components/BigButton';
 import { AccessibleText } from '../components/AccessibleText';
+import { LanguageSelector } from '../components/LanguageSelector';
 import { THEME } from '../constants/theme';
 
 interface RoleSwitchScreenProps {
@@ -15,22 +17,23 @@ export const RoleSwitchScreen: React.FC<RoleSwitchScreenProps> = ({
   onGoToLogin,
 }) => {
   const { member, family, switchRole, logout } = useAuth();
+  const { t } = useLanguage();
 
   const handleSwitchToChild = () => {
     switchRole('CHILD', 'Bé An (8 tuổi)');
-    Alert.alert('Đã đổi vai', 'Bạn đang ở giao diện Bé An (Trẻ em nông thôn)');
+    Alert.alert('Role Changed / Đã đổi vai', t('switchToChild'));
     onBack();
   };
 
   const handleSwitchToParent = () => {
     switchRole('PARENT', 'Mẹ Hoa (Công nhân xa nhà)');
-    Alert.alert('Đã đổi vai', 'Bạn đang ở giao diện Mẹ Hoa (Phụ huynh làm việc xa)');
+    Alert.alert('Role Changed / Đã đổi vai', t('switchToParent'));
     onBack();
   };
 
   const handleSwitchToGrandparent = () => {
     switchRole('GRANDPARENT', 'Bà Nội Bảy (68 tuổi)');
-    Alert.alert('Đã đổi vai', 'Bạn đang ở chế độ hỗ trợ Ông bà nông thôn');
+    Alert.alert('Role Changed / Đã đổi vai', t('switchToGrandparent'));
     onBack();
   };
 
@@ -43,29 +46,32 @@ export const RoleSwitchScreen: React.FC<RoleSwitchScreenProps> = ({
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.header}>
         <AccessibleText variant="h1" color="#0F172A" weight="800" center>
-          🔄 Chuyển Đổi Chế Độ Trải Nghiệm
+          🔄 {t('switchRoleBtn')}
         </AccessibleText>
         <AccessibleText variant="bodyLarge" color="#475569" center style={{ marginTop: 6 }}>
-          Phục vụ đánh giá đề án RBPC 2026 (SDG 3, 4, 8)
+          {t('competitionBadge')}
         </AccessibleText>
       </View>
 
+      {/* Language Selector Component */}
+      <LanguageSelector />
+
       <View style={styles.card}>
         <AccessibleText variant="h2" weight="700" color="#1E293B">
-          Thiết bị hiện tại:
+          Active Device / Thiết bị hiện tại:
         </AccessibleText>
         <AccessibleText variant="bodyLarge" color="#0D9488" weight="800" style={{ marginTop: 4 }}>
-          {member?.name} ({member?.role === 'CHILD' ? 'Trẻ Em' : member?.role === 'PARENT' ? 'Phụ Huynh' : 'Ông Bà'})
+          {member?.name} ({member?.role === 'CHILD' ? t('childRole') : member?.role === 'PARENT' ? t('parentRole') : t('grandparentRole')})
         </AccessibleText>
         <AccessibleText variant="bodyRegular" color="#64748B">
-          Gia đình: {family?.name} • Mã: {family?.code}
+          {family?.name} • Code: {family?.code}
         </AccessibleText>
       </View>
 
       <View style={styles.switchOptions}>
         <BigButton
-          title="1. Chuyển sang: Trẻ Em (Bé An)"
-          subtitle="Giao diện 3 Nhịp Gắn Kết (Sáng, Chiều, Tối)"
+          title={t('switchToChild')}
+          subtitle={t('threeRhythmsTitle')}
           icon="🧒"
           variant="morning"
           size="hero"
@@ -73,8 +79,8 @@ export const RoleSwitchScreen: React.FC<RoleSwitchScreenProps> = ({
         />
 
         <BigButton
-          title="2. Chuyển sang: Phụ Huynh (Mẹ Hoa)"
-          subtitle="Timeline nhật ký + AI Thấu Cảm + Phản hồi 30s"
+          title={t('switchToParent')}
+          subtitle={t('parentSubtitle')}
           icon="👩‍🏭"
           variant="afternoon"
           size="hero"
@@ -82,8 +88,8 @@ export const RoleSwitchScreen: React.FC<RoleSwitchScreenProps> = ({
         />
 
         <BigButton
-          title="3. Chế độ: Ông Bà (Bà Bảy 68 tuổi)"
-          subtitle="Font siêu lớn, nút bấm 68px, tối ưu Android cũ"
+          title={t('switchToGrandparent')}
+          subtitle="Large fonts, high contrast, budget device optimized"
           icon="👵"
           variant="evening"
           size="hero"
@@ -91,7 +97,7 @@ export const RoleSwitchScreen: React.FC<RoleSwitchScreenProps> = ({
         />
 
         <BigButton
-          title="Thử Nghiệm Quét Lại Mã QR (Zero-Type Login)"
+          title={t('resetQR')}
           icon="📷"
           variant="secondary"
           onPress={handleReset}
@@ -99,7 +105,7 @@ export const RoleSwitchScreen: React.FC<RoleSwitchScreenProps> = ({
       </View>
 
       <BigButton
-        title="Quay Lại Màn Hình Trước"
+        title={t('back')}
         variant="secondary"
         onPress={onBack}
       />

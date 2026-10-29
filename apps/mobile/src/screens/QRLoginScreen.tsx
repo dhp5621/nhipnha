@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView, TextInput, Alert } from 'react-native';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { BigButton } from '../components/BigButton';
 import { AccessibleText } from '../components/AccessibleText';
+import { LanguageSelector } from '../components/LanguageSelector';
 import { THEME } from '../constants/theme';
 
 interface QRLoginScreenProps {
@@ -11,6 +13,7 @@ interface QRLoginScreenProps {
 
 export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess }) => {
   const { pairWithQR, pairWithCode, isLoading } = useAuth();
+  const { t } = useLanguage();
   const [manualCode, setManualCode] = useState('NHIP-8868');
   const [selectedRole, setSelectedRole] = useState<'CHILD' | 'PARENT'>('CHILD');
   const [name, setName] = useState('Bé An');
@@ -30,24 +33,24 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess }) => {
 
     try {
       await pairWithQR(mockQRData);
-      Alert.alert('Thành công', 'Đã ghép đôi thiết bị vào gia đình thành công!');
+      Alert.alert(t('oneTouchSuccess'), `${t('appName')} – ${t('appSubname')}`);
       onSuccess();
     } catch (err: any) {
-      Alert.alert('Lỗi', err?.message || 'Không thể ghép đôi mã QR');
+      Alert.alert('Error', err?.message || 'QR Pairing error');
     }
   };
 
   const handlePairByCode = async () => {
     if (!manualCode.trim()) {
-      Alert.alert('Nhắc nhở', 'Vui lòng nhập mã ghép đôi gồm 4 số!');
+      Alert.alert('Notice', 'Please enter 4-digit family code!');
       return;
     }
     try {
       await pairWithCode(manualCode.trim(), selectedRole, name);
-      Alert.alert('Thành công', `Chào mừng ${name} đã kết nối vào gia đình!`);
+      Alert.alert(t('oneTouchSuccess'), `${name} connected!`);
       onSuccess();
     } catch (err: any) {
-      Alert.alert('Lỗi', err?.message || 'Mã ghép đôi không chính xác');
+      Alert.alert('Error', err?.message || 'Invalid code');
     }
   };
 
@@ -55,15 +58,18 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess }) => {
     <ScrollView contentContainerStyle={styles.container} bounces={false}>
       <View style={styles.header}>
         <AccessibleText variant="hero" color={THEME.colors.morningBorder} center weight="800">
-          Nhịp Nhà
+          {t('appName')}
         </AccessibleText>
         <AccessibleText variant="h2" color={THEME.colors.textDark} center weight="700" style={styles.subtitle}>
-          Gần nhau dù cách xa
+          {t('appSubname')}
         </AccessibleText>
         <AccessibleText variant="bodyLarge" color={THEME.colors.textSecondary} center style={styles.desc}>
-          Kết nối không cần mật khẩu. Một chạm ghép đôi bằng mã QR dán trên góc học tập hoặc ti-vi ở quê.
+          {t('zeroTypeDesc')}
         </AccessibleText>
       </View>
+
+      {/* Language Switcher in Login Screen */}
+      <LanguageSelector />
 
       <View style={styles.qrCard}>
         <View style={styles.qrBox}>
@@ -71,16 +77,16 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess }) => {
             📱 📷 🏠
           </AccessibleText>
           <AccessibleText variant="bodyLarge" center weight="700" color="#1E293B" style={{ marginTop: 8 }}>
-            Mã QR Gia Đình
+            {t('familyQRCode')}
           </AccessibleText>
           <AccessibleText variant="label" center color="#64748B">
-            Mã định danh: NHIP-8868 (Đồng Tháp)
+            ID: NHIP-8868 (Đồng Tháp)
           </AccessibleText>
         </View>
 
         <BigButton
-          title="Ghép đôi 1 chạm (Zero-Type)"
-          subtitle="Tự động nhận diện thiết bị & vào thẳng nhà"
+          title={t('zeroTypeTitle')}
+          subtitle={t('zeroTypeDesc')}
           icon="⚡"
           variant="morning"
           size="hero"
@@ -91,21 +97,21 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess }) => {
 
       <View style={styles.manualSection}>
         <AccessibleText variant="h2" weight="700" color={THEME.colors.textDark}>
-          Hoặc nhập mã số gia đình:
+          {t('orEnterCode')}
         </AccessibleText>
 
         <TextInput
           style={styles.input}
           value={manualCode}
           onChangeText={setManualCode}
-          placeholder="Ví dụ: NHIP-8868"
+          placeholder="e.g. NHIP-8868"
           placeholderTextColor="#94A3B8"
-          accessibilityLabel="Nhập mã số gia đình"
+          accessibilityLabel={t('orEnterCode')}
         />
 
         <View style={styles.roleRow}>
           <BigButton
-            title={selectedRole === 'CHILD' ? '✓ Vai Trẻ Em' : 'Vai Trẻ Em'}
+            title={selectedRole === 'CHILD' ? `✓ ${t('childRole')}` : t('childRole')}
             onPress={() => {
               setSelectedRole('CHILD');
               setName('Bé An');
@@ -113,7 +119,7 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess }) => {
             variant={selectedRole === 'CHILD' ? 'morning' : 'secondary'}
           />
           <BigButton
-            title={selectedRole === 'PARENT' ? '✓ Vai Phụ Huynh' : 'Vai Phụ Huynh'}
+            title={selectedRole === 'PARENT' ? `✓ ${t('parentRole')}` : t('parentRole')}
             onPress={() => {
               setSelectedRole('PARENT');
               setName('Mẹ Hoa');
@@ -123,7 +129,7 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess }) => {
         </View>
 
         <BigButton
-          title="Kết Nối Bằng Mã Số"
+          title={t('connectByCode')}
           icon="🔑"
           variant="secondary"
           onPress={handlePairByCode}

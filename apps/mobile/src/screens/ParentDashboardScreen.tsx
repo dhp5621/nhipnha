@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Alert } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { useRhythm } from '../context/RhythmContext';
+import { useLanguage } from '../context/LanguageContext';
 import { apiClient } from '../services/api';
 import { EmpathyPromptCard } from '../components/EmpathyPromptCard';
 import { AudioWaveform } from '../components/AudioWaveform';
@@ -19,6 +20,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
 }) => {
   const { family, member } = useAuth();
   const { state } = useRhythm();
+  const { t, activeLanguage } = useLanguage();
 
   const [aiData, setAiData] = useState<EmpathyAssistantResponse | null>(null);
   const [selectedPrompt, setSelectedPrompt] = useState<string>('');
@@ -69,7 +71,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
       durationSec: 30 - durationLeft || 25,
     });
     setSentMessage(true);
-    Alert.alert('Đã Gửi Lời Nhắn!', 'Lời dặn dò đã chuyển đến điện thoại của bé An ở quê!');
+    Alert.alert(t('quick30sTitle'), t('sentBedtimeSuccess'));
   };
 
   return (
@@ -77,27 +79,27 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
       {/* Header */}
       <View style={styles.header}>
         <AccessibleText variant="h1" color="#0F172A" weight="800">
-          Nhật Ký Ngày Của Bé An
+          {t('parentDashboardTitle')}
         </AccessibleText>
         <AccessibleText variant="bodyRegular" color="#475569" style={{ marginTop: 2 }}>
-          {member?.name || 'Mẹ Hoa'} • Khu Công Nghiệp Sóng Thần
+          {member?.name || 'Mẹ Hoa'} • {t('parentSubtitle')}
         </AccessibleText>
       </View>
 
       {/* Daily Timeline */}
       <View style={styles.card}>
         <AccessibleText variant="h2" weight="800" color="#1E293B">
-          📅 Dòng Thời Gian "3 Nhịp" Của Con
+          📅 {t('timelineTitle')}
         </AccessibleText>
 
         <View style={styles.timelineItem}>
           <AccessibleText variant="h2">☀️</AccessibleText>
           <View style={styles.timelineContent}>
             <AccessibleText variant="bodyLarge" weight="700" color="#854D0E">
-              Chạm Sáng ({state.morningTime || '06:45'})
+              {t('morningTitle')} ({state.morningTime || '06:45'})
             </AccessibleText>
             <AccessibleText variant="bodyRegular" color="#334155">
-              Bé đã dậy đúng giờ, ăn sáng và chuẩn bị đến trường.
+              {t('morningAlreadyDone')}
             </AccessibleText>
           </View>
         </View>
@@ -106,13 +108,16 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
           <AccessibleText variant="h2">🎒</AccessibleText>
           <View style={styles.timelineContent}>
             <AccessibleText variant="bodyLarge" weight="700" color="#9A3412">
-              Chạm Chiều ({state.afternoonTime || '16:40'})
+              {t('afternoonTitle')} ({state.afternoonTime || '16:40'})
             </AccessibleText>
             <AccessibleText variant="bodyRegular" color="#334155">
-              Cảm xúc: {state.afternoonMood === 'JOYFUL' ? 'Vui vẻ 😄' : state.afternoonMood === 'CALM' ? 'Bình yên ⛅' : state.afternoonMood === 'TIRED' ? 'Hơi mệt 🌧️' : 'Cần ôm 🫂'}
-            </AccessibleText>
-            <AccessibleText variant="label" color="#C2410C" weight="600">
-              Đã ghi âm lời nhắn 15s: "Chiều nay con được cô khen vẽ hoa sen đẹp..."
+              {state.afternoonMood === 'JOYFUL'
+                ? `😄 ${t('moodJoyful')}`
+                : state.afternoonMood === 'CALM'
+                ? `⛅ ${t('moodCalm')}`
+                : state.afternoonMood === 'TIRED'
+                ? `🌧️ ${t('moodTired')}`
+                : `🫂 ${t('moodNeedHug')}`}
             </AccessibleText>
           </View>
         </View>
@@ -121,10 +126,10 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
           <AccessibleText variant="h2">🌙</AccessibleText>
           <View style={styles.timelineContent}>
             <AccessibleText variant="bodyLarge" weight="700" color="#3730A3">
-              Chạm Tối (20:00 - 22:00)
+              {t('eveningTitle')} ({t('eveningTimeWindow')})
             </AccessibleText>
             <AccessibleText variant="bodyRegular" color="#334155">
-              {sentMessage ? '✓ Bạn đã gửi lời dặn dò ngủ ngon.' : 'Đang chờ bạn gửi lời dặn dò ấm áp 30s.'}
+              {sentMessage ? t('sentBedtimeSuccess') : t('eveningSubtitle')}
             </AccessibleText>
           </View>
         </View>
@@ -134,7 +139,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
       <View style={[styles.card, styles.aiCard]}>
         <View style={styles.aiHeader}>
           <AccessibleText variant="h2" weight="800" color="#166534">
-            🤖 Trợ Lý Thấu Cảm (AI Empathy)
+            🤖 {t('aiAssistantTitle')}
           </AccessibleText>
           <View style={styles.sdgTag}>
             <AccessibleText variant="label" color="#15803D" weight="700">
@@ -144,7 +149,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
         </View>
 
         <AccessibleText variant="bodyRegular" color="#14532D" weight="600" style={styles.aiExplanation}>
-          💡 Tóm tắt trung thực điều con kể & gợi ý phản hồi thấu cảm trong 30 giây để tránh áp lực hỏi điểm số:
+          💡 {t('aiAssistantDesc')}
         </AccessibleText>
 
         <View style={styles.summaryBox}>
@@ -154,7 +159,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
         </View>
 
         <AccessibleText variant="h2" weight="700" color="#14532D" style={{ marginTop: 14 }}>
-          Chọn 1 gợi ý thấu cảm để đọc/ghi âm gửi con:
+          {t('aiPromptPick')}
         </AccessibleText>
 
         {aiData?.suggestedPrompts.map((prompt, index) => (
@@ -171,10 +176,10 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
       {/* QUICK 30s VOICE RESPONSE */}
       <View style={styles.card}>
         <AccessibleText variant="h2" weight="800" color="#1E1B4B">
-          🎙️ Phản Hồi Nhanh 30 Giây (Gửi Bé Vào Chạm Tối)
+          🎙️ {t('quick30sTitle')}
         </AccessibleText>
         <AccessibleText variant="bodyRegular" color="#475569" style={{ marginTop: 4 }}>
-          Sau ca làm mệt mỏi, hãy dùng 30 giây để tiếp thêm hơi ấm cho con:
+          {t('quick30sDesc')}
         </AccessibleText>
 
         <AudioWaveform
@@ -184,8 +189,8 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
 
         {!isRecording30s ? (
           <BigButton
-            title={sentMessage ? "Ghi Âm Thêm Lời Dặn Mới" : "Bắt Đầu Ghi Âm 30 Giây"}
-            subtitle="Đọc theo gợi ý AI đã chọn ở trên"
+            title={sentMessage ? t('quick30sRecordBtn') : t('quick30sRecordBtn')}
+            subtitle="30s empathy audio"
             icon="🎙️"
             variant="evening"
             size="hero"
@@ -193,8 +198,8 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
           />
         ) : (
           <BigButton
-            title="Dừng & Gửi Về Quê Cho Con Ngay"
-            subtitle={`Đang ghi âm: còn ${durationLeft}s`}
+            title={t('quick30sSendBtn')}
+            subtitle={`${t('recordingTimeLeft')}: ${durationLeft}s`}
             icon="📤"
             variant="success"
             size="hero"
@@ -206,7 +211,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
       {/* Switch role demo button */}
       <View style={styles.footer}>
         <BigButton
-          title="Chuyển sang Giao Diện Trẻ Em / Demo"
+          title={t('switchRoleBtn')}
           icon="🔄"
           variant="secondary"
           onPress={onNavigateToSwitch}

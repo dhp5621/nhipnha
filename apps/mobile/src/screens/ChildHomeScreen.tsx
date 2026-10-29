@@ -2,6 +2,7 @@ import React from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { useRhythm } from '../context/RhythmContext';
+import { useLanguage } from '../context/LanguageContext';
 import { BigButton } from '../components/BigButton';
 import { AccessibleText } from '../components/AccessibleText';
 import { THEME } from '../constants/theme';
@@ -21,6 +22,7 @@ export const ChildHomeScreen: React.FC<ChildHomeScreenProps> = ({
 }) => {
   const { family, member } = useAuth();
   const { state } = useRhythm();
+  const { t, activeLanguage } = useLanguage();
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -28,17 +30,17 @@ export const ChildHomeScreen: React.FC<ChildHomeScreenProps> = ({
       <View style={styles.topBar}>
         <View style={styles.familyInfo}>
           <AccessibleText variant="h2" weight="800" color="#78350F">
-            🏠 {family?.name || 'Gia đình Nhịp Nhà'}
+            🏠 {family?.name || t('appName')}
           </AccessibleText>
           <AccessibleText variant="bodyRegular" color="#92400E" weight="600">
-            Xin chào: {member?.name || 'Bé An'} • Mã: {family?.code || 'NHIP-8868'}
+            {member?.name || 'Bé An'} • Code: {family?.code || 'NHIP-8868'} • {activeLanguage === 'vi' ? '🇻🇳 VN' : '🇬🇧 EN'}
           </AccessibleText>
         </View>
 
         {state.pendingOfflineCount > 0 && (
           <View style={styles.offlineBadge}>
             <AccessibleText variant="label" color="#B45309" weight="700">
-              ⚡ Chờ gửi ngoại tuyến ({state.pendingOfflineCount})
+              ⚡ {t('offlinePendingBadge')} ({state.pendingOfflineCount})
             </AccessibleText>
           </View>
         )}
@@ -47,10 +49,10 @@ export const ChildHomeScreen: React.FC<ChildHomeScreenProps> = ({
       {/* Hero Greeting */}
       <View style={styles.heroBanner}>
         <AccessibleText variant="h1" weight="800" color="#1E293B">
-          3 Nhịp Gắn Kết Hôm Nay
+          {t('threeRhythmsTitle')}
         </AccessibleText>
         <AccessibleText variant="bodyLarge" color="#475569" style={{ marginTop: 4 }}>
-          Bấm các nút lớn bên dưới để gửi tin yêu thương đến ba mẹ đang làm xa:
+          {t('threeRhythmsDesc')}
         </AccessibleText>
       </View>
 
@@ -58,28 +60,28 @@ export const ChildHomeScreen: React.FC<ChildHomeScreenProps> = ({
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <AccessibleText variant="h1" color="#B45309">
-            ☀️ Chạm Sáng
+            ☀️ {t('morningTitle')}
           </AccessibleText>
           {state.morningCompleted ? (
             <View style={[styles.statusTag, { backgroundColor: '#DCFCE7' }]}>
               <AccessibleText variant="label" color="#15803D" weight="700">
-                ✓ Đã chào ({state.morningTime || '06:45'})
+                {t('morningAlreadyDone')} ({state.morningTime || '06:45'})
               </AccessibleText>
             </View>
           ) : (
             <View style={[styles.statusTag, { backgroundColor: '#FEF08A' }]}>
               <AccessibleText variant="label" color="#854D0E" weight="700">
-                Chưa chạm
+                {t('morningTimeWindow')}
               </AccessibleText>
             </View>
           )}
         </View>
         <AccessibleText variant="bodyRegular" color="#334155" style={styles.cardDesc}>
-          Báo thức, chúc ba mẹ ngày làm việc bình an trước khi con cắp sách tới trường.
+          {t('morningSubtitle')}
         </AccessibleText>
         <BigButton
-          title={state.morningCompleted ? "Xem Lại Lời Chào Sáng" : "Chạm Sáng – Báo Thức Ba Mẹ"}
-          subtitle="Một chạm gửi năng lượng tích cực"
+          title={state.morningCompleted ? t('morningAlreadyDone') : t('morningButtonPrompt')}
+          subtitle={t('morningSubtitle')}
           icon="☀️"
           variant="morning"
           size="hero"
@@ -91,28 +93,28 @@ export const ChildHomeScreen: React.FC<ChildHomeScreenProps> = ({
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <AccessibleText variant="h1" color="#C2410C">
-            🎒 Chạm Chiều
+            🎒 {t('afternoonTitle')}
           </AccessibleText>
           {state.afternoonCompleted ? (
             <View style={[styles.statusTag, { backgroundColor: '#DCFCE7' }]}>
               <AccessibleText variant="label" color="#15803D" weight="700">
-                ✓ Đã gửi giọng nói ({state.afternoonTime})
+                ✓ ({state.afternoonTime})
               </AccessibleText>
             </View>
           ) : (
             <View style={[styles.statusTag, { backgroundColor: '#FFEDD5' }]}>
               <AccessibleText variant="label" color="#9A3412" weight="700">
-                Cần làm chiều nay
+                {t('afternoonTimeWindow')}
               </AccessibleText>
             </View>
           )}
         </View>
         <AccessibleText variant="bodyRegular" color="#334155" style={styles.cardDesc}>
-          Chọn 4 cảm xúc tan trường và gửi giọng nói 15 giây kể chuyện cùng ba mẹ.
+          {t('afternoonSubtitle')}
         </AccessibleText>
         <BigButton
-          title={state.afternoonCompleted ? "Ghi Âm Thêm Lời Nhắn Chiều" : "Chạm Chiều – Kể Chuyện Tan Trường"}
-          subtitle="4 cảm xúc + ghi âm 15 giây (Lưu trữ ngoại tuyến)"
+          title={state.afternoonCompleted ? t('afternoonRecordAgain') : `${t('afternoonTitle')} – 15s`}
+          subtitle={t('afternoonSubtitle')}
           icon="🎙️"
           variant="afternoon"
           size="hero"
@@ -124,28 +126,28 @@ export const ChildHomeScreen: React.FC<ChildHomeScreenProps> = ({
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <AccessibleText variant="h1" color="#3730A3">
-            🌙 Chạm Tối
+            🌙 {t('eveningTitle')}
           </AccessibleText>
           {state.eveningListened ? (
             <View style={[styles.statusTag, { backgroundColor: '#DCFCE7' }]}>
               <AccessibleText variant="label" color="#15803D" weight="700">
-                ✓ Đã nghe dặn dò
+                {t('eveningListenedBadge')}
               </AccessibleText>
             </View>
           ) : (
             <View style={[styles.statusTag, { backgroundColor: '#EEF2FF' }]}>
               <AccessibleText variant="label" color="#4338CA" weight="700">
-                Có tin nhắn mới!
+                {t('eveningTimeWindow')}
               </AccessibleText>
             </View>
           )}
         </View>
         <AccessibleText variant="bodyRegular" color="#334155" style={styles.cardDesc}>
-          Lắng nghe lời dặn dò yêu thương của ba mẹ sau ca làm trước khi đi ngủ.
+          {t('eveningSubtitle')}
         </AccessibleText>
         <BigButton
-          title="Chạm Tối – Nghe Ba Mẹ Dặn Dò"
-          subtitle="Bấm để phát giọng nói ấm áp"
+          title={`${t('eveningTitle')} – ${t('eveningPlayBtn')}`}
+          subtitle={t('eveningSubtitle')}
           icon="🎧"
           variant="evening"
           size="hero"
@@ -153,11 +155,11 @@ export const ChildHomeScreen: React.FC<ChildHomeScreenProps> = ({
         />
       </View>
 
-      {/* Footer Switcher for Demo */}
+      {/* Footer Switcher for Demo & Settings */}
       <View style={styles.footer}>
         <BigButton
-          title="Chuyển sang Giao Diện Phụ Huynh / Demo"
-          icon="🔄"
+          title={t('switchRoleBtn')}
+          icon="🌐"
           variant="secondary"
           onPress={onNavigateToSwitch}
         />

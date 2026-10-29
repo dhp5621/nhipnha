@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
 
+import { LanguageProvider, useLanguage } from './src/context/LanguageContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { RhythmProvider } from './src/context/RhythmContext';
 import { QRLoginScreen } from './src/screens/QRLoginScreen';
@@ -85,14 +86,16 @@ function NavigationRoot() {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <RhythmProvider>
-          <SafeAreaView style={styles.safeArea}>
-            <StatusBar style="dark" backgroundColor={THEME.colors.background} />
-            <NavigationRoot />
-          </SafeAreaView>
-        </RhythmProvider>
-      </AuthProvider>
+      <LanguageProvider>
+        <AuthProvider>
+          <RhythmProvider>
+            <SafeAreaView style={styles.safeArea}>
+              <StatusBar style="dark" backgroundColor={THEME.colors.background} />
+              <NavigationRoot />
+            </SafeAreaView>
+          </RhythmProvider>
+        </AuthProvider>
+      </LanguageProvider>
     </SafeAreaProvider>
   );
 }

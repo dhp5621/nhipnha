@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { EMOTIONS, type MoodType, type EmotionOption } from '@nhipnha/shared';
+import { useLanguage } from '../context/LanguageContext';
 import { THEME } from '../constants/theme';
 
 interface EmotionSelectorProps {
@@ -12,10 +13,28 @@ export const EmotionSelector: React.FC<EmotionSelectorProps> = ({
   selectedMood,
   onSelectMood,
 }) => {
+  const { t, activeLanguage } = useLanguage();
+
+  const getLocalizedEmotion = (item: EmotionOption) => {
+    switch (item.id) {
+      case 'JOYFUL':
+        return { label: t('moodJoyful'), sublabel: t('moodJoyfulSub') };
+      case 'CALM':
+        return { label: t('moodCalm'), sublabel: t('moodCalmSub') };
+      case 'TIRED':
+        return { label: t('moodTired'), sublabel: t('moodTiredSub') };
+      case 'NEED_HUG':
+        return { label: t('moodNeedHug'), sublabel: t('moodNeedHugSub') };
+      default:
+        return { label: item.label, sublabel: item.sublabel };
+    }
+  };
+
   return (
     <View style={styles.grid}>
       {EMOTIONS.map((item: EmotionOption) => {
         const isSelected = selectedMood === item.id;
+        const localized = getLocalizedEmotion(item);
         return (
           <TouchableOpacity
             key={item.id}
@@ -32,18 +51,18 @@ export const EmotionSelector: React.FC<EmotionSelectorProps> = ({
             ]}
             accessibilityRole="radio"
             accessibilityState={{ selected: isSelected }}
-            accessibilityLabel={`${item.label}, ${item.sublabel}`}
+            accessibilityLabel={`${localized.label}, ${localized.sublabel}`}
           >
             <Text style={styles.emoji}>{item.emoji}</Text>
             <Text style={[styles.label, { color: item.colorText }]}>
-              {item.label}
+              {localized.label}
             </Text>
             <Text style={[styles.sublabel, { color: item.colorText }]}>
-              {item.sublabel}
+              {localized.sublabel}
             </Text>
             {isSelected && (
               <View style={[styles.badge, { backgroundColor: item.colorBorder }]}>
-                <Text style={styles.badgeText}>✓ Đã chọn</Text>
+                <Text style={styles.badgeText}>✓ {activeLanguage === 'vi' ? 'Đã chọn' : 'Selected'}</Text>
               </View>
             )}
           </TouchableOpacity>

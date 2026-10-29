@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Alert } from 'react-native';
 import type { MoodType } from '@nhipnha/shared';
 import { useRhythm } from '../context/RhythmContext';
+import { useLanguage } from '../context/LanguageContext';
 import { EmotionSelector } from '../components/EmotionSelector';
 import { AudioWaveform } from '../components/AudioWaveform';
 import { BigButton } from '../components/BigButton';
@@ -15,6 +16,7 @@ interface AfternoonTouchScreenProps {
 
 export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBack }) => {
   const { state, submitAfternoonTouch } = useRhythm();
+  const { t } = useLanguage();
   const [selectedMood, setSelectedMood] = useState<MoodType>(state.afternoonMood || 'JOYFUL');
   const [isRecording, setIsRecording] = useState(false);
   const [durationLeft, setDurationLeft] = useState(15);
@@ -57,13 +59,10 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
     setSaving(true);
     try {
       await submitAfternoonTouch(selectedMood, recordedVoice || undefined);
-      Alert.alert(
-        'Đã Lưu Nhịp Chiều!',
-        'Lời nhắn đã được lưu trữ (offline-first) và chuyển giao an toàn đến ba mẹ!'
-      );
+      Alert.alert(t('afternoonTitle'), t('offlineSavedMsg'));
       onBack();
     } catch {
-      Alert.alert('Thông báo', 'Đã lưu tạm thời vào bộ nhớ ngoại tuyến trên máy.');
+      Alert.alert(t('afternoonTitle'), t('offlineSavedMsg'));
       onBack();
     } finally {
       setSaving(false);
@@ -74,20 +73,17 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.header}>
         <AccessibleText variant="h1" color="#C2410C" weight="800" center>
-          🎒 Chạm Chiều: Kể Chuyện Tan Trường
+          🎒 {t('afternoonTitle')}: {t('afternoonSubtitle')}
         </AccessibleText>
         <AccessibleText variant="bodyLarge" color="#475569" center style={{ marginTop: 4 }}>
-          Khoảng thời gian: 16:00 – 18:30 chiều
+          {t('afternoonTimeWindow')}
         </AccessibleText>
       </View>
 
       {/* Step 1: Mood */}
       <View style={styles.sectionCard}>
         <AccessibleText variant="h2" weight="800" color="#7C2D12">
-          1. Hôm nay ở trường con thấy thế nào?
-        </AccessibleText>
-        <AccessibleText variant="bodyRegular" color="#78350F" style={{ marginTop: 4 }}>
-          Chạm vào 1 trong 4 khuôn mặt thân thiện bên dưới:
+          {t('afternoonStep1')}
         </AccessibleText>
 
         <EmotionSelector
@@ -99,10 +95,7 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
       {/* Step 2: 15s Voice Message with countdown and waveform */}
       <View style={styles.sectionCard}>
         <AccessibleText variant="h2" weight="800" color="#7C2D12">
-          2. Nói lời yêu thương 15 giây gửi ba mẹ
-        </AccessibleText>
-        <AccessibleText variant="bodyRegular" color="#78350F" style={{ marginTop: 4 }}>
-          Kể chuyện vui ở lớp, hôm nay ăn gì ngon, hoặc nói con nhớ ba mẹ:
+          {t('afternoonStep2')}
         </AccessibleText>
 
         <AudioWaveform
@@ -113,8 +106,8 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
 
         {!isRecording ? (
           <BigButton
-            title={recordedVoice ? "Ghi Âm Lại (15 Giây)" : "Bắt Đầu Ghi Âm (15 Giây)"}
-            subtitle="Đếm ngược tự động, không lo tốn dung lượng 4G"
+            title={recordedVoice ? t('afternoonRecordAgain') : t('afternoonRecordBtn')}
+            subtitle="15s audio memo"
             icon="🎙️"
             variant="afternoon"
             size="hero"
@@ -122,8 +115,8 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
           />
         ) : (
           <BigButton
-            title="Dừng Ghi Âm Ngay"
-            subtitle={`Thời gian còn lại: ${durationLeft}s`}
+            title={t('afternoonStopBtn')}
+            subtitle={`${t('recordingTimeLeft')}: ${durationLeft}s`}
             icon="⏹️"
             variant="primary"
             size="hero"
@@ -135,8 +128,8 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
       {/* Step 3: Offline-first submit */}
       <View style={styles.submitSection}>
         <BigButton
-          title="HOÀN TẤT & GỬI CHO BA MẸ"
-          subtitle="Tự động đồng bộ ngay cả khi mạng chập chờn"
+          title={t('afternoonSubmit')}
+          subtitle={t('offlineSavedMsg')}
           icon="💌"
           variant="success"
           size="hero"
@@ -145,7 +138,7 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
         />
 
         <BigButton
-          title="Quay Lại"
+          title={t('back')}
           variant="secondary"
           onPress={onBack}
         />

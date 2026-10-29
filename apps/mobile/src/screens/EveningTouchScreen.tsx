@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { useRhythm } from '../context/RhythmContext';
+import { useLanguage } from '../context/LanguageContext';
 import { AudioWaveform } from '../components/AudioWaveform';
 import { BigButton } from '../components/BigButton';
 import { AccessibleText } from '../components/AccessibleText';
@@ -12,6 +13,7 @@ interface EveningTouchScreenProps {
 
 export const EveningTouchScreen: React.FC<EveningTouchScreenProps> = ({ onBack }) => {
   const { state, markEveningListened } = useRhythm();
+  const { t } = useLanguage();
   const [isPlaying, setIsPlaying] = useState(false);
 
   const togglePlayback = () => {
@@ -30,10 +32,10 @@ export const EveningTouchScreen: React.FC<EveningTouchScreenProps> = ({ onBack }
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.header}>
         <AccessibleText variant="h1" color="#3730A3" weight="800" center>
-          🌙 Chạm Tối: Nghe Lời Dặn Dò
+          🌙 {t('eveningTitle')}: {t('eveningSubtitle')}
         </AccessibleText>
         <AccessibleText variant="bodyLarge" color="#475569" center style={{ marginTop: 4 }}>
-          Khoảng thời gian: 20:00 – 22:00 tối
+          {t('eveningTimeWindow')}
         </AccessibleText>
       </View>
 
@@ -42,10 +44,10 @@ export const EveningTouchScreen: React.FC<EveningTouchScreenProps> = ({ onBack }
           <AccessibleText variant="hero">👩‍🏭</AccessibleText>
           <View style={{ marginLeft: 12 }}>
             <AccessibleText variant="h2" weight="800" color="#1E1B4B">
-              Mẹ Hoa gửi cho Bé An
+              Mẹ Hoa • Bé An
             </AccessibleText>
             <AccessibleText variant="label" color="#6366F1">
-              Gửi từ khu trọ KCN • 20:30 tối nay
+              {t('eveningMotherNote')}
             </AccessibleText>
           </View>
         </View>
@@ -57,8 +59,8 @@ export const EveningTouchScreen: React.FC<EveningTouchScreenProps> = ({ onBack }
         />
 
         <BigButton
-          title={isPlaying ? "Tạm Dừng Nghe" : "BẤM ĐỂ NGHE GIỌNG NÓI CỦA MẸ"}
-          subtitle="Nghe lời dặn dò ấm áp trước khi đi ngủ"
+          title={isPlaying ? t('eveningPauseBtn') : t('eveningPlayBtn')}
+          subtitle={t('eveningSubtitle')}
           icon={isPlaying ? "⏸️" : "▶️"}
           variant="evening"
           size="hero"
@@ -67,7 +69,7 @@ export const EveningTouchScreen: React.FC<EveningTouchScreenProps> = ({ onBack }
 
         <View style={styles.transcriptionBox}>
           <AccessibleText variant="h2" weight="700" color="#312E81">
-            📜 Lời mẹ nhắn nhủ:
+            📜 {t('eveningMotherNote')}
           </AccessibleText>
           <AccessibleText variant="bodyLarge" color="#1E1B4B" style={{ marginTop: 8 }}>
             "{state.eveningMessageText}"
@@ -76,13 +78,13 @@ export const EveningTouchScreen: React.FC<EveningTouchScreenProps> = ({ onBack }
 
         <View style={styles.bedtimeTip}>
           <AccessibleText variant="bodyRegular" color="#065F46" weight="600">
-            🍵 Dặn dò ông bà & bé: Nhớ uống ly nước ấm, mắc mùng chống muỗi và ngủ ngoan trước 21:30 để mai học giỏi nhé!
+            🍵 {t('eveningBedtimeTip')}
           </AccessibleText>
         </View>
       </View>
 
       <BigButton
-        title="Quay Lại Màn Hình Chính"
+        title={t('backHome')}
         variant="secondary"
         onPress={onBack}
       />

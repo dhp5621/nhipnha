@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView, Alert } from 'react-native';
 import { useRhythm } from '../context/RhythmContext';
+import { useLanguage } from '../context/LanguageContext';
 import { BigButton } from '../components/BigButton';
 import { AccessibleText } from '../components/AccessibleText';
 import { THEME } from '../constants/theme';
@@ -11,6 +12,7 @@ interface MorningTouchScreenProps {
 
 export const MorningTouchScreen: React.FC<MorningTouchScreenProps> = ({ onBack }) => {
   const { state, submitMorningTouch } = useRhythm();
+  const { t } = useLanguage();
   const [submitting, setSubmitting] = useState(false);
   const [justTouched, setJustTouched] = useState(false);
 
@@ -19,7 +21,7 @@ export const MorningTouchScreen: React.FC<MorningTouchScreenProps> = ({ onBack }
     try {
       await submitMorningTouch();
       setJustTouched(true);
-      Alert.alert('Chào Ngày Mới!', 'Đã gửi lời chào đến điện thoại ba mẹ ở nơi làm việc rồi nha con!');
+      Alert.alert(t('morningTitle'), t('morningAlreadyDone'));
     } finally {
       setSubmitting(false);
     }
@@ -29,10 +31,10 @@ export const MorningTouchScreen: React.FC<MorningTouchScreenProps> = ({ onBack }
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.header}>
         <AccessibleText variant="h1" color="#B45309" weight="800" center>
-          ☀️ Chạm Sáng: Chào Ngày Mới
+          ☀️ {t('morningTitle')}: {t('morningSubtitle')}
         </AccessibleText>
         <AccessibleText variant="bodyLarge" color="#475569" center style={{ marginTop: 6 }}>
-          Khoảng thời gian: 06:00 – 08:30 sáng
+          {t('morningTimeWindow')}
         </AccessibleText>
       </View>
 
@@ -41,17 +43,17 @@ export const MorningTouchScreen: React.FC<MorningTouchScreenProps> = ({ onBack }
           🌅 🌻 🎒
         </AccessibleText>
         <AccessibleText variant="h2" weight="800" color="#78350F" center style={{ marginTop: 8 }}>
-          "Chào ba mẹ, con đã dậy rồi!"
+          "{t('morningQuote')}"
         </AccessibleText>
         <AccessibleText variant="bodyLarge" color="#92400E" center style={{ marginTop: 6, paddingHorizontal: 12 }}>
-          Chỉ cần chạm 1 lần vào nút bên dưới, điện thoại của ba mẹ sẽ rung nhẹ và hiện thông báo con đã sẵn sàng đi học ngoan.
+          {t('morningSubtitle')}
         </AccessibleText>
       </View>
 
       <View style={styles.actionSection}>
         <BigButton
-          title={state.morningCompleted || justTouched ? "✓ Đã Chào Sáng Nay!" : "CHẠM ĐỂ CHÀO BA MẸ NGAY"}
-          subtitle="Gửi lời chúc ngày làm việc bình an"
+          title={state.morningCompleted || justTouched ? t('morningAlreadyDone') : t('morningButtonPrompt')}
+          subtitle={t('morningSubtitle')}
           icon="☀️"
           variant={state.morningCompleted || justTouched ? "success" : "morning"}
           size="hero"
@@ -61,15 +63,12 @@ export const MorningTouchScreen: React.FC<MorningTouchScreenProps> = ({ onBack }
 
         <View style={styles.affirmationBox}>
           <AccessibleText variant="h2" color="#166534" weight="700">
-            🌱 Lời khen tặng buổi sáng:
-          </AccessibleText>
-          <AccessibleText variant="bodyLarge" color="#14532D" style={{ marginTop: 6 }}>
-            "Mỗi ngày con thức dậy đúng giờ, ăn sáng đầy đủ là niềm vui và động lực lớn nhất của ba mẹ khi đi làm xa."
+            🌱 {t('morningAffirmation')}
           </AccessibleText>
         </View>
 
         <BigButton
-          title="Quay Lại Trang Chủ"
+          title={t('backHome')}
           variant="secondary"
           onPress={onBack}
         />
