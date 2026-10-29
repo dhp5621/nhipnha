@@ -3,7 +3,11 @@ import { drizzle } from 'drizzle-orm/neon-http';
 import * as schema from './schema';
 import type { Family, Member, CheckIn, Message } from '@nhipnha/shared';
 
-const databaseUrl = process.env.DATABASE_URL;
+const databaseUrl =
+  process.env.DATABASE_URL ||
+  process.env.POSTGRES_URL ||
+  process.env.DATABASE_URL_UNPOOLED ||
+  process.env.POSTGRES_URL_NO_SSL;
 
 export const db = databaseUrl
   ? drizzle(neon(databaseUrl), { schema })

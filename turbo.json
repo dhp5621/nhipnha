@@ -1,8 +1,46 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalEnv": [
+    "DATABASE_URL",
+    "DATABASE_URL_UNPOOLED",
+    "POSTGRES_URL",
+    "POSTGRES_URL_NO_SSL",
+    "POSTGRES_PRISMA_URL",
+    "POSTGRES_USER",
+    "POSTGRES_HOST",
+    "POSTGRES_PASSWORD",
+    "POSTGRES_DATABASE",
+    "PGHOST",
+    "PGUSER",
+    "PGDATABASE",
+    "NEON_PROJECT_ID",
+    "NEON_REALTIME_URL",
+    "NEON_REALTIME_SECRET",
+    "VITE_NEON_AUTH_URL",
+    "GEMINI_API_KEY"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
+      "env": [
+        "DATABASE_URL",
+        "DATABASE_URL_UNPOOLED",
+        "POSTGRES_URL",
+        "POSTGRES_URL_NO_SSL",
+        "POSTGRES_PRISMA_URL",
+        "POSTGRES_USER",
+        "POSTGRES_HOST",
+        "POSTGRES_PASSWORD",
+        "POSTGRES_DATABASE",
+        "PGHOST",
+        "PGUSER",
+        "PGDATABASE",
+        "NEON_PROJECT_ID",
+        "NEON_REALTIME_URL",
+        "NEON_REALTIME_SECRET",
+        "VITE_NEON_AUTH_URL",
+        "GEMINI_API_KEY"
+      ],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },
     "lint": {

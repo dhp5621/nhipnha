@@ -10,10 +10,10 @@ import type {
 } from '@nhipnha/shared';
 import { offlineStorage } from './offlineStorage';
 
-// API base URL - configurable via process.env or fallback to localhost
+// API base URL - configurable via process.env or fallback to live Vercel deployment
 export const API_BASE =
   (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_API_URL) ||
-  'http://localhost:3000/api';
+  'https://nhipnha.vercel.app/api';
 
 export const apiClient = {
   // Zero-type QR Pairing
