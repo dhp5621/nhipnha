@@ -186,12 +186,23 @@ export const apiClient = {
   },
 
   // AI Empathy Assistant: Summarizes child's day & generates non-academic empathy prompts
-  async getEmpathySuggestions(mood: string, childMessage?: string): Promise<EmpathyAssistantResponse> {
+  async getEmpathySuggestions(
+    mood: string,
+    childMessage?: string,
+    attachmentTitle?: string,
+    language: 'vi' | 'en' = 'vi'
+  ): Promise<EmpathyAssistantResponse> {
     try {
       const res = await fetch(`${API_BASE}/ai/empathy-assistant`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mood, childMessage, childName: 'Bé An' }),
+        body: JSON.stringify({
+          mood,
+          childMessage,
+          childName: 'Bé An',
+          attachmentTitle,
+          language,
+        }),
       });
       const data = await res.json();
       if (data.success && data.data) {
@@ -203,12 +214,14 @@ export const apiClient = {
 
     return {
       summary: 'Bé An hôm nay có nhiều chuyện vui ở lớp học, được cô giáo khen vẽ hoa sen và ăn cơm ngon cùng bà.',
+      keywords: ['#VẽHoaSen', '#ĐượcCôKhen', '#CanhChuaBàNấu', '#MongCuốiTuần'],
       suggestedPrompts: [
         'Hôm nay ở trường có chuyện gì làm con cười nhiều nhất thế?',
         'Bức tranh hoa sen hồng con vẽ có mấy cánh thế, kể mẹ nghe với!',
         'Bà nấu món canh chua gì cho An ăn chiều thế? Mẹ nhớ con nhiều lắm!',
       ],
       toneExplanation: 'Khuyến khích trò chuyện thấu cảm, tránh hoàn toàn câu hỏi gây áp lực điểm số.',
+      cvInsight: 'Màu hồng ấm & vàng tươi — Tín hiệu thị giác tích cực, giàu tình cảm hướng về gia đình.',
     };
   },
 

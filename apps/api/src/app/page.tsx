@@ -15,6 +15,40 @@ export default function HomePage() {
   const [afternoonDone, setAfternoonDone] = useState<boolean>(true);
   const [eveningDone, setEveningDone] = useState<boolean>(false);
 
+  const [aiLoading, setAiLoading] = useState<boolean>(false);
+  const [liveAiResult, setLiveAiResult] = useState<{
+    summary?: string;
+    keywords?: string[];
+    suggestedPrompts?: string[];
+    cvInsight?: string;
+    source?: string;
+  } | null>(null);
+
+  const triggerLiveServerAi = async (moodToUse: Mood, doodleIdx: number, langToUse: Lang) => {
+    setAiLoading(true);
+    try {
+      const d = doodles[doodleIdx];
+      const res = await fetch('/api/ai/empathy-assistant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mood: moodToUse,
+          childName: 'Bé An',
+          attachmentTitle: langToUse === 'vi' ? d.vi : d.en,
+          language: langToUse,
+        }),
+      });
+      const json = await res.json();
+      if (json.success && json.data) {
+        setLiveAiResult({ ...json.data, source: json.source });
+      }
+    } catch {
+      // Fallback to preset if network error
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   const isVi = lang === 'vi';
   const isElder = persona === 'GRANDPARENT';
 
@@ -755,22 +789,40 @@ export default function HomePage() {
                         padding: 16,
                       }}
                     >
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-                        {['#VẽHoaSen', '#ĐượcCôKhen', '#CanhChuaBàNấu'].map((kw, i) => (
-                          <span
-                            key={i}
-                            style={{
-                              backgroundColor: '#DCFCE7',
-                              color: '#14532D',
-                              fontSize: 11,
-                              fontWeight: 800,
-                              padding: '3px 9px',
-                              borderRadius: 999,
-                            }}
-                          >
-                            {kw}
-                          </span>
-                        ))}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {(liveAiResult?.keywords || ['#VẽHoaSen', '#ĐượcCôKhen', '#CanhChuaBàNấu']).map((kw, i) => (
+                            <span
+                              key={i}
+                              style={{
+                                backgroundColor: '#DCFCE7',
+                                color: '#14532D',
+                                fontSize: 11,
+                                fontWeight: 800,
+                                padding: '3px 9px',
+                                borderRadius: 999,
+                              }}
+                            >
+                              {kw}
+                            </span>
+                          ))}
+                        </div>
+                        <button
+                          onClick={() => triggerLiveServerAi(selectedMood, selectedDoodle, lang)}
+                          disabled={aiLoading}
+                          style={{
+                            border: '1.5px solid #22C55E',
+                            backgroundColor: '#DCFCE7',
+                            color: '#15803D',
+                            borderRadius: 999,
+                            padding: '4px 10px',
+                            fontSize: 11,
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {aiLoading ? '⏳ AI Server...' : '✨ AI Server'}
+                        </button>
                       </div>
 
                       <div style={{ backgroundColor: '#FFFFFF', borderRadius: 18, padding: 12, border: '1.5px solid #BBF7D0' }}>
@@ -778,7 +830,7 @@ export default function HomePage() {
                           {isVi ? 'TÓM TẮT NHẬT KÝ 15S CỦA BÉ AN:' : "BE AN'S 15S DIARY SUMMARY:"}
                         </div>
                         <div style={{ fontSize: 14, fontWeight: 700, color: '#1E293B', marginTop: 4 }}>
-                          {isVi ? currentAi.summaryVi : currentAi.summaryEn}
+                          {liveAiResult?.summary || (isVi ? currentAi.summaryVi : currentAi.summaryEn)}
                         </div>
                       </div>
 
@@ -795,14 +847,15 @@ export default function HomePage() {
                           color: '#7C2D12',
                         }}
                       >
-                        {doodles[selectedDoodle].emoji} {isVi ? doodles[selectedDoodle].cvVi : doodles[selectedDoodle].cvEn}
+                        {doodles[selectedDoodle].emoji}{' '}
+                        {liveAiResult?.cvInsight || (isVi ? doodles[selectedDoodle].cvVi : doodles[selectedDoodle].cvEn)}
                       </div>
 
                       <div style={{ fontSize: 13, fontWeight: 800, color: '#052E16', marginTop: 10, marginBottom: 6 }}>
                         👇 {isVi ? 'Câu hỏi mở gợi ý cho bố mẹ (30s):' : 'Suggested Open Prompts (30s):'}
                       </div>
 
-                      {(isVi ? currentAi.promptsVi : currentAi.promptsEn).map((p, idx) => (
+                      {(liveAiResult?.suggestedPrompts || (isVi ? currentAi.promptsVi : currentAi.promptsEn)).map((p, idx) => (
                         <div
                           key={idx}
                           style={{
@@ -865,7 +918,12 @@ export default function HomePage() {
                   return (
                     <button
                       key={tab.id}
-                      onClick={() => setPersona(tab.id)}
+                      onClick={() => {
+                        setPersona(tab.id);
+                        if (tab.id === 'PARENT') {
+                          triggerLiveServerAi(selectedMood, selectedDoodle, lang);
+                        }
+                      }}
                       style={{
                         flex: 1,
                         border: active ? `1.5px solid ${tab.border}` : '1.5px solid transparent',

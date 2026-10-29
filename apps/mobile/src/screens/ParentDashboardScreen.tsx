@@ -34,14 +34,20 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
   useEffect(() => {
     async function fetchAiInsights() {
       const mood = state.afternoonMood || 'JOYFUL';
-      const insights = await apiClient.getEmpathySuggestions(mood);
+      const attachTitle = isVi ? activeAttachment.titleVi : activeAttachment.titleEn;
+      const insights = await apiClient.getEmpathySuggestions(
+        mood,
+        undefined,
+        attachTitle,
+        activeLanguage
+      );
       setAiData(insights);
       if (insights.suggestedPrompts.length > 0) {
         setSelectedPrompt(insights.suggestedPrompts[0]);
       }
     }
     fetchAiInsights();
-  }, [state.afternoonMood]);
+  }, [state.afternoonMood, activeAttachment, activeLanguage]);
 
   // 30-second recording countdown
   useEffect(() => {
@@ -97,9 +103,12 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
 
   const moodInfo = getMoodBadge();
 
-  const keywords = isVi
-    ? ['#VẽHoaSen', '#ĐượcCôKhen', '#CanhChuaBàNấu', '#MongCuốiTuần']
-    : ['#LotusDoodle', '#PraisedByTeacher', '#GrandmaSoup', '#WaitingForWeekend'];
+  const keywords =
+    aiData?.keywords && aiData.keywords.length > 0
+      ? aiData.keywords
+      : isVi
+      ? ['#VẽHoaSen', '#ĐượcCôKhen', '#CanhChuaBàNấu', '#MongCuốiTuần']
+      : ['#LotusDoodle', '#PraisedByTeacher', '#GrandmaSoup', '#WaitingForWeekend'];
 
   return (
     <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
@@ -281,7 +290,8 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
             </AccessibleText>
           </View>
           <AccessibleText variant="bodyRegular" color="#7C2D12" weight="600" style={{ marginTop: 4 }}>
-            {activeAttachment.emoji} {isVi ? activeAttachment.cvSignalVi : activeAttachment.cvSignalEn}
+            {activeAttachment.emoji}{' '}
+            {aiData?.cvInsight || (isVi ? activeAttachment.cvSignalVi : activeAttachment.cvSignalEn)}
           </AccessibleText>
         </View>
 
