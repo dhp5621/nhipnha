@@ -51,3 +51,22 @@ export async function POST(request: Request) {
     return fail(500, err?.message || 'Không thể đăng nhập');
   }
 }
+
+export async function GET() {
+  return NextResponse.json({
+    endpoint: '/api/auth/login',
+    methods: ['POST', 'OPTIONS'],
+    description: 'Email and password login endpoint for Nhịp Nhà',
+  });
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
+}

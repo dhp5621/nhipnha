@@ -79,3 +79,22 @@ export async function POST(request: Request) {
     return fail(500, err?.message || 'Không thể đăng nhập bằng mã QR');
   }
 }
+
+export async function GET() {
+  return NextResponse.json({
+    endpoint: '/api/auth/qr-login',
+    methods: ['POST', 'OPTIONS'],
+    description: 'Personal QR sign-in endpoint for Nhịp Nhà',
+  });
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
+}

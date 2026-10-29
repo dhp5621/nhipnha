@@ -6,6 +6,12 @@ export const dynamic = 'force-dynamic';
 const DEFAULT_AI_BASE_URL = 'https://chat-api.chuyenbienhoa.com';
 const DEFAULT_AI_MODEL = 'gemini-3.8-flash';
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-family-id, x-member-id',
+};
+
 function getFallbackEmpathy(
   selectedMood: MoodType,
   childName: string,
@@ -91,41 +97,47 @@ function getFallbackEmpathy(
   };
 }
 
-export async function POST(request: Request) {
-  try {
-    const body = await request.json();
-    const {
-      mood,
-      childMessage,
-      childName = 'Bé An',
-      attachmentTitle,
-      language = 'vi',
-    } = body;
+interface GenerateParams {
+  mood?: MoodType;
+  childMessage?: string;
+  childName?: string;
+  attachmentTitle?: string;
+  language?: 'vi' | 'en';
+}
 
-    const selectedMood: MoodType = mood || 'JOYFUL';
-    const fallbackData = getFallbackEmpathy(
-      selectedMood,
-      childName,
-      childMessage,
-      attachmentTitle
-    );
+async function generateEmpathyData(params: GenerateParams) {
+  const {
+    mood,
+    childMessage,
+    childName = 'Bé An',
+    attachmentTitle,
+    language = 'vi',
+  } = params;
 
-    // Read API key & endpoint from environment variables (never hardcoded in source)
-    const apiKey = process.env.AI_API_KEY || process.env.GEMINI_API_KEY;
-    const baseUrl = (process.env.AI_BASE_URL || DEFAULT_AI_BASE_URL).replace(/\/+$/, '');
-    const model = process.env.AI_MODEL || DEFAULT_AI_MODEL;
+  const selectedMood: MoodType = mood || 'JOYFUL';
+  const fallbackData = getFallbackEmpathy(
+    selectedMood,
+    childName,
+    childMessage,
+    attachmentTitle
+  );
 
-    if (!apiKey) {
-      return NextResponse.json({
-        success: true,
-        source: 'fallback-no-key',
-        data: fallbackData,
-      });
-    }
+  // Read API key & endpoint from environment variables (never hardcoded in source)
+  const apiKey = process.env.AI_API_KEY || process.env.GEMINI_API_KEY;
+  const baseUrl = (process.env.AI_BASE_URL || DEFAULT_AI_BASE_URL).replace(/\/+$/, '');
+  const model = process.env.AI_MODEL || DEFAULT_AI_MODEL;
 
-    const systemInstruction =
-      language === 'en'
-        ? `You are the "30-Second AI Empathy Assistant" for the "Nhịp Nhà – Bước Chân Nhỏ" (Little Footsteps) ecosystem.
+  if (!apiKey) {
+    return {
+      success: true,
+      source: 'fallback-no-key',
+      data: fallbackData,
+    };
+  }
+
+  const systemInstruction =
+    language === 'en'
+      ? `You are the "30-Second AI Empathy Assistant" for the "Nhịp Nhà – Bước Chân Nhỏ" (Little Footsteps) ecosystem.
 Your role (Human-Centered AI Level 1 & 2):
 - Help exhausted migrant worker parents (working 10-12h shifts in industrial zones) connect with their 6-12 year old child left behind in the countryside with grandparents.
 - NEVER diagnose or label psychological conditions.
@@ -138,7 +150,7 @@ Your role (Human-Centered AI Level 1 & 2):
   "toneExplanation": "1 short sentence explaining the empathetic tone",
   "cvInsight": "1 short non-diagnostic visual observation about the child's doodle/photo"
 }`
-        : `Bạn là "Trợ Lý AI Gợi Ý Thấu Cảm (30 giây)" thuộc Hệ sinh thái gắn kết và tự lập "Bước Chân Nhỏ" (Nhịp Nhà).
+      : `Bạn là "Trợ Lý AI Gợi Ý Thấu Cảm (30 giây)" thuộc Hệ sinh thái gắn kết và tự lập "Bước Chân Nhỏ" (Nhịp Nhà).
 Nguyên tắc AI lấy con người làm trung tâm (Cấp độ 1 & 2):
 - Hỗ trợ cha mẹ công nhân đi làm xa (tăng ca 10–12 tiếng/ngày) dễ dàng bắt chuyện với con (6–12 tuổi ở quê cùng ông bà) mà không bị kiệt sức hay rơi vào bẫy tra hỏi điểm số ("Hôm nay được mấy điểm?").
 - Tuyệt đối KHÔNG chẩn đoán hay dán nhãn tâm lý thay cho người lớn.
@@ -151,14 +163,18 @@ Nguyên tắc AI lấy con người làm trung tâm (Cấp độ 1 & 2):
   "cvInsight": "1 câu nhận xét tín hiệu bổ trợ thị giác (không chẩn đoán) từ nét vẽ hoặc bức ảnh của con"
 }`;
 
-    const userPrompt = `Thông tin Nhật ký tương tác 15 giây của bé:
+  const userPrompt = `Thông tin Nhật ký tương tác 15 giây của bé:
 - Tên bé: ${childName}
 - Biểu tượng cảm xúc đã chọn: ${selectedMood}
 - Lời nhắn thoại 15s (NLP chuyển văn bản): ${childMessage || 'Chiều nay con đi học về vui lắm, con vẽ bông hoa sen tặng mẹ và ăn canh chua bà nấu.'}
 - Nét vẽ tay / Ảnh đính kèm: ${attachmentTitle || 'Nét vẽ: Hoa sen hồng tặng mẹ'}
 Hãy phân tích và trả về JSON đúng cấu trúc.`;
 
-    // Call gemini-web2api OpenAI-compatible chat completions endpoint
+  try {
+    // 9-second timeout to prevent serverless function hangs
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 9000);
+
     const aiResponse = await fetch(`${baseUrl}/v1/chat/completions`, {
       method: 'POST',
       headers: {
@@ -173,19 +189,19 @@ Hãy phân tích và trả về JSON đúng cấu trúc.`;
         ],
         temperature: 0.6,
       }),
-    });
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timer));
 
     if (!aiResponse.ok) {
-      return NextResponse.json({
+      return {
         success: true,
         source: 'fallback-upstream-error',
         data: fallbackData,
-      });
+      };
     }
 
     const completion = await aiResponse.json();
-    const rawContent: string =
-      completion?.choices?.[0]?.message?.content || '';
+    const rawContent: string = completion?.choices?.[0]?.message?.content || '';
 
     // Extract JSON block from response
     const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
@@ -202,29 +218,130 @@ Hãy phân tích và trả về JSON đúng cấu trúc.`;
           parsed.suggestedPrompts.length > 0
             ? parsed.suggestedPrompts
             : fallbackData.suggestedPrompts,
-        toneExplanation:
-          parsed.toneExplanation || fallbackData.toneExplanation,
+        toneExplanation: parsed.toneExplanation || fallbackData.toneExplanation,
         cvInsight: parsed.cvInsight || fallbackData.cvInsight,
       };
 
-      return NextResponse.json({
+      return {
         success: true,
         source: 'gemini-web2api',
         model,
         data: liveData,
-      });
+      };
     }
 
-    return NextResponse.json({
+    return {
       success: true,
       source: 'fallback-parse',
       data: fallbackData,
-    });
+    };
   } catch {
-    return NextResponse.json({
+    return {
       success: true,
       source: 'fallback-exception',
-      data: getFallbackEmpathy('JOYFUL', 'Bé An'),
+      data: fallbackData,
+    };
+  }
+}
+
+/**
+ * OPTIONS handler for CORS preflight
+ */
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: CORS_HEADERS,
+  });
+}
+
+/**
+ * GET handler: Prevents 405 Method Not Allowed when accessed via browser URL or query string.
+ * Allows instant testing directly in browser with query params:
+ * e.g. /api/ai/empathy-assistant?mood=JOYFUL&childName=Bé+An
+ */
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const mood = (searchParams.get('mood') as MoodType) || 'JOYFUL';
+    const childName = searchParams.get('childName') || 'Bé An';
+    const childMessage = searchParams.get('childMessage') || undefined;
+    const attachmentTitle = searchParams.get('attachmentTitle') || undefined;
+    const language = (searchParams.get('language') as 'vi' | 'en') || 'vi';
+
+    const result = await generateEmpathyData({
+      mood,
+      childMessage,
+      childName,
+      attachmentTitle,
+      language,
     });
+
+    return NextResponse.json(
+      {
+        ...result,
+        endpoint: '/api/ai/empathy-assistant',
+        methods: ['GET', 'POST', 'OPTIONS'],
+        description: '30-Second AI Empathy Assistant API — Hệ sinh thái Nhịp Nhà',
+      },
+      {
+        status: 200,
+        headers: CORS_HEADERS,
+      }
+    );
+  } catch (err: any) {
+    return NextResponse.json(
+      {
+        success: true,
+        source: 'fallback-exception',
+        data: getFallbackEmpathy('JOYFUL', 'Bé An'),
+        endpoint: '/api/ai/empathy-assistant',
+        error: err?.message,
+      },
+      {
+        status: 200,
+        headers: CORS_HEADERS,
+      }
+    );
+  }
+}
+
+/**
+ * POST handler: Primary endpoint consumed by the mobile & web applications.
+ */
+export async function POST(request: Request) {
+  try {
+    const body = await request.json().catch(() => ({}));
+    const {
+      mood,
+      childMessage,
+      childName = 'Bé An',
+      attachmentTitle,
+      language = 'vi',
+    } = body;
+
+    const result = await generateEmpathyData({
+      mood,
+      childMessage,
+      childName,
+      attachmentTitle,
+      language,
+    });
+
+    return NextResponse.json(result, {
+      status: 200,
+      headers: CORS_HEADERS,
+    });
+  } catch {
+    return NextResponse.json(
+      {
+        success: true,
+        source: 'fallback-exception',
+        data: getFallbackEmpathy('JOYFUL', 'Bé An'),
+      },
+      {
+        status: 200,
+        headers: CORS_HEADERS,
+      }
+    );
   }
 }
