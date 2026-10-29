@@ -11,6 +11,7 @@
   "dependencies": {
     "@nhipnha/shared": "workspace:*",
     "@react-native-async-storage/async-storage": "1.23.1",
+    "@react-native/assets-registry": "0.74.87",
     "expo": "~51.0.0",
     "expo-asset": "~10.0.10",
     "expo-constants": "~16.0.2",
