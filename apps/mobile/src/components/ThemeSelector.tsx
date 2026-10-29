@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { THEME, type ThemeMode } from '../constants/theme';
@@ -9,24 +10,29 @@ export const ThemeSelector: React.FC = () => {
   const { activeLanguage } = useLanguage();
   const isVi = activeLanguage === 'vi';
 
-  const options: { id: ThemeMode; label: string; sub: string; icon: string }[] = [
+  const options: {
+    id: ThemeMode;
+    label: string;
+    sub: string;
+    icon: keyof typeof MaterialIcons.glyphMap;
+  }[] = [
     {
       id: 'light',
       label: isVi ? 'Sáng' : 'Light',
       sub: isVi ? 'Nắng ấm' : 'Warm Sun',
-      icon: '☀️',
+      icon: 'wb-sunny',
     },
     {
       id: 'dark',
       label: isVi ? 'Tối' : 'Dark',
       sub: isVi ? 'Dịu mắt' : 'Night Calm',
-      icon: '🌙',
+      icon: 'dark-mode',
     },
     {
       id: 'system',
       label: isVi ? 'Tự động' : 'System',
       sub: isVi ? 'Theo máy' : 'Auto',
-      icon: '✨',
+      icon: 'brightness-auto',
     },
   ];
 
@@ -76,7 +82,7 @@ export const ThemeSelector: React.FC = () => {
                 isSelected
                   ? {
                       backgroundColor: colors.primary,
-                      borderRadius: 999, // M3 Expressive Morphing to Full Pill when selected
+                      borderRadius: 999,
                     }
                   : {
                       backgroundColor: 'transparent',
@@ -86,7 +92,12 @@ export const ThemeSelector: React.FC = () => {
               accessibilityRole="radio"
               accessibilityState={{ selected: isSelected }}
             >
-              <Text style={styles.icon}>{opt.icon}</Text>
+              <MaterialIcons
+                name={opt.icon}
+                size={20}
+                color={isSelected ? colors.onPrimary : colors.primary}
+                style={styles.icon}
+              />
               <Text
                 style={[
                   styles.label,
@@ -99,7 +110,10 @@ export const ThemeSelector: React.FC = () => {
               <Text
                 style={[
                   styles.sub,
-                  { color: isSelected ? colors.onPrimary : colors.textMuted, opacity: isSelected ? 0.9 : 1 },
+                  {
+                    color: isSelected ? colors.onPrimary : colors.textMuted,
+                    opacity: isSelected ? 0.9 : 1,
+                  },
                 ]}
                 numberOfLines={1}
               >
@@ -155,7 +169,6 @@ const styles = StyleSheet.create({
     minHeight: 62,
   },
   icon: {
-    fontSize: 18,
     marginBottom: 2,
   },
   label: {

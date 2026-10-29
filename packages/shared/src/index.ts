@@ -16,8 +16,9 @@ export interface CreativeAttachment {
   id: string;
   titleVi: string;
   titleEn: string;
-  emoji: string;
+  emoji: string; // Material Icon name
   dominantColor: string;
+  imageUrl?: string; // Uploaded photo data URL or CDN URI
   cvSignalVi: string; // Computer Vision non-diagnostic supplemental signal
   cvSignalEn: string;
 }
@@ -78,7 +79,7 @@ export interface EmotionOption {
   id: MoodType;
   label: string;
   sublabel: string;
-  emoji: string;
+  emoji: string; // Material Icon name
   colorBg: string;
   colorBorder: string;
   colorText: string;
@@ -89,7 +90,7 @@ export const EMOTIONS: EmotionOption[] = [
     id: 'JOYFUL',
     label: 'Vui vẻ',
     sublabel: 'Nhiều chuyện vui',
-    emoji: '😄',
+    emoji: 'sentiment-very-satisfied',
     colorBg: '#FEF3C7',
     colorBorder: '#F59E0B',
     colorText: '#92400E',
@@ -98,7 +99,7 @@ export const EMOTIONS: EmotionOption[] = [
     id: 'CALM',
     label: 'Bình yên',
     sublabel: 'Một ngày êm đềm',
-    emoji: '⛅',
+    emoji: 'wb-cloudy',
     colorBg: '#E0F2FE',
     colorBorder: '#0284C7',
     colorText: '#075985',
@@ -107,7 +108,7 @@ export const EMOTIONS: EmotionOption[] = [
     id: 'TIRED',
     label: 'Hơi mệt',
     sublabel: 'Cần nghỉ ngơi xíu',
-    emoji: '🌧️',
+    emoji: 'bedtime',
     colorBg: '#F3F4F6',
     colorBorder: '#6B7280',
     colorText: '#374151',
@@ -116,7 +117,7 @@ export const EMOTIONS: EmotionOption[] = [
     id: 'NEED_HUG',
     label: 'Cần ôm',
     sublabel: 'Nhớ bố mẹ nhiều',
-    emoji: '🫂',
+    emoji: 'favorite',
     colorBg: '#FCE7F3',
     colorBorder: '#EC4899',
     colorText: '#9D174D',
@@ -130,7 +131,7 @@ export const CREATIVE_ATTACHMENTS: CreativeAttachment[] = [
     type: 'DOODLE',
     titleVi: 'Nét vẽ: Hoa sen hồng tặng mẹ',
     titleEn: 'Doodle: Pink lotus flower for Mom',
-    emoji: '🪷',
+    emoji: 'local-florist',
     dominantColor: '#F472B6',
     cvSignalVi: 'Màu hồng ấm & vàng tươi — Tín hiệu thị giác tích cực, giàu tình cảm hướng về gia đình.',
     cvSignalEn: 'Warm pink & bright yellow — Positive visual signal showing strong family affection.',
@@ -140,7 +141,7 @@ export const CREATIVE_ATTACHMENTS: CreativeAttachment[] = [
     type: 'DOODLE',
     titleVi: 'Nét vẽ: Cả nhà mình sum họp',
     titleEn: 'Doodle: Our family together at home',
-    emoji: '🏡',
+    emoji: 'home',
     dominantColor: '#F59E0B',
     cvSignalVi: 'Chủ đề ngôi nhà & mặt trời — Trẻ mong ngóng ngày cuối tuần bố mẹ về thăm.',
     cvSignalEn: 'Home & sunshine theme — Child is looking forward to parents visiting on the weekend.',
@@ -150,7 +151,7 @@ export const CREATIVE_ATTACHMENTS: CreativeAttachment[] = [
     type: 'PHOTO',
     titleVi: 'Ảnh chụp: Bữa cơm canh chua bà nấu',
     titleEn: "Photo: Grandma's sour soup dinner",
-    emoji: '🍲',
+    emoji: 'restaurant',
     dominantColor: '#10B981',
     cvSignalVi: 'Chủ đề sinh hoạt gia đình — Bữa ăn đầy đủ cùng ông bà tại quê nhà.',
     cvSignalEn: 'Daily home life theme — Nutritious meal shared with grandparents at home.',
@@ -160,7 +161,7 @@ export const CREATIVE_ATTACHMENTS: CreativeAttachment[] = [
     type: 'DOODLE',
     titleVi: 'Nét vẽ: Chiều mưa ngoài hiên nhà',
     titleEn: 'Doodle: Rainy afternoon on the porch',
-    emoji: '🌧️',
+    emoji: 'grain',
     dominantColor: '#60A5FA',
     cvSignalVi: 'Gam màu xanh trầm — Tín hiệu bổ trợ: Trẻ có chút lắng đọng, cần lời hỏi thăm ấm áp.',
     cvSignalEn: 'Cool blue palette — Supplemental signal: Child feels quiet and needs warm reassurance.',
@@ -183,7 +184,7 @@ export const RHYTHM_CONFIGS: Record<RhythmType, RhythmConfig> = {
     title: 'Nhịp Sáng',
     subtitle: 'Tiếng chuông buổi sáng & Hộp thư thoại 1 chạm',
     timeWindow: '06:30 - 07:15',
-    icon: '☀️',
+    icon: 'wb-sunny',
     actionTitle: 'Nghe lời chúc hẹn giờ & bấm gửi lời chào đi học',
   },
   AFTERNOON: {
@@ -191,7 +192,7 @@ export const RHYTHM_CONFIGS: Record<RhythmType, RhythmConfig> = {
     title: 'Nhịp Chiều',
     subtitle: 'Nhật ký tương tác 15s (Cảm xúc, Giọng nói & Nét vẽ)',
     timeWindow: '17:00 - 18:30',
-    icon: '🎒',
+    icon: 'palette',
     actionTitle: 'Chọn cảm xúc, thu âm 15s & đính kèm nét vẽ/ảnh chụp',
   },
   EVENING: {
@@ -199,7 +200,7 @@ export const RHYTHM_CONFIGS: Record<RhythmType, RhythmConfig> = {
     title: 'Nhịp Tối & Cuối Tuần',
     subtitle: 'Hộp thư thoại chúc ngủ ngon & Bản tin tổng kết tuần',
     timeWindow: '20:30 - 21:00',
-    icon: '🌙',
+    icon: 'nights-stay',
     actionTitle: 'Nghe thông điệp yêu thương & tâm sự trước giờ ngủ',
   },
 };

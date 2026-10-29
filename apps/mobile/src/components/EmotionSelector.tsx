@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { EMOTIONS, type MoodType, type EmotionOption } from '@nhipnha/shared';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
@@ -53,7 +54,6 @@ export const EmotionSelector: React.FC<EmotionSelectorProps> = ({
                 backgroundColor: isSelected ? activeBg : inactiveBg,
                 borderColor: isSelected ? item.colorBorder : 'transparent',
                 borderWidth: isSelected ? 2.5 : 0,
-                // M3 Expressive Shape Morphing: Selected card gets a distinct expressive radius
                 borderRadius: isSelected ? 34 : 24,
               },
             ]}
@@ -75,7 +75,11 @@ export const EmotionSelector: React.FC<EmotionSelectorProps> = ({
                   },
                 ]}
               >
-                <Text style={styles.emoji}>{item.emoji}</Text>
+                <MaterialIcons
+                  name={item.emoji as any}
+                  size={30}
+                  color={item.colorBorder}
+                />
               </View>
               <View
                 style={[
@@ -85,7 +89,7 @@ export const EmotionSelector: React.FC<EmotionSelectorProps> = ({
                     : { backgroundColor: 'transparent', borderColor: colors.outlineVariant },
                 ]}
               >
-                {isSelected && <Text style={styles.radioCheck}>✓</Text>}
+                {isSelected && <MaterialIcons name="check" size={16} color="#FFFFFF" />}
               </View>
             </View>
 
@@ -137,9 +141,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  emoji: {
-    fontSize: 30,
-  },
   radioCircle: {
     width: 26,
     height: 26,
@@ -147,11 +148,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  radioCheck: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '900',
   },
   label: {
     fontSize: THEME.typography.h2,

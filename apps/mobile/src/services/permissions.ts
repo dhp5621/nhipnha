@@ -86,10 +86,17 @@ export const permissionService = {
         }
       }
 
-      // iOS / Web fallback: check if previously granted, otherwise ask once via native alert
       const current = await AsyncStorage.getItem(`${PERM_STORAGE_PREFIX}${type}`);
       if (current === 'granted') return true;
 
+      // On Web, React Native's Alert.alert does not support multi-button callbacks.
+      // Auto-grant and persist so web actions never hang.
+      if (Platform.OS === 'web') {
+        await AsyncStorage.setItem(`${PERM_STORAGE_PREFIX}${type}`, 'granted');
+        return true;
+      }
+
+      // iOS fallback: ask once via native alert
       return new Promise((resolve) => {
         const title =
           type === 'microphone'
@@ -141,6 +148,7 @@ export const permissionService = {
   },
 
   promptOpenSettings(type: PermissionType, isVi: boolean = true) {
+    if (Platform.OS === 'web') return;
     const label =
       type === 'microphone'
         ? isVi

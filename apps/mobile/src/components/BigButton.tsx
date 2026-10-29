@@ -7,13 +7,14 @@ import {
   ActivityIndicator,
   Animated,
 } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { THEME } from '../constants/theme';
 import { useTheme } from '../context/ThemeContext';
 
 interface BigButtonProps {
   title: string;
   subtitle?: string;
-  icon?: string;
+  icon?: keyof typeof MaterialIcons.glyphMap | string;
   onPress: () => void;
   variant?: 'primary' | 'secondary' | 'morning' | 'afternoon' | 'evening' | 'success';
   size?: 'normal' | 'hero';
@@ -63,6 +64,7 @@ export const BigButton: React.FC<BigButtonProps> = ({
         return {
           bg: isDark ? '#E59400' : '#F59E0B',
           iconBg: isDark ? '#3B2200' : '#FFF3C4',
+          iconColor: isDark ? '#FFD580' : '#8A4F00',
           text: '#241000',
           subtext: '#4A2500',
           arrowBg: 'rgba(36, 16, 0, 0.12)',
@@ -73,6 +75,7 @@ export const BigButton: React.FC<BigButtonProps> = ({
         return {
           bg: isDark ? '#C8430E' : '#DF5018',
           iconBg: isDark ? '#421200' : 'rgba(255,255,255,0.22)',
+          iconColor: '#FFFFFF',
           text: '#FFFFFF',
           subtext: '#FFDBCE',
           arrowBg: 'rgba(255, 255, 255, 0.2)',
@@ -83,6 +86,7 @@ export const BigButton: React.FC<BigButtonProps> = ({
         return {
           bg: isDark ? '#544BE0' : '#4C43D6',
           iconBg: isDark ? '#1E166B' : 'rgba(255,255,255,0.2)',
+          iconColor: '#FFFFFF',
           text: '#FFFFFF',
           subtext: '#E1E0FF',
           arrowBg: 'rgba(255, 255, 255, 0.2)',
@@ -93,6 +97,7 @@ export const BigButton: React.FC<BigButtonProps> = ({
         return {
           bg: isDark ? '#1B6E38' : '#177A3E',
           iconBg: 'rgba(255,255,255,0.2)',
+          iconColor: '#FFFFFF',
           text: '#FFFFFF',
           subtext: '#C8F7D6',
           arrowBg: 'rgba(255, 255, 255, 0.2)',
@@ -103,6 +108,7 @@ export const BigButton: React.FC<BigButtonProps> = ({
         return {
           bg: colors.surfaceContainerHigh,
           iconBg: colors.surfaceContainerHighest,
+          iconColor: colors.primary,
           text: colors.textDark,
           subtext: colors.textSecondary,
           arrowBg: colors.surfaceContainerHighest,
@@ -114,6 +120,7 @@ export const BigButton: React.FC<BigButtonProps> = ({
         return {
           bg: colors.primary,
           iconBg: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)',
+          iconColor: colors.onPrimary,
           text: colors.onPrimary,
           subtext: colors.onPrimary,
           arrowBg: 'rgba(255, 255, 255, 0.2)',
@@ -166,7 +173,11 @@ export const BigButton: React.FC<BigButtonProps> = ({
                   { backgroundColor: c.iconBg },
                 ]}
               >
-                <Text style={[styles.icon, isHero && styles.heroIcon]}>{icon}</Text>
+                <MaterialIcons
+                  name={icon as any}
+                  size={isHero ? 26 : 22}
+                  color={disabled ? colors.textMuted : c.iconColor}
+                />
               </View>
             ) : null}
 
@@ -204,7 +215,7 @@ export const BigButton: React.FC<BigButtonProps> = ({
 
             {shouldShowArrow ? (
               <View style={[styles.arrowPill, { backgroundColor: c.arrowBg }]}>
-                <Text style={[styles.arrowIcon, { color: c.arrowText }]}>→</Text>
+                <MaterialIcons name="arrow-forward" size={20} color={c.arrowText} />
               </View>
             ) : null}
           </View>
@@ -245,12 +256,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginRight: 14,
   },
-  icon: {
-    fontSize: 22,
-  },
-  heroIcon: {
-    fontSize: 28,
-  },
   textContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -274,9 +279,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 10,
-  },
-  arrowIcon: {
-    fontSize: 19,
-    fontWeight: '900',
   },
 });

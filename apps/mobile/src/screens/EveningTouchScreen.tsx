@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useRhythm } from '../context/RhythmContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import { permissionService } from '../services/permissions';
+import { mediaCaptureService } from '../services/mediaCapture';
 import { AudioWaveform } from '../components/AudioWaveform';
 import { BigButton } from '../components/BigButton';
 import { AccessibleText } from '../components/AccessibleText';
@@ -24,6 +26,7 @@ export const EveningTouchScreen: React.FC<EveningTouchScreenProps> = ({ onBack }
   const togglePlayback = () => {
     if (!isPlaying) {
       setIsPlaying(true);
+      mediaCaptureService.playAudioUrl(state.eveningAudioUrl);
       markEveningListened();
       setTimeout(() => {
         setIsPlaying(false);
@@ -60,8 +63,9 @@ export const EveningTouchScreen: React.FC<EveningTouchScreenProps> = ({ onBack }
           accessibilityRole="button"
           accessibilityLabel={t('back')}
         >
+          <MaterialIcons name="arrow-back" size={18} color={colors.textDark} style={{ marginRight: 6 }} />
           <AccessibleText variant="label" weight="800">
-            ← {t('back')}
+            {t('back')}
           </AccessibleText>
         </TouchableOpacity>
 
@@ -119,7 +123,7 @@ export const EveningTouchScreen: React.FC<EveningTouchScreenProps> = ({ onBack }
 
           <BigButton
             title={isPlaying ? t('eveningPauseBtn') : t('eveningPlayBtn')}
-            icon={isPlaying ? '⏸️' : '▶️'}
+            icon={isPlaying ? 'pause' : 'play-arrow'}
             variant="evening"
             size="hero"
             onPress={togglePlayback}
@@ -143,7 +147,7 @@ export const EveningTouchScreen: React.FC<EveningTouchScreenProps> = ({ onBack }
                 ? '“Con chúc bố mẹ ngủ ngon ạ!”'
                 : '“Goodnight Mom & Dad!”'
             }
-            icon={state.eveningExtraReplied ? '✓' : '🎙️'}
+            icon={state.eveningExtraReplied ? 'check' : 'mic'}
             variant={state.eveningExtraReplied ? 'success' : 'secondary'}
             loading={sendingExtra}
             onPress={handleExtraReply}
@@ -168,6 +172,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   backPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 999,

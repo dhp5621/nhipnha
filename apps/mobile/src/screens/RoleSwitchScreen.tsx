@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, Image } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
@@ -77,24 +78,29 @@ export const RoleSwitchScreen: React.FC<RoleSwitchScreenProps> = ({
     );
   };
 
-  const roleOptions: { id: Role; label: string; sub: string; emoji: string }[] = [
+  const roleOptions: {
+    id: Role;
+    label: string;
+    sub: string;
+    icon: keyof typeof MaterialIcons.glyphMap;
+  }[] = [
     {
       id: 'CHILD',
       label: isVi ? 'Trẻ em' : 'Child',
       sub: isVi ? 'Cỡ chữ chuẩn' : 'Standard font',
-      emoji: '🧒',
+      icon: 'child-care',
     },
     {
       id: 'PARENT',
       label: isVi ? 'Bố / Mẹ' : 'Parent',
       sub: isVi ? 'Cỡ chữ chuẩn' : 'Standard font',
-      emoji: '👩‍🏭',
+      icon: 'supervisor-account',
     },
     {
       id: 'GRANDPARENT',
       label: isVi ? 'Ông / Bà' : 'Elder',
       sub: isVi ? 'Tự động chữ lớn' : 'Auto large font',
-      emoji: '👵',
+      icon: 'elderly',
     },
   ];
 
@@ -112,8 +118,9 @@ export const RoleSwitchScreen: React.FC<RoleSwitchScreenProps> = ({
           accessibilityRole="button"
           accessibilityLabel={t('back')}
         >
+          <MaterialIcons name="arrow-back" size={18} color={colors.textDark} style={{ marginRight: 6 }} />
           <AccessibleText variant="label" weight="800">
-            ← {t('back')}
+            {t('back')}
           </AccessibleText>
         </TouchableOpacity>
       </View>
@@ -173,12 +180,16 @@ export const RoleSwitchScreen: React.FC<RoleSwitchScreenProps> = ({
                   },
                 ]}
               >
-                <AccessibleText variant="h2">{r.emoji}</AccessibleText>
+                <MaterialIcons
+                  name={r.icon}
+                  size={28}
+                  color={active ? colors.onPrimaryContainer : colors.primary}
+                />
                 <AccessibleText
                   variant="label"
                   weight="800"
                   color={active ? colors.onPrimaryContainer : colors.textDark}
-                  style={{ marginTop: 2 }}
+                  style={{ marginTop: 4 }}
                 >
                   {r.label}
                 </AccessibleText>
@@ -224,9 +235,10 @@ export const RoleSwitchScreen: React.FC<RoleSwitchScreenProps> = ({
             { backgroundColor: colors.surfaceContainerHigh },
           ]}
         >
+          <MaterialIcons name="mic" size={24} color={colors.primary} style={{ marginRight: 12 }} />
           <View style={{ flex: 1 }}>
             <AccessibleText variant="bodyRegular" weight="700">
-              🎙️ {isVi ? 'Micro thu âm' : 'Microphone'}
+              {isVi ? 'Micro thu âm' : 'Microphone'}
             </AccessibleText>
             <AccessibleText variant="caption" color={colors.textSecondary}>
               {isVi ? 'Dùng cho Hộp thư thoại & Nhật ký 15s' : 'Used for Voice Mailbox & 15s Diary'}
@@ -264,9 +276,10 @@ export const RoleSwitchScreen: React.FC<RoleSwitchScreenProps> = ({
             { backgroundColor: colors.surfaceContainerHigh, marginTop: 8 },
           ]}
         >
+          <MaterialIcons name="photo-camera" size={24} color={colors.primary} style={{ marginRight: 12 }} />
           <View style={{ flex: 1 }}>
             <AccessibleText variant="bodyRegular" weight="700">
-              📷 {isVi ? 'Máy ảnh' : 'Camera'}
+              {isVi ? 'Máy ảnh' : 'Camera'}
             </AccessibleText>
             <AccessibleText variant="caption" color={colors.textSecondary}>
               {isVi ? 'Dùng để quét mã QR & chụp ảnh nhật ký' : 'Used for QR pairing & diary photos'}
@@ -302,6 +315,7 @@ export const RoleSwitchScreen: React.FC<RoleSwitchScreenProps> = ({
       <View style={{ marginTop: 12 }}>
         <BigButton
           title={isVi ? 'Đổi gia đình / Đăng xuất' : 'Switch Family / Sign Out'}
+          icon="logout"
           variant="secondary"
           onPress={handleSignOut}
         />
@@ -323,6 +337,8 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   backPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 999,

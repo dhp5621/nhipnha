@@ -23,6 +23,7 @@ interface RhythmState {
   eveningExtraReplied: boolean;
   eveningMessageId?: string;
   eveningMessageText: string;
+  eveningAudioUrl?: string;
 
   pendingOfflineCount: number;
 }
@@ -113,6 +114,7 @@ export const RhythmProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         eveningExtraReplied: !!eveningExtraChk,
         eveningMessageId: eveningMsg?.id,
         eveningMessageText: eveningMsg?.transcription || '',
+        eveningAudioUrl: eveningMsg?.audioUrl,
 
         pendingOfflineCount: queue.length,
       }));

@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, Image } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { useRhythm } from '../context/RhythmContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import { permissionService } from '../services/permissions';
+import { mediaCaptureService } from '../services/mediaCapture';
 import { apiClient } from '../services/api';
 import { EmpathyPromptCard } from '../components/EmpathyPromptCard';
 import { AudioWaveform } from '../components/AudioWaveform';
@@ -16,9 +18,7 @@ interface ParentDashboardScreenProps {
   onNavigateToSwitch: () => void;
 }
 
-export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
-  onNavigateToSwitch,
-}) => {
+export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = () => {
   const { family, member } = useAuth();
   const { state, refreshRhythm } = useRhythm();
   const { t, activeLanguage, setLanguagePreference } = useLanguage();
@@ -86,6 +86,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
     const granted = await permissionService.requestPermission('microphone', isVi);
     if (!granted) return;
 
+    await mediaCaptureService.startAudioRecording();
     setIsRecording30s(true);
     setDurationLeft(30);
   };
@@ -94,12 +95,14 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
     setIsRecording30s(false);
     if (!family?.id) return;
     try {
+      const audioRes = await mediaCaptureService.stopAudioRecording(30 - durationLeft || 25);
       await apiClient.sendBedtimeMessage({
         familyId: family.id,
         senderId: member?.id,
         senderName: member?.name || 'Bố / Mẹ',
+        audioUrl: audioRes.url,
         transcription: selectedPrompt || 'Con yêu ngủ ngoan nhé, bố mẹ thương con nhiều!',
-        durationSec: 30 - durationLeft || 25,
+        durationSec: audioRes.duration,
       });
       setSentMessage(true);
       await refreshRhythm();
@@ -109,23 +112,30 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
     }
   };
 
-  const getMoodLabel = () => {
+  const getMoodIconAndLabel = (): {
+    icon: keyof typeof MaterialIcons.glyphMap;
+    label: string;
+  } => {
     if (!state.afternoonMood) {
-      return isVi ? 'Chưa điểm danh chiều nay' : 'No afternoon check-in yet';
+      return {
+        icon: 'schedule',
+        label: isVi ? 'Chưa điểm danh chiều nay' : 'No afternoon check-in yet',
+      };
     }
     switch (state.afternoonMood) {
       case 'CALM':
-        return `⛅ ${t('moodCalm')}`;
+        return { icon: 'wb-cloudy', label: t('moodCalm') };
       case 'TIRED':
-        return `🌧️ ${t('moodTired')}`;
+        return { icon: 'bedtime', label: t('moodTired') };
       case 'NEED_HUG':
-        return `🫂 ${t('moodNeedHug')}`;
+        return { icon: 'favorite', label: t('moodNeedHug') };
       case 'JOYFUL':
       default:
-        return `😄 ${t('moodJoyful')}`;
+        return { icon: 'sentiment-very-satisfied', label: t('moodJoyful') };
     }
   };
 
+  const moodInfo = getMoodIconAndLabel();
   const keywords = aiData?.keywords || [];
 
   return (
@@ -156,7 +166,11 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
             onPress={toggleTheme}
             style={[styles.iconChip, { backgroundColor: colors.surfaceContainerHigh }]}
           >
-            <AccessibleText variant="label">{isDark ? '🌙' : '☀️'}</AccessibleText>
+            <MaterialIcons
+              name={isDark ? 'dark-mode' : 'wb-sunny'}
+              size={20}
+              color={colors.primary}
+            />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -203,13 +217,21 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
               <AccessibleText variant="caption" color={colors.onMorningContainer} weight="800">
                 06:30 • {t('morningTitle')}
               </AccessibleText>
-              <AccessibleText variant="bodyRegular" color={colors.onMorningContainer} weight="700" style={{ marginTop: 2 }}>
-                {state.morningCompleted
-                  ? `${t('morningAlreadyDone')}${state.morningTime ? ` (${state.morningTime})` : ''}`
-                  : isVi
-                  ? 'Chưa gửi lời chào sáng'
-                  : 'No morning check-in yet'}
-              </AccessibleText>
+              <View style={styles.inlineIconRow}>
+                <MaterialIcons
+                  name={state.morningCompleted ? 'check-circle' : 'schedule'}
+                  size={18}
+                  color={colors.onMorningContainer}
+                  style={{ marginRight: 6 }}
+                />
+                <AccessibleText variant="bodyRegular" color={colors.onMorningContainer} weight="700">
+                  {state.morningCompleted
+                    ? `${t('morningAlreadyDone')}${state.morningTime ? ` (${state.morningTime})` : ''}`
+                    : isVi
+                    ? 'Chưa gửi lời chào sáng'
+                    : 'No morning check-in yet'}
+                </AccessibleText>
+              </View>
             </View>
 
             <View
@@ -221,12 +243,20 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
               <AccessibleText variant="caption" color={colors.onAfternoonContainer} weight="800">
                 17:00 • {t('afternoonTitle')}
               </AccessibleText>
-              <AccessibleText variant="bodyRegular" color={colors.onAfternoonContainer} weight="700" style={{ marginTop: 2 }}>
-                {getMoodLabel()}
-                {activeAttachment
-                  ? ` • ${activeAttachment.emoji} ${isVi ? activeAttachment.titleVi : activeAttachment.titleEn}`
-                  : ''}
-              </AccessibleText>
+              <View style={styles.inlineIconRow}>
+                <MaterialIcons
+                  name={moodInfo.icon}
+                  size={18}
+                  color={colors.onAfternoonContainer}
+                  style={{ marginRight: 6 }}
+                />
+                <AccessibleText variant="bodyRegular" color={colors.onAfternoonContainer} weight="700" style={{ flex: 1 }}>
+                  {moodInfo.label}
+                  {activeAttachment
+                    ? ` • ${isVi ? activeAttachment.titleVi : activeAttachment.titleEn}`
+                    : ''}
+                </AccessibleText>
+              </View>
             </View>
 
             <View
@@ -238,11 +268,19 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
               <AccessibleText variant="caption" color={colors.onEveningContainer} weight="800">
                 20:30 • {t('eveningTitle')}
               </AccessibleText>
-              <AccessibleText variant="bodyRegular" color={colors.onEveningContainer} weight="700" style={{ marginTop: 2 }}>
-                {sentMessage || state.eveningMessageText
-                  ? t('sentBedtimeSuccess')
-                  : t('eveningSubtitle')}
-              </AccessibleText>
+              <View style={styles.inlineIconRow}>
+                <MaterialIcons
+                  name={sentMessage || state.eveningMessageText ? 'check-circle' : 'nights-stay'}
+                  size={18}
+                  color={colors.onEveningContainer}
+                  style={{ marginRight: 6 }}
+                />
+                <AccessibleText variant="bodyRegular" color={colors.onEveningContainer} weight="700">
+                  {sentMessage || state.eveningMessageText
+                    ? t('sentBedtimeSuccess')
+                    : t('eveningSubtitle')}
+                </AccessibleText>
+              </View>
             </View>
           </View>
         </View>
@@ -255,7 +293,8 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
           ]}
         >
           <View style={styles.sectionHeaderRow}>
-            <AccessibleText variant="h2" weight="800">
+            <MaterialIcons name="auto-awesome" size={22} color={colors.primary} style={{ marginRight: 8 }} />
+            <AccessibleText variant="h2" weight="800" style={{ flex: 1 }}>
               {t('aiAssistantTitle')}
             </AccessibleText>
           </View>
@@ -298,15 +337,31 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                       : 'Analyzing child’s 15-second diary...')}
                 </AccessibleText>
                 {activeAttachment && (
-                  <AccessibleText
-                    variant="label"
-                    color={colors.textSecondary}
-                    style={{ marginTop: 6 }}
-                  >
-                    {activeAttachment.emoji}{' '}
-                    {aiData?.cvInsight ||
-                      (isVi ? activeAttachment.cvSignalVi : activeAttachment.cvSignalEn)}
-                  </AccessibleText>
+                  <View style={{ marginTop: 8 }}>
+                    {activeAttachment.imageUrl ? (
+                      <Image
+                        source={{ uri: activeAttachment.imageUrl }}
+                        style={{ width: '100%', height: 170, borderRadius: 16, marginBottom: 8 }}
+                        resizeMode="cover"
+                      />
+                    ) : null}
+                    <View style={styles.inlineIconRow}>
+                      <MaterialIcons
+                        name={activeAttachment.emoji as any}
+                        size={18}
+                        color={activeAttachment.dominantColor}
+                        style={{ marginRight: 6 }}
+                      />
+                      <AccessibleText
+                        variant="label"
+                        color={colors.textSecondary}
+                        style={{ flex: 1 }}
+                      >
+                        {aiData?.cvInsight ||
+                          (isVi ? activeAttachment.cvSignalVi : activeAttachment.cvSignalEn)}
+                      </AccessibleText>
+                    </View>
+                  </View>
                 )}
               </View>
 
@@ -407,13 +462,13 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
               subtitle={
                 sentMessage
                   ? isVi
-                    ? '✓ Đã gửi vào hộp thư • Bấm để thu thêm'
-                    : '✓ Sent to mailbox • Tap to record another'
+                    ? 'Đã gửi vào hộp thư • Bấm để thu thêm'
+                    : 'Sent to mailbox • Tap to record another'
                   : isVi
                   ? 'Hộp thư thoại bất đồng bộ 30 giây'
                   : '30-second async voice mailbox'
               }
-              icon="🎙️"
+              icon="mic"
               variant="evening"
               size="hero"
               onPress={handleStartRecording}
@@ -422,7 +477,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
             <BigButton
               title={t('quick30sSendBtn')}
               subtitle={`${t('recordingTimeLeft')}: ${durationLeft}s`}
-              icon="📤"
+              icon="send"
               variant="success"
               size="hero"
               onPress={handleSendBedtimeVoice}
@@ -437,9 +492,12 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
             { backgroundColor: colors.surfaceContainerLow },
           ]}
         >
-          <AccessibleText variant="h2" weight="800">
-            {t('weeklyRecapTitle')}
-          </AccessibleText>
+          <View style={styles.sectionHeaderRow}>
+            <MaterialIcons name="insights" size={22} color={colors.primary} style={{ marginRight: 8 }} />
+            <AccessibleText variant="h2" weight="800" style={{ flex: 1 }}>
+              {t('weeklyRecapTitle')}
+            </AccessibleText>
+          </View>
           <AccessibleText
             variant="bodyRegular"
             color={colors.textSecondary}
@@ -452,13 +510,13 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
             <>
               <View style={styles.weekDaysRow}>
                 {[
-                  { d: isVi ? 'T2' : 'M', e: '😄' },
-                  { d: isVi ? 'T3' : 'T', e: '⛅' },
-                  { d: isVi ? 'T4' : 'W', e: '😄' },
-                  { d: isVi ? 'T5' : 'T', e: '🫂' },
-                  { d: isVi ? 'T6' : 'F', e: '😄' },
-                  { d: isVi ? 'T7' : 'S', e: '⛅' },
-                  { d: isVi ? 'CN' : 'S', e: '😄' },
+                  { d: isVi ? 'T2' : 'M', icon: 'sentiment-very-satisfied' as const, c: '#F59E0B' },
+                  { d: isVi ? 'T3' : 'T', icon: 'wb-cloudy' as const, c: '#0284C7' },
+                  { d: isVi ? 'T4' : 'W', icon: 'sentiment-very-satisfied' as const, c: '#F59E0B' },
+                  { d: isVi ? 'T5' : 'T', icon: 'favorite' as const, c: '#EC4899' },
+                  { d: isVi ? 'T6' : 'F', icon: 'sentiment-very-satisfied' as const, c: '#F59E0B' },
+                  { d: isVi ? 'T7' : 'S', icon: 'wb-cloudy' as const, c: '#0284C7' },
+                  { d: isVi ? 'CN' : 'S', icon: 'sentiment-very-satisfied' as const, c: '#F59E0B' },
                 ].map((day, idx) => (
                   <View
                     key={idx}
@@ -467,8 +525,8 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                       { backgroundColor: colors.surfaceContainerHigh },
                     ]}
                   >
-                    <AccessibleText variant="bodyLarge">{day.e}</AccessibleText>
-                    <AccessibleText variant="caption" color={colors.textSecondary}>
+                    <MaterialIcons name={day.icon} size={20} color={day.c} />
+                    <AccessibleText variant="caption" color={colors.textSecondary} style={{ marginTop: 2 }}>
                       {day.d}
                     </AccessibleText>
                   </View>
@@ -574,9 +632,13 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 14,
   },
+  inlineIconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
   sectionHeaderRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
   },
   keywordRow: {

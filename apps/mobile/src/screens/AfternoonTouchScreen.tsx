@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, Image } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import {
   CREATIVE_ATTACHMENTS,
   type CreativeAttachment,
@@ -9,11 +10,11 @@ import { useRhythm } from '../context/RhythmContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import { permissionService } from '../services/permissions';
+import { mediaCaptureService } from '../services/mediaCapture';
 import { EmotionSelector } from '../components/EmotionSelector';
 import { AudioWaveform } from '../components/AudioWaveform';
 import { BigButton } from '../components/BigButton';
 import { AccessibleText } from '../components/AccessibleText';
-import { offlineStorage } from '../services/offlineStorage';
 
 interface AfternoonTouchScreenProps {
   onBack: () => void;
@@ -58,18 +59,15 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
     const granted = await permissionService.requestPermission('microphone', isVi);
     if (!granted) return;
 
+    await mediaCaptureService.startAudioRecording();
     setIsRecording(true);
     setDurationLeft(15);
   };
 
   const handleStopRecording = async () => {
     setIsRecording(false);
-    const mockAudio = await offlineStorage.recordMockVoice(15 - durationLeft || 14);
-    setRecordedVoice({
-      url: mockAudio.voiceUrl,
-      duration: mockAudio.durationSec,
-      waveform: mockAudio.waveform,
-    });
+    const audioResult = await mediaCaptureService.stopAudioRecording(15 - durationLeft || 14);
+    setRecordedVoice(audioResult);
   };
 
   const handleSelectAttachment = async (item: CreativeAttachment) => {
@@ -78,6 +76,29 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
       if (!granted) return;
     }
     setSelectedAttachment(item);
+  };
+
+  const handleCaptureOrUploadPhoto = async (useCamera: boolean) => {
+    const granted = await permissionService.requestPermission('camera', isVi);
+    if (!granted) return;
+
+    const photo = await mediaCaptureService.pickOrCapturePhoto(useCamera);
+    if (!photo) return;
+
+    const customPhotoAttachment: CreativeAttachment = {
+      id: `photo_custom_${Date.now()}`,
+      type: 'PHOTO',
+      titleVi: useCamera ? 'Ảnh chụp trực tiếp từ máy ảnh' : `Ảnh tải lên: ${photo.name}`,
+      titleEn: useCamera ? 'Captured camera photo' : `Uploaded photo: ${photo.name}`,
+      emoji: 'photo-camera',
+      dominantColor: photo.dominantColor,
+      imageUrl: photo.dataUrl,
+      cvSignalVi:
+        'Ảnh thực tế từ gia đình — Khoảnh khắc sinh hoạt đời thường được chia sẻ trực tiếp từ quê nhà.',
+      cvSignalEn:
+        'Real family photo — Everyday moment shared directly from home.',
+    };
+    setSelectedAttachment(customPhotoAttachment);
   };
 
   const handleSaveAfternoonRhythm = async () => {
@@ -108,8 +129,9 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
           accessibilityRole="button"
           accessibilityLabel={t('back')}
         >
+          <MaterialIcons name="arrow-back" size={18} color={colors.textDark} style={{ marginRight: 6 }} />
           <AccessibleText variant="label" weight="800">
-            ← {t('back')}
+            {t('back')}
           </AccessibleText>
         </TouchableOpacity>
 
@@ -173,13 +195,13 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
               subtitle={
                 recordedVoice
                   ? isVi
-                    ? `Đã lưu (${recordedVoice.duration}s)`
-                    : `Saved (${recordedVoice.duration}s)`
+                    ? `Đã thu âm (${recordedVoice.duration}s) • Bấm để thu lại`
+                    : `Recorded (${recordedVoice.duration}s) • Tap to re-record`
                   : isVi
                   ? 'Kể chuyện vui ở lớp hoặc món ngon bà nấu'
                   : 'Share a story from class or dinner with grandma'
               }
-              icon="🎙️"
+              icon="mic"
               variant="afternoon"
               size="hero"
               onPress={handleStartRecording}
@@ -188,7 +210,7 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
             <BigButton
               title={t('afternoonStopBtn')}
               subtitle={`${t('recordingTimeLeft')}: ${durationLeft}s`}
-              icon="⏹️"
+              icon="stop"
               variant="primary"
               size="hero"
               onPress={handleStopRecording}
@@ -196,7 +218,7 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
           )}
         </View>
 
-        {/* STEP 3: Doodle / Photo */}
+        {/* STEP 3: Photo Upload / Camera Capture / Doodle */}
         <View
           style={[
             styles.stackBottom,
@@ -206,6 +228,75 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
           <AccessibleText variant="h2" weight="800">
             {t('afternoonStep3')}
           </AccessibleText>
+
+          {/* Direct Photo Capture & Upload Actions */}
+          <View style={styles.photoUploadRow}>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => handleCaptureOrUploadPhoto(true)}
+              style={[
+                styles.uploadBtn,
+                { backgroundColor: colors.primaryContainer },
+              ]}
+            >
+              <MaterialIcons name="add-a-photo" size={22} color={colors.onPrimaryContainer} />
+              <AccessibleText
+                variant="label"
+                weight="800"
+                color={colors.onPrimaryContainer}
+                style={{ marginLeft: 8 }}
+              >
+                {isVi ? 'Chụp ảnh mới' : 'Take Photo'}
+              </AccessibleText>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => handleCaptureOrUploadPhoto(false)}
+              style={[
+                styles.uploadBtn,
+                { backgroundColor: colors.surfaceContainerHigh },
+              ]}
+            >
+              <MaterialIcons name="file-upload" size={22} color={colors.primary} />
+              <AccessibleText
+                variant="label"
+                weight="800"
+                color={colors.textDark}
+                style={{ marginLeft: 8 }}
+              >
+                {isVi ? 'Tải ảnh từ máy' : 'Upload Photo'}
+              </AccessibleText>
+            </TouchableOpacity>
+          </View>
+
+          {/* Preview Uploaded/Captured Photo if present */}
+          {selectedAttachment.imageUrl ? (
+            <View
+              style={[
+                styles.uploadedPreviewCard,
+                { backgroundColor: colors.afternoonContainer },
+              ]}
+            >
+              <Image
+                source={{ uri: selectedAttachment.imageUrl }}
+                style={styles.uploadedImage}
+                resizeMode="cover"
+              />
+              <View style={styles.uploadedMetaRow}>
+                <MaterialIcons name="check-circle" size={18} color={colors.onAfternoonContainer} />
+                <AccessibleText
+                  variant="label"
+                  weight="800"
+                  color={colors.onAfternoonContainer}
+                  style={{ marginLeft: 6, flex: 1 }}
+                  numberOfLines={1}
+                >
+                  {isVi ? selectedAttachment.titleVi : selectedAttachment.titleEn}
+                </AccessibleText>
+              </View>
+            </View>
+          ) : null}
 
           <View style={styles.creativeGrid}>
             {CREATIVE_ATTACHMENTS.map((item) => {
@@ -228,7 +319,11 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
                   accessibilityState={{ selected: isSelected }}
                 >
                   <View style={styles.creativeTopRow}>
-                    <AccessibleText variant="h1">{item.emoji}</AccessibleText>
+                    <MaterialIcons
+                      name={item.emoji as any}
+                      size={28}
+                      color={item.dominantColor}
+                    />
                     <View
                       style={[
                         styles.colorDot,
@@ -257,7 +352,7 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
         <BigButton
           title={t('afternoonSubmit')}
           subtitle={t('offlineSavedMsg')}
-          icon="💌"
+          icon="send"
           variant="success"
           size="hero"
           loading={saving}
@@ -281,6 +376,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   backPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 999,
@@ -313,6 +410,37 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 36,
     borderBottomRightRadius: 36,
     padding: 20,
+  },
+  photoUploadRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  uploadBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 13,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+  },
+  uploadedPreviewCard: {
+    marginTop: 10,
+    borderRadius: 24,
+    padding: 10,
+  },
+  uploadedImage: {
+    width: '100%',
+    height: 170,
+    borderRadius: 18,
+  },
+  uploadedMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingHorizontal: 4,
   },
   creativeGrid: {
     flexDirection: 'row',

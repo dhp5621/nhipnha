@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Image,
 } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
@@ -114,10 +115,10 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess }) => {
     }
   };
 
-  const roles: { id: Role; label: string; emoji: string }[] = [
-    { id: 'CHILD', label: isVi ? 'Con nhỏ' : 'Child', emoji: '🧒' },
-    { id: 'PARENT', label: isVi ? 'Bố / Mẹ' : 'Parent', emoji: '👩‍🏭' },
-    { id: 'GRANDPARENT', label: isVi ? 'Ông / Bà' : 'Grandparent', emoji: '👵' },
+  const roles: { id: Role; label: string; icon: keyof typeof MaterialIcons.glyphMap }[] = [
+    { id: 'CHILD', label: isVi ? 'Con nhỏ' : 'Child', icon: 'child-care' },
+    { id: 'PARENT', label: isVi ? 'Bố / Mẹ' : 'Parent', icon: 'supervisor-account' },
+    { id: 'GRANDPARENT', label: isVi ? 'Ông / Bà' : 'Grandparent', icon: 'elderly' },
   ];
 
   return (
@@ -133,8 +134,14 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess }) => {
           style={[styles.utilityChip, { backgroundColor: colors.surfaceContainerHigh }]}
           accessibilityRole="button"
         >
+          <MaterialIcons
+            name={isDark ? 'dark-mode' : 'wb-sunny'}
+            size={18}
+            color={colors.primary}
+            style={{ marginRight: 6 }}
+          />
           <AccessibleText variant="label" color={colors.textDark}>
-            {isDark ? (isVi ? '🌙 Tối' : '🌙 Dark') : isVi ? '☀️ Sáng' : '☀️ Light'}
+            {isDark ? (isVi ? 'Tối' : 'Dark') : isVi ? 'Sáng' : 'Light'}
           </AccessibleText>
         </TouchableOpacity>
 
@@ -143,6 +150,12 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess }) => {
           style={[styles.utilityChip, { backgroundColor: colors.surfaceContainerHigh }]}
           accessibilityRole="button"
         >
+          <MaterialIcons
+            name="language"
+            size={18}
+            color={colors.primary}
+            style={{ marginRight: 6 }}
+          />
           <AccessibleText variant="label" color={colors.textDark}>
             {isVi ? 'Tiếng Việt' : 'English'}
           </AccessibleText>
@@ -241,7 +254,11 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess }) => {
                   },
                 ]}
               >
-                <AccessibleText variant="h2">{r.emoji}</AccessibleText>
+                <MaterialIcons
+                  name={r.icon}
+                  size={28}
+                  color={active ? colors.onPrimaryContainer : colors.primary}
+                />
                 <AccessibleText
                   variant="label"
                   weight="800"
@@ -295,7 +312,7 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess }) => {
           <BigButton
             title={isVi ? 'Quét mã QR gia đình' : 'Scan Family QR Code'}
             subtitle={isVi ? 'Yêu cầu quyền Máy ảnh' : 'Requires Camera permission'}
-            icon="📷"
+            icon="qr-code-scanner"
             variant="morning"
             size="hero"
             loading={isLoading}
@@ -327,6 +344,7 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess }) => {
 
           <BigButton
             title={t('connectByCode')}
+            icon="login"
             variant="primary"
             loading={isLoading}
             onPress={handleJoinByCode}
@@ -382,6 +400,7 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess }) => {
 
           <BigButton
             title={isVi ? 'Tạo nhà & Nhận mã QR' : 'Create Family & Get QR'}
+            icon="add-home"
             variant="primary"
             size="hero"
             loading={isLoading}
@@ -408,9 +427,7 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess }) => {
               : 'Loads sample data for Be An’s Family directly from the server database'}
           </AccessibleText>
         </View>
-        <AccessibleText variant="h2" color={colors.primary}>
-          →
-        </AccessibleText>
+        <MaterialIcons name="arrow-forward" size={22} color={colors.primary} />
       </TouchableOpacity>
     </ScrollView>
   );
@@ -430,6 +447,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   utilityChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 999,

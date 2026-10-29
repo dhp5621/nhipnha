@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useRhythm } from '../context/RhythmContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
@@ -63,8 +64,9 @@ export const MorningTouchScreen: React.FC<MorningTouchScreenProps> = ({ onBack }
           accessibilityRole="button"
           accessibilityLabel={t('back')}
         >
+          <MaterialIcons name="arrow-back" size={18} color={colors.textDark} style={{ marginRight: 6 }} />
           <AccessibleText variant="label" weight="800">
-            ← {t('back')}
+            {t('back')}
           </AccessibleText>
         </TouchableOpacity>
 
@@ -93,9 +95,12 @@ export const MorningTouchScreen: React.FC<MorningTouchScreenProps> = ({ onBack }
             { backgroundColor: colors.surfaceContainerLow },
           ]}
         >
-          <AccessibleText variant="label" color={colors.morningPrimary} weight="800">
-            {t('morningBellTitle')}
-          </AccessibleText>
+          <View style={styles.labelRow}>
+            <MaterialIcons name="notifications-active" size={18} color={colors.morningPrimary} style={{ marginRight: 6 }} />
+            <AccessibleText variant="label" color={colors.morningPrimary} weight="800">
+              {t('morningBellTitle')}
+            </AccessibleText>
+          </View>
 
           <AccessibleText variant="h2" weight="700" style={{ marginTop: 8 }}>
             {t('morningBellMessage')}
@@ -109,7 +114,7 @@ export const MorningTouchScreen: React.FC<MorningTouchScreenProps> = ({ onBack }
 
           <BigButton
             title={isPlayingBell ? t('eveningPauseBtn') : t('morningListenBellBtn')}
-            icon={isPlayingBell ? '⏸️' : '🔊'}
+            icon={isPlayingBell ? 'pause' : 'volume-up'}
             variant="secondary"
             onPress={handlePlayMorningBell}
           />
@@ -147,7 +152,7 @@ export const MorningTouchScreen: React.FC<MorningTouchScreenProps> = ({ onBack }
                   : `Sent at ${state.morningTime || '06:45'}`
                 : t('morningAffirmation')
             }
-            icon={isDone ? '✓' : '🎙️'}
+            icon={isDone ? 'check' : 'mic'}
             variant={isDone ? 'success' : 'morning'}
             size="hero"
             loading={submitting}
@@ -173,6 +178,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   backPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 999,
@@ -184,6 +191,10 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: 18,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   groupedStack: {
     gap: 6,

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { View, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 
 import { LanguageProvider, useLanguage } from './src/context/LanguageContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
@@ -124,9 +125,12 @@ function NavigationRoot() {
             accessibilityRole="tab"
             accessibilityState={{ selected: isHomeTab }}
           >
-            <AccessibleText variant="bodyLarge" style={styles.dockEmoji}>
-              {member?.role === 'PARENT' ? '📊' : '🏡'}
-            </AccessibleText>
+            <MaterialIcons
+              name={member?.role === 'PARENT' ? 'insights' : 'home-filled'}
+              size={22}
+              color={isHomeTab ? colors.onPrimaryContainer : colors.textSecondary}
+              style={styles.dockIcon}
+            />
             <AccessibleText
               variant="label"
               weight="800"
@@ -155,9 +159,12 @@ function NavigationRoot() {
             accessibilityRole="tab"
             accessibilityState={{ selected: !isHomeTab }}
           >
-            <AccessibleText variant="bodyLarge" style={styles.dockEmoji}>
-              ⚙️
-            </AccessibleText>
+            <MaterialIcons
+              name="tune"
+              size={22}
+              color={!isHomeTab ? colors.onPrimaryContainer : colors.textSecondary}
+              style={styles.dockIcon}
+            />
             <AccessibleText
               variant="label"
               weight="800"
@@ -235,7 +242,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     minHeight: 50,
   },
-  dockEmoji: {
+  dockIcon: {
     marginRight: 8,
   },
 });

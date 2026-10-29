@@ -1,21 +1,71 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { CREATIVE_ATTACHMENTS } from '@nhipnha/shared';
 
 type Lang = 'vi' | 'en';
 type Persona = 'CHILD' | 'PARENT' | 'GRANDPARENT';
 type Mood = 'JOYFUL' | 'CALM' | 'TIRED' | 'NEED_HUG';
 
+function MIcon({
+  name,
+  size = 20,
+  color,
+  style,
+}: {
+  name: string;
+  size?: number;
+  color?: string;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <span
+      className="material-icons"
+      style={{
+        fontSize: size,
+        color,
+        verticalAlign: 'middle',
+        userSelect: 'none',
+        ...style,
+      }}
+    >
+      {name}
+    </span>
+  );
+}
+
 export default function HomePage() {
   const [lang, setLang] = useState<Lang>('vi');
   const [persona, setPersona] = useState<Persona>('CHILD');
+  const [isDark, setIsDark] = useState<boolean>(false);
+  const [familyCode, setFamilyCode] = useState<string>('NHIP-8868');
+  const [familyId, setFamilyId] = useState<string>('fam_dongthap_001');
+  const [familyName, setFamilyName] = useState<string>('Gia đình Bác Ba & Bé An');
+
   const [selectedMood, setSelectedMood] = useState<Mood>('JOYFUL');
-  const [selectedDoodle, setSelectedDoodle] = useState<number>(0);
-  const [morningDone, setMorningDone] = useState<boolean>(true);
-  const [afternoonDone, setAfternoonDone] = useState<boolean>(true);
+  const [selectedDoodleIdx, setSelectedDoodleIdx] = useState<number>(0);
+  const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState<string>('');
+  const [uploadedPhotoName, setUploadedPhotoName] = useState<string>('');
+  const [isRecordingWebAudio, setIsRecordingWebAudio] = useState<boolean>(false);
+  const [recordedAudioDataUrl, setRecordedAudioDataUrl] = useState<string>('');
+  const [recordedAudioSec, setRecordedAudioSec] = useState<number>(0);
+  const mediaRecorderRef = React.useRef<any>(null);
+  const audioChunksRef = React.useRef<Blob[]>([]);
+  const recordStartRef = React.useRef<number>(0);
+
+  const [morningDone, setMorningDone] = useState<boolean>(false);
+  const [morningTime, setMorningTime] = useState<string>('');
+  const [afternoonDone, setAfternoonDone] = useState<boolean>(false);
   const [eveningDone, setEveningDone] = useState<boolean>(false);
+  const [eveningMessageText, setEveningMessageText] = useState<string>('');
+
+  const [submitting, setSubmitting] = useState<string | null>(null);
+  const [lastServerResponse, setLastServerResponse] = useState<string>('');
+  const [dbCheckInsCount, setDbCheckInsCount] = useState<number>(0);
+  const [dbMessagesCount, setDbMessagesCount] = useState<number>(0);
 
   const [aiLoading, setAiLoading] = useState<boolean>(false);
+  const [selectedPrompt, setSelectedPrompt] = useState<string>('');
   const [liveAiResult, setLiveAiResult] = useState<{
     summary?: string;
     keywords?: string[];
@@ -24,131 +74,344 @@ export default function HomePage() {
     source?: string;
   } | null>(null);
 
+  const isVi = lang === 'vi';
+  const isElder = persona === 'GRANDPARENT';
+
+  const loadFromServerDb = useCallback(async (targetFamilyId: string) => {
+    try {
+      const res = await fetch(`/api/family/timeline?familyId=${encodeURIComponent(targetFamilyId)}`);
+      const data = await res.json();
+      if (data.success) {
+        if (data.family) {
+          setFamilyName(data.family.name);
+          setFamilyCode(data.family.code);
+        }
+        const checkIns = data.checkIns || [];
+        const messages = data.messages || [];
+        setDbCheckInsCount(checkIns.length);
+        setDbMessagesCount(messages.length);
+
+        const morningChk = checkIns.find((c: any) => c.rhythmType === 'MORNING');
+        const afternoonChk = checkIns.find((c: any) => c.rhythmType === 'AFTERNOON');
+        const eveningMsg = messages.find((m: any) => m.rhythmType === 'EVENING');
+
+        setMorningDone(!!morningChk);
+        if (morningChk?.createdAt) {
+          const d = new Date(morningChk.createdAt);
+          setMorningTime(
+            `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
+          );
+        }
+        setAfternoonDone(!!afternoonChk);
+        if (afternoonChk?.mood) {
+          setSelectedMood(afternoonChk.mood);
+        }
+        if (afternoonChk?.attachment?.id) {
+          const idx = CREATIVE_ATTACHMENTS.findIndex((a) => a.id === afternoonChk.attachment.id);
+          if (idx >= 0) setSelectedDoodleIdx(idx);
+        }
+        if (afternoonChk?.attachment?.imageUrl) {
+          setUploadedPhotoUrl(afternoonChk.attachment.imageUrl);
+          setUploadedPhotoName(afternoonChk.attachment.titleVi || 'Photo');
+        }
+        if (afternoonChk?.voiceUrl && afternoonChk.voiceUrl.startsWith('data:audio')) {
+          setRecordedAudioDataUrl(afternoonChk.voiceUrl);
+          setRecordedAudioSec(afternoonChk.voiceDurationSec || 15);
+        }
+        if (eveningMsg?.transcription) {
+          setEveningMessageText(eveningMsg.transcription);
+          setEveningDone(!!eveningMsg.listenedAt);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load timeline from DB:', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadFromServerDb(familyId);
+  }, [familyId, loadFromServerDb]);
+
   const triggerLiveServerAi = async (moodToUse: Mood, doodleIdx: number, langToUse: Lang) => {
     setAiLoading(true);
     try {
-      const d = doodles[doodleIdx];
+      const att = CREATIVE_ATTACHMENTS[doodleIdx] || CREATIVE_ATTACHMENTS[0];
       const res = await fetch('/api/ai/empathy-assistant', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           mood: moodToUse,
           childName: 'Bé An',
-          attachmentTitle: langToUse === 'vi' ? d.vi : d.en,
+          attachmentTitle: langToUse === 'vi' ? att.titleVi : att.titleEn,
           language: langToUse,
         }),
       });
       const json = await res.json();
       if (json.success && json.data) {
         setLiveAiResult({ ...json.data, source: json.source });
+        if (json.data.suggestedPrompts?.[0]) {
+          setSelectedPrompt(json.data.suggestedPrompts[0]);
+        }
       }
     } catch {
-      // Fallback to preset if network error
+      // Fallback
     } finally {
       setAiLoading(false);
     }
   };
 
-  const isVi = lang === 'vi';
-  const isElder = persona === 'GRANDPARENT';
-
-  const moods: { id: Mood; emoji: string; vi: string; en: string; subVi: string; subEn: string; bg: string; border: string; text: string }[] = [
-    { id: 'JOYFUL', emoji: '😄', vi: 'Vui vẻ', en: 'Joyful', subVi: 'Nhiều chuyện vui', subEn: 'Lots of happy news', bg: '#FEF3C7', border: '#F59E0B', text: '#92400E' },
-    { id: 'CALM', emoji: '⛅', vi: 'Bình yên', en: 'Calm', subVi: 'Một ngày êm đềm', subEn: 'A peaceful day', bg: '#E0F2FE', border: '#0284C7', text: '#075985' },
-    { id: 'TIRED', emoji: '🌧️', vi: 'Hơi mệt', en: 'Tired', subVi: 'Cần nghỉ ngơi xíu', subEn: 'Need a little rest', bg: '#F3F4F6', border: '#6B7280', text: '#374151' },
-    { id: 'NEED_HUG', emoji: '🫂', vi: 'Cần ôm', en: 'Need a Hug', subVi: 'Nhớ bố mẹ nhiều', subEn: 'Miss parents a lot', bg: '#FCE7F3', border: '#EC4899', text: '#9D174D' },
-  ];
-
-  const doodles = [
-    {
-      emoji: '🪷',
-      vi: 'Nét vẽ: Hoa sen hồng tặng mẹ',
-      en: 'Doodle: Pink lotus flower for Mom',
-      cvVi: 'Tín hiệu bổ trợ Thị giác máy tính: Gam màu hồng ấm & vàng tươi — Trẻ giàu tình cảm, hướng về gia đình.',
-      cvEn: 'Computer Vision Supplemental Signal: Warm pink & bright yellow — Positive family affection.',
-    },
-    {
-      emoji: '🏡',
-      vi: 'Nét vẽ: Cả nhà mình sum họp',
-      en: 'Doodle: Our family together at home',
-      cvVi: 'Tín hiệu bổ trợ Thị giác máy tính: Chủ đề ngôi nhà & mặt trời — Trẻ mong ngóng ngày cuối tuần bố mẹ về thăm.',
-      cvEn: 'Computer Vision Supplemental Signal: Home & sunshine theme — Looking forward to parents visiting.',
-    },
-    {
-      emoji: '🍲',
-      vi: 'Ảnh chụp: Bữa cơm canh chua bà nấu',
-      en: "Photo: Grandma's sour soup dinner",
-      cvVi: 'Tín hiệu bổ trợ Thị giác máy tính: Sinh hoạt bữa tối — Trẻ ăn uống đầy đủ cùng ông bà tại quê nhà.',
-      cvEn: 'Computer Vision Supplemental Signal: Daily meal — Nutritious dinner shared with grandparents.',
-    },
-  ];
-
-  const aiPromptsByMood: Record<Mood, { summaryVi: string; summaryEn: string; promptsVi: string[]; promptsEn: string[] }> = {
-    JOYFUL: {
-      summaryVi: 'Bé An hôm nay có nhiều niềm vui ở lớp, được cô giáo khen vẽ hoa sen đẹp và ăn cơm ngon cùng bà.',
-      summaryEn: 'Be An had a joyful day at class, was praised by the teacher for drawing a lotus flower, and ate dinner with Grandma.',
-      promptsVi: [
-        'Hôm nay ở trường có chuyện gì làm con cười nhiều nhất thế? Kể mẹ nghe với!',
-        'Bức tranh hoa sen hồng con vẽ có mấy cánh thế, cuối tuần mẹ về con tặng mẹ nhé!',
-        'Bà nấu món canh chua gì cho An ăn chiều thế? Mẹ ở xưởng cũng thấy vui lây luôn!',
-      ],
-      promptsEn: [
-        'What made you laugh the most at school today? Tell Mom all about it!',
-        'How many petals did you draw on your pink lotus flower? Save it for Mom this weekend!',
-        'What kind of sour soup did Grandma cook for you tonight? Hearing your happy voice makes my day!',
-      ],
-    },
-    CALM: {
-      summaryVi: 'Bé An trải qua một ngày êm đềm, chiều mát ngồi ngoài hiên nhà cùng Bà Nội.',
-      summaryEn: 'Be An had a peaceful day and sat on the porch in the cool afternoon breeze with Grandma.',
-      promptsVi: [
-        'Chiều nay gió mát, con có ra sân chơi hay tưới cây phụ bà nội không?',
-        'Hôm nay con và bà ăn tối chưa? Con nhớ lấy nước ấm cho bà uống nhé.',
-      ],
-      promptsEn: [
-        'Was the breeze nice this afternoon? Did you help Grandma water the garden?',
-        'Have you and Grandma eaten dinner yet? Remember to pour warm water for Grandma!',
-      ],
-    },
-    TIRED: {
-      summaryVi: 'Bé An thấy hơi mệt sau giờ học. Cần lời vỗ về nhẹ nhàng, tránh nhắc chuyện bài vở.',
-      summaryEn: 'Be An feels a bit tired after school. Needs gentle reassurance without homework pressure.',
-      promptsVi: [
-        'Mẹ nghe giọng con hơi mệt, tối nay con nghỉ ngơi sớm đi nhé, không cần lo bài vở đâu.',
-        'Mẹ gửi một cái ôm thật ấm về quê cho An nè, con uống ly sữa ấm rồi ngủ ngoan nha!',
-      ],
-      promptsEn: [
-        'You sound a little tired, sweetheart. Rest early tonight, do not worry about homework.',
-        'Mom is sending you a big warm hug from afar—drink some warm milk and sleep tight!',
-      ],
-    },
-    NEED_HUG: {
-      summaryVi: 'Bé An đang rất nhớ bố mẹ vào buổi chiều tối. Cần lời cam kết yêu thương và hẹn ngày về thăm.',
-      summaryEn: 'Be An misses Mom and Dad deeply this evening. Needs unconditional love and reassurance.',
-      promptsVi: [
-        'Mẹ cũng nhớ An nhiều lắm! Mẹ đang nhìn bức vẽ hoa sen của con ngay bàn làm việc đây nè.',
-        'Chỉ còn mấy ngày nữa là cuối tuần bố mẹ về thăm con rồi, hai mẹ con mình đi chợ quê nhé!',
-      ],
-      promptsEn: [
-        'Mom misses you so much too! I am looking at your lotus drawing right now.',
-        'Only a few more days until the weekend when Mom and Dad come home to visit you!',
-      ],
-    },
+  const handleSendMorningToDb = async () => {
+    setSubmitting('MORNING');
+    try {
+      const res = await fetch('/api/checkins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          familyId,
+          memberId: 'mem_child_an',
+          memberName: 'Bé An',
+          rhythmType: 'MORNING',
+          note: isVi ? 'Con chuẩn bị đi học đây ạ!' : 'I am ready to go to school!',
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setLastServerResponse(`POST /api/checkins → Saved ID: ${json.data.id} (MORNING)`);
+        await loadFromServerDb(familyId);
+      }
+    } finally {
+      setSubmitting(null);
+    }
   };
 
-  const currentAi = aiPromptsByMood[selectedMood];
+  const handleToggleWebVoiceRecord = async () => {
+    if (isRecordingWebAudio && mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+      setIsRecordingWebAudio(false);
+      return;
+    }
+    if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mr = new (window as any).MediaRecorder(stream);
+        audioChunksRef.current = [];
+        recordStartRef.current = Date.now();
+        mr.ondataavailable = (ev: any) => {
+          if (ev.data && ev.data.size > 0) audioChunksRef.current.push(ev.data);
+        };
+        mr.onstop = () => {
+          stream.getTracks().forEach((t: any) => t.stop());
+          const sec = Math.max(1, Math.round((Date.now() - recordStartRef.current) / 1000));
+          setRecordedAudioSec(sec);
+          const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            setRecordedAudioDataUrl(reader.result as string);
+          };
+          reader.readAsDataURL(blob);
+        };
+        mediaRecorderRef.current = mr;
+        mr.start();
+        setIsRecordingWebAudio(true);
+      } catch {
+        setRecordedAudioDataUrl('mock://audio/recorded-12s.aac');
+        setRecordedAudioSec(12);
+      }
+    }
+  };
+
+  const handlePickWebPhoto = (useCamera: boolean) => {
+    if (typeof document === 'undefined') return;
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    if (useCamera) input.setAttribute('capture', 'environment');
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const raw = ev.target?.result as string;
+        const img = new window.Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const maxDim = 480;
+          let w = img.width;
+          let h = img.height;
+          if (w > h && w > maxDim) {
+            h = Math.round((h * maxDim) / w);
+            w = maxDim;
+          } else if (h > maxDim) {
+            w = Math.round((w * maxDim) / h);
+            h = maxDim;
+          }
+          canvas.width = w;
+          canvas.height = h;
+          canvas.getContext('2d')?.drawImage(img, 0, 0, w, h);
+          setUploadedPhotoUrl(canvas.toDataURL('image/jpeg', 0.78));
+          setUploadedPhotoName(file.name);
+        };
+        img.src = raw;
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  };
+
+  const handleSendAfternoonToDb = async () => {
+    setSubmitting('AFTERNOON');
+    try {
+      const baseAtt = CREATIVE_ATTACHMENTS[selectedDoodleIdx] || CREATIVE_ATTACHMENTS[0];
+      const att = uploadedPhotoUrl
+        ? {
+            id: `photo_custom_${Date.now()}`,
+            type: 'PHOTO' as const,
+            titleVi: `Ảnh tải lên: ${uploadedPhotoName || 'Ảnh gia đình'}`,
+            titleEn: `Uploaded photo: ${uploadedPhotoName || 'Family photo'}`,
+            emoji: 'photo-camera',
+            dominantColor: '#10B981',
+            imageUrl: uploadedPhotoUrl,
+            cvSignalVi: 'Ảnh thực tế từ gia đình — Khoảnh khắc sinh hoạt đời thường tại quê nhà.',
+            cvSignalEn: 'Real family photo — Everyday home life moment.',
+          }
+        : baseAtt;
+
+      const res = await fetch('/api/checkins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          familyId,
+          memberId: 'mem_child_an',
+          memberName: 'Bé An',
+          rhythmType: 'AFTERNOON',
+          mood: selectedMood,
+          voiceDurationSec: recordedAudioSec || 15,
+          voiceUrl: recordedAudioDataUrl || undefined,
+          attachment: att,
+          note: isVi
+            ? `Nhật ký 15s: Tâm trạng ${selectedMood} • ${att.titleVi}`
+            : `15s Diary: Mood ${selectedMood} • ${att.titleEn}`,
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setLastServerResponse(
+          `POST /api/checkins → Saved ID: ${json.data.id} (Mood: ${selectedMood}, Photo/Attachment: ${att.id})`
+        );
+        await loadFromServerDb(familyId);
+        await triggerLiveServerAi(selectedMood, selectedDoodleIdx, lang);
+      }
+    } finally {
+      setSubmitting(null);
+    }
+  };
+
+  const handleSendParentMessageToDb = async () => {
+    setSubmitting('EVENING_MSG');
+    try {
+      const textToSend =
+        selectedPrompt ||
+        (isVi
+          ? 'Con yêu ngủ ngoan nhé, cuối tuần bố mẹ về thăm con!'
+          : 'Sleep tight sweetheart, Mom and Dad will visit this weekend!');
+      const res = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          familyId,
+          senderId: 'mem_parent_hoa',
+          senderName: 'Mẹ Hoa',
+          recipientId: 'mem_child_an',
+          transcription: textToSend,
+          durationSec: 25,
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setLastServerResponse(`POST /api/messages → Saved ID: ${json.data.id}`);
+        await loadFromServerDb(familyId);
+      }
+    } finally {
+      setSubmitting(null);
+    }
+  };
+
+  const moods: {
+    id: Mood;
+    icon: string;
+    vi: string;
+    en: string;
+    subVi: string;
+    subEn: string;
+    bg: string;
+    border: string;
+    text: string;
+  }[] = [
+    {
+      id: 'JOYFUL',
+      icon: 'sentiment_very_satisfied',
+      vi: 'Vui vẻ',
+      en: 'Joyful',
+      subVi: 'Nhiều chuyện vui',
+      subEn: 'Lots of happy news',
+      bg: '#FEF3C7',
+      border: '#F59E0B',
+      text: '#92400E',
+    },
+    {
+      id: 'CALM',
+      icon: 'wb_cloudy',
+      vi: 'Bình yên',
+      en: 'Calm',
+      subVi: 'Một ngày êm đềm',
+      subEn: 'A peaceful day',
+      bg: '#E0F2FE',
+      border: '#0284C7',
+      text: '#075985',
+    },
+    {
+      id: 'TIRED',
+      icon: 'bedtime',
+      vi: 'Hơi mệt',
+      en: 'Tired',
+      subVi: 'Cần nghỉ ngơi xíu',
+      subEn: 'Need a little rest',
+      bg: '#F3F4F6',
+      border: '#6B7280',
+      text: '#374151',
+    },
+    {
+      id: 'NEED_HUG',
+      icon: 'favorite',
+      vi: 'Cần ôm',
+      en: 'Need a Hug',
+      subVi: 'Nhớ bố mẹ nhiều',
+      subEn: 'Miss parents a lot',
+      bg: '#FCE7F3',
+      border: '#EC4899',
+      text: '#9D174D',
+    },
+  ];
+
+  const doodleIcons = ['local_florist', 'home', 'restaurant', 'grain'];
+
+  const bgMain = isDark ? '#16120E' : '#FDF8F2';
+  const surfaceLow = isDark ? '#211B16' : '#F6EFE6';
+  const surfaceHigh = isDark ? '#322922' : '#E8DFD3';
+  const textPrimary = isDark ? '#F5EDE4' : '#1E1510';
+  const textSecondary = isDark ? '#D2C3B6' : '#57443B';
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#FDF8F2', paddingBottom: 60 }}>
+    <div style={{ minHeight: '100vh', backgroundColor: bgMain, color: textPrimary, paddingBottom: 60 }}>
       {/* Top Navigation Bar */}
       <header
         style={{
           position: 'sticky',
           top: 0,
           zIndex: 50,
-          backgroundColor: 'rgba(253, 248, 242, 0.92)',
+          backgroundColor: isDark ? 'rgba(22, 18, 14, 0.92)' : 'rgba(253, 248, 242, 0.92)',
           backdropFilter: 'blur(12px)',
-          borderBottom: '2px solid #EDE2D5',
+          borderBottom: `1px solid ${isDark ? '#42362D' : '#EDE2D5'}`,
           padding: '14px 24px',
         }}
       >
@@ -164,24 +427,17 @@ export default function HomePage() {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: 18,
-                backgroundColor: '#FEF3C7',
-                border: '2px solid #F59E0B',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 26,
+            <img
+              src="/icon.png"
+              alt="Nhịp Nhà"
+              style={{ width: 46, height: 46, borderRadius: 16 }}
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
               }}
-            >
-              🏡
-            </div>
+            />
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontWeight: 900, fontSize: 22, color: '#3B1800', letterSpacing: -0.4 }}>
+                <span style={{ fontWeight: 900, fontSize: 22, color: textPrimary, letterSpacing: -0.4 }}>
                   Nhịp Nhà
                 </span>
                 <span
@@ -192,13 +448,16 @@ export default function HomePage() {
                     fontWeight: 800,
                     padding: '3px 10px',
                     borderRadius: 999,
-                    border: '1px solid #86EFAC',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
                   }}
                 >
-                  ● API & Web Live
+                  <MIcon name="cloud_done" size={15} color="#15803D" />
+                  PostgreSQL & API Live
                 </span>
               </div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#78350F' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: textSecondary }}>
                 {isVi
                   ? 'Hệ sinh thái gắn kết và tự lập "Bước Chân Nhỏ"'
                   : '"Little Footsteps" Family Bonding & Independence Ecosystem'}
@@ -206,15 +465,34 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Language & API Links */}
+          {/* Theme, Language & API Links */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              onClick={() => setIsDark(!isDark)}
+              style={{
+                border: 'none',
+                cursor: 'pointer',
+                padding: '8px 14px',
+                borderRadius: 999,
+                fontWeight: 800,
+                fontSize: 13,
+                backgroundColor: surfaceHigh,
+                color: textPrimary,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <MIcon name={isDark ? 'dark_mode' : 'wb_sunny'} size={18} color="#F59E0B" />
+              {isDark ? (isVi ? 'Chế độ Tối' : 'Dark') : isVi ? 'Chế độ Sáng' : 'Light'}
+            </button>
+
             <div
               style={{
                 display: 'flex',
-                backgroundColor: '#F2EAE0',
+                backgroundColor: surfaceHigh,
                 padding: 4,
                 borderRadius: 999,
-                border: '1.5px solid #D8C2B9',
               }}
             >
               <button
@@ -222,58 +500,38 @@ export default function HomePage() {
                 style={{
                   border: 'none',
                   cursor: 'pointer',
-                  padding: '8px 14px',
+                  padding: '7px 14px',
                   borderRadius: 999,
                   fontWeight: 800,
                   fontSize: 13,
-                  backgroundColor: isVi ? '#FFFFFF' : 'transparent',
-                  color: isVi ? '#B45309' : '#4E4039',
-                  boxShadow: isVi ? '0 2px 6px rgba(0,0,0,0.08)' : 'none',
+                  backgroundColor: isVi ? '#9C4400' : 'transparent',
+                  color: isVi ? '#FFFFFF' : textPrimary,
                 }}
               >
-                🇻🇳 Tiếng Việt
+                Tiếng Việt
               </button>
               <button
                 onClick={() => setLang('en')}
                 style={{
                   border: 'none',
                   cursor: 'pointer',
-                  padding: '8px 14px',
+                  padding: '7px 14px',
                   borderRadius: 999,
                   fontWeight: 800,
                   fontSize: 13,
-                  backgroundColor: !isVi ? '#FFFFFF' : 'transparent',
-                  color: !isVi ? '#B45309' : '#4E4039',
-                  boxShadow: !isVi ? '0 2px 6px rgba(0,0,0,0.08)' : 'none',
+                  backgroundColor: !isVi ? '#9C4400' : 'transparent',
+                  color: !isVi ? '#FFFFFF' : textPrimary,
                 }}
               >
-                🇬🇧 English
+                English
               </button>
             </div>
-
-            <a
-              href="/api/health"
-              target="_blank"
-              style={{
-                textDecoration: 'none',
-                backgroundColor: '#FFFBEB',
-                color: '#92400E',
-                border: '2px solid #FCD34D',
-                padding: '8px 14px',
-                borderRadius: 999,
-                fontSize: 13,
-                fontWeight: 800,
-              }}
-            >
-              ⚡ /api/health
-            </a>
           </div>
         </div>
       </header>
 
       {/* Main Content Container */}
       <main style={{ maxWidth: 1180, margin: '0 auto', padding: '28px 20px' }}>
-        {/* Hero Banner + Interactive Mobile Simulator Grid */}
         <div
           style={{
             display: 'grid',
@@ -282,23 +540,22 @@ export default function HomePage() {
             alignItems: 'start',
           }}
         >
-          {/* Left Column: Ecosystem Philosophy & API Status */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Left Column: Live Database Inspector & API Endpoints */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             <div
               style={{
-                backgroundColor: '#FFF8EB',
-                border: '2.5px solid #FCD34D',
-                borderRadius: 32,
+                backgroundColor: surfaceLow,
+                borderRadius: 34,
                 padding: 28,
-                boxShadow: '0 12px 28px rgba(62, 39, 35, 0.07)',
               }}
             >
               <div
                 style={{
-                  display: 'inline-block',
-                  backgroundColor: '#FEF3C7',
-                  color: '#92400E',
-                  border: '1px solid #F59E0B',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  backgroundColor: '#FFDCC6',
+                  color: '#331200',
                   padding: '5px 14px',
                   borderRadius: 999,
                   fontSize: 12,
@@ -306,17 +563,18 @@ export default function HomePage() {
                   marginBottom: 12,
                 }}
               >
+                <MIcon name="verified" size={16} color="#9C4400" />
                 {isVi
-                  ? '🌟 HỆ SINH THÁI "BƯỚC CHÂN NHỎ" • SDG 3, 4, 8'
-                  : '🌟 "LITTLE FOOTSTEPS" ECOSYSTEM • SDG 3, 4, 8'}
+                  ? 'HỆ SINH THÁI "BƯỚC CHÂN NHỎ" • MATERIAL 3 EXPRESSIVE'
+                  : '"LITTLE FOOTSTEPS" ECOSYSTEM • MATERIAL 3 EXPRESSIVE'}
               </div>
 
               <h1
                 style={{
-                  fontSize: 34,
+                  fontSize: 32,
                   lineHeight: 1.2,
                   fontWeight: 900,
-                  color: '#3B1800',
+                  color: textPrimary,
                   margin: '0 0 12px 0',
                   letterSpacing: -0.6,
                 }}
@@ -326,91 +584,126 @@ export default function HomePage() {
                   : 'Close at heart, miles apart through "3 Daily Bonding Rhythms"'}
               </h1>
 
-              <p style={{ fontSize: 16, lineHeight: 1.6, color: '#4E4039', fontWeight: 600, margin: 0 }}>
+              <p style={{ fontSize: 15, lineHeight: 1.6, color: textSecondary, fontWeight: 600, margin: 0 }}>
                 {isVi
-                  ? 'Xóa bỏ áp lực "phải gọi cùng lúc" và hội chứng cắn rứt lương tâm của cha mẹ công nhân đi làm xa (10–12 tiếng/ngày). Trao cho trẻ em ở quê (6–12 tuổi) và ông bà một kênh an toàn, tự nguyện, không phán xét hay tra hỏi điểm số.'
-                  : 'Removes simultaneous call pressure and parental guilt for migrant workers (10–12h shifts), while giving rural children (6–12 y/o) and grandparents a safe, voluntary, judgment-free channel.'}
+                  ? 'Mọi thao tác chạm sáng, chọn cảm xúc chiều, đính kèm nét vẽ và gửi hộp thư thoại bên khung tương tác đều được gửi trực tiếp lên máy chủ và lưu vào cơ sở dữ liệu PostgreSQL.'
+                  : 'Every morning check-in, afternoon emotion selection, doodle attachment, and bedtime voice note in the interactive preview is sent directly to the server and saved in the PostgreSQL database.'}
               </p>
 
-              {/* 4 Core Pillars from Section 5.1 */}
+              {/* Live Database Sync Status Box */}
               <div
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-                  gap: 12,
-                  marginTop: 20,
+                  marginTop: 18,
+                  padding: 16,
+                  borderRadius: 22,
+                  backgroundColor: surfaceHigh,
                 }}
               >
-                <div style={{ backgroundColor: '#FFFFFF', padding: 16, borderRadius: 24, border: '2px solid #FDE68A' }}>
-                  <div style={{ fontSize: 24, marginBottom: 4 }}>🔔</div>
-                  <div style={{ fontWeight: 800, fontSize: 15, color: '#451A03' }}>
-                    {isVi ? 'Hộp thư thoại 1 chạm' : '1-Touch Voice Mailbox'}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <MIcon name="storage" size={20} color="#15803D" />
+                    <span style={{ fontWeight: 800, fontSize: 14 }}>
+                      {isVi ? 'Trạng thái Cơ sở dữ liệu Thực tế:' : 'Live Database State:'}
+                    </span>
                   </div>
-                  <div style={{ fontSize: 13, color: '#78350F', marginTop: 4, fontWeight: 600 }}>
-                    {isVi
-                      ? '"Tiếng chuông buổi sáng" hẹn giờ & lời chúc ngủ ngon bất đồng bộ.'
-                      : 'Scheduled "Morning Bell" & async bedtime voice notes.'}
-                  </div>
+                  <button
+                    onClick={() => loadFromServerDb(familyId)}
+                    style={{
+                      border: 'none',
+                      backgroundColor: '#9C4400',
+                      color: '#FFFFFF',
+                      borderRadius: 999,
+                      padding: '5px 12px',
+                      fontSize: 12,
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}
+                  >
+                    <MIcon name="refresh" size={15} color="#FFFFFF" />
+                    {isVi ? 'Đồng bộ DB' : 'Refresh DB'}
+                  </button>
                 </div>
 
-                <div style={{ backgroundColor: '#FFFFFF', padding: 16, borderRadius: 24, border: '2px solid #FED7AA' }}>
-                  <div style={{ fontSize: 24, marginBottom: 4 }}>🎨</div>
-                  <div style={{ fontWeight: 800, fontSize: 15, color: '#431407' }}>
-                    {isVi ? 'Nhật ký tương tác 15s' : '15s Interactive Diary'}
-                  </div>
-                  <div style={{ fontSize: 13, color: '#9A3412', marginTop: 4, fontWeight: 600 }}>
-                    {isVi
-                      ? 'Điểm danh 4 cảm xúc, thu âm 15s & gửi nét vẽ tay/ảnh chụp nhanh.'
-                      : '4 emotion icons, 15s voice note & quick doodle/photo.'}
-                  </div>
+                <div style={{ display: 'flex', gap: 14, marginTop: 10, fontSize: 13, fontWeight: 700 }}>
+                  <span>
+                    Family: <code>{familyCode}</code> ({familyId})
+                  </span>
+                  <span>• Check-ins in DB: {dbCheckInsCount}</span>
+                  <span>• Voice Messages in DB: {dbMessagesCount}</span>
                 </div>
 
-                <div style={{ backgroundColor: '#FFFFFF', padding: 16, borderRadius: 24, border: '2px solid #86EFAC' }}>
-                  <div style={{ fontSize: 24, marginBottom: 4 }}>🌿</div>
-                  <div style={{ fontWeight: 800, fontSize: 15, color: '#052E16' }}>
-                    {isVi ? 'AI Gợi ý thấu cảm 30s' : '30s AI Empathy Prompts'}
+                {lastServerResponse ? (
+                  <div
+                    style={{
+                      marginTop: 10,
+                      padding: '8px 12px',
+                      borderRadius: 12,
+                      backgroundColor: '#DCFCE7',
+                      color: '#14532D',
+                      fontSize: 12,
+                      fontWeight: 800,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <MIcon name="check_circle" size={16} color="#15803D" />
+                    {lastServerResponse}
                   </div>
-                  <div style={{ fontSize: 13, color: '#166534', marginTop: 4, fontWeight: 600 }}>
-                    {isVi
-                      ? 'Trích xuất từ khóa, tín hiệu thị giác & gợi ý câu hỏi mở tránh hỏi điểm.'
-                      : 'Extracts keywords, vision signals & open-ended questions.'}
-                  </div>
-                </div>
-
-                <div style={{ backgroundColor: '#FFFFFF', padding: 16, borderRadius: 24, border: '2px solid #C7D2FE' }}>
-                  <div style={{ fontSize: 24, marginBottom: 4 }}>📰</div>
-                  <div style={{ fontWeight: 800, fontSize: 15, color: '#1E1B4B' }}>
-                    {isVi ? 'Bản tin tổng kết tuần' : 'Weekly Recap Digest'}
-                  </div>
-                  <div style={{ fontSize: 13, color: '#3730A3', marginTop: 4, fontWeight: 600 }}>
-                    {isVi
-                      ? 'Tổng hợp cột mốc, xu hướng cảm xúc & chủ đề con nhắc nhiều trong 7 ngày.'
-                      : '7-day summary of milestones, mood trends & recurring topics.'}
-                  </div>
-                </div>
+                ) : null}
               </div>
             </div>
 
             {/* Live Serverless API Endpoints Card */}
             <div
               style={{
-                backgroundColor: '#FFFFFF',
-                border: '2px solid #E6DFD7',
-                borderRadius: 28,
+                backgroundColor: surfaceLow,
+                borderRadius: 34,
                 padding: 24,
-                boxShadow: '0 6px 16px rgba(62, 39, 35, 0.05)',
               }}
             >
-              <h2 style={{ margin: '0 0 12px 0', fontSize: 20, fontWeight: 900, color: '#1E1510' }}>
-                🔌 {isVi ? 'Hệ thống Serverless API & Neon PostgreSQL' : 'Serverless API Endpoints & Neon PostgreSQL'}
-              </h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                <MIcon name="dns" size={22} color="#9C4400" />
+                <h2 style={{ margin: 0, fontSize: 19, fontWeight: 900 }}>
+                  {isVi ? 'Danh sách API Endpoints (Server & Database)' : 'Server & Database API Endpoints'}
+                </h2>
+              </div>
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {[
-                  { method: 'GET', path: '/api/health', descVi: 'Trạng thái hệ thống & SDG metadata', descEn: 'System health & SDG metadata' },
-                  { method: 'GET', path: '/api/family/timeline?familyId=fam_dongthap_001', descVi: 'Mạch kết nối 3 nhịp sinh hoạt gia đình', descEn: 'Family 3-rhythm daily timeline' },
-                  { method: 'GET', path: '/api/checkins?familyId=fam_dongthap_001', descVi: 'Danh sách điểm danh cảm xúc, voice 15s & nét vẽ', descEn: 'Emotion check-ins, 15s voice & doodles' },
-                  { method: 'GET', path: '/api/messages?familyId=fam_dongthap_001', descVi: 'Hộp thư thoại bất đồng bộ của bố mẹ', descEn: 'Async voice mailbox messages' },
-                  { method: 'GET', path: '/api/auth/qr-pair', descVi: 'Mã ghép đôi 1 chạm Zero-Type QR (NHIP-8868)', descEn: '1-Touch Zero-Type QR pairing payload' },
+                  {
+                    method: 'POST / GET',
+                    path: `/api/checkins?familyId=${familyId}`,
+                    descVi: 'Lưu & tải điểm danh Sáng / Chiều (mood, voice, doodle)',
+                    descEn: 'Save & fetch Morning / Afternoon check-ins',
+                  },
+                  {
+                    method: 'POST / GET',
+                    path: `/api/messages?familyId=${familyId}`,
+                    descVi: 'Lưu & tải Hộp thư thoại buổi tối của bố mẹ',
+                    descEn: 'Save & fetch Parent bedtime voice messages',
+                  },
+                  {
+                    method: 'GET',
+                    path: `/api/family/timeline?familyId=${familyId}`,
+                    descVi: 'Mạch kết nối 3 nhịp sinh hoạt tổng hợp từ DB',
+                    descEn: '3-rhythm family timeline aggregated from DB',
+                  },
+                  {
+                    method: 'POST',
+                    path: '/api/ai/empathy-assistant',
+                    descVi: 'AI Gợi ý thấu cảm trên máy chủ (gemini-web2api)',
+                    descEn: 'Server-side AI Empathy Assistant',
+                  },
+                  {
+                    method: 'POST / GET',
+                    path: '/api/auth/qr-pair',
+                    descVi: 'Ghép đôi QR / Mã gia đình & tạo gia đình mới trong DB',
+                    descEn: 'QR / Code pairing & family creation in DB',
+                  },
                 ].map((ep, i) => (
                   <a
                     key={i}
@@ -420,31 +713,30 @@ export default function HomePage() {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      padding: '10px 14px',
-                      backgroundColor: '#FAF6F0',
-                      borderRadius: 16,
-                      border: '1.5px solid #E6DFD7',
+                      padding: '12px 16px',
+                      backgroundColor: surfaceHigh,
+                      borderRadius: 18,
                       textDecoration: 'none',
-                      color: '#1E1510',
+                      color: textPrimary,
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <span
                         style={{
-                          backgroundColor: '#FEF3C7',
-                          color: '#B45309',
+                          backgroundColor: '#FFDCC6',
+                          color: '#331200',
                           fontWeight: 900,
                           fontSize: 11,
-                          padding: '3px 8px',
+                          padding: '4px 9px',
                           borderRadius: 999,
                         }}
                       >
                         {ep.method}
                       </span>
-                      <code style={{ fontWeight: 800, fontSize: 13, color: '#3B1800' }}>{ep.path}</code>
+                      <code style={{ fontWeight: 800, fontSize: 13 }}>{ep.path}</code>
                     </div>
-                    <span style={{ fontSize: 12, color: '#79675E', fontWeight: 600 }}>
-                      {isVi ? ep.descVi : ep.descEn} →
+                    <span style={{ fontSize: 12, color: textSecondary, fontWeight: 700 }}>
+                      {isVi ? ep.descVi : ep.descEn}
                     </span>
                   </a>
                 ))}
@@ -452,13 +744,13 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Right Column: Interactive Material 3 Expressive App Preview */}
+          {/* Right Column: Interactive Material 3 Expressive App Preview Connected to DB */}
           <div
             style={{
-              backgroundColor: '#1E1510',
+              backgroundColor: '#261D17',
               borderRadius: 44,
               padding: 12,
-              boxShadow: '0 24px 48px rgba(30, 21, 16, 0.22)',
+              boxShadow: '0 24px 48px rgba(0, 0, 0, 0.25)',
               maxWidth: 460,
               width: '100%',
               margin: '0 auto',
@@ -466,7 +758,7 @@ export default function HomePage() {
           >
             <div
               style={{
-                backgroundColor: '#FDF8F2',
+                backgroundColor: bgMain,
                 borderRadius: 34,
                 padding: 18,
                 minHeight: 720,
@@ -476,159 +768,191 @@ export default function HomePage() {
               }}
             >
               <div>
-                {/* Phone Status Pill */}
+                {/* Phone Status Header */}
                 <div
                   style={{
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     marginBottom: 14,
-                    padding: '0 6px',
+                    padding: '0 4px',
                   }}
                 >
-                  <span style={{ fontSize: 12, fontWeight: 800, color: '#78350F' }}>
-                    NHIP-8868 • Đồng Tháp
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <MIcon name="home" size={20} color="#9C4400" />
+                    <span style={{ fontSize: 13, fontWeight: 800 }}>
+                      {familyName} ({familyCode})
+                    </span>
+                  </div>
                   <span
                     style={{
-                      backgroundColor: '#FEF3C7',
-                      color: '#92400E',
-                      padding: '3px 10px',
+                      backgroundColor: '#FFDCC6',
+                      color: '#331200',
+                      padding: '4px 10px',
                       borderRadius: 999,
                       fontSize: 11,
                       fontWeight: 800,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
                     }}
                   >
+                    <MIcon
+                      name={
+                        persona === 'CHILD'
+                          ? 'child_care'
+                          : persona === 'GRANDPARENT'
+                          ? 'elderly'
+                          : 'supervisor_account'
+                      }
+                      size={15}
+                      color="#331200"
+                    />
                     {persona === 'CHILD'
                       ? isVi
-                        ? '🧒 Bé An (8 tuổi)'
-                        : '🧒 Be An (8 y/o)'
+                        ? 'Bé An'
+                        : 'Child'
                       : persona === 'GRANDPARENT'
                       ? isVi
-                        ? '👵 Bà Nội (Chữ lớn)'
-                        : '👵 Grandma (Large Font)'
+                        ? 'Bà Nội (Chữ lớn)'
+                        : 'Elder (Large Font)'
                       : isVi
-                      ? '👩‍🏭 Mẹ Hoa (KCN)'
-                      : '👩‍🏭 Mother Hoa'}
+                      ? 'Mẹ Hoa'
+                      : 'Parent'}
                   </span>
                 </div>
 
                 {/* CHILD OR GRANDPARENT VIEW */}
                 {persona !== 'PARENT' ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                    {/* Family Hearth Card */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {/* Rhythm 1: Morning (Top Asymmetric Card) */}
                     <div
                       style={{
-                        backgroundColor: '#FFF8EB',
-                        border: '2px solid #FCD34D',
-                        borderRadius: 28,
-                        padding: 16,
-                      }}
-                    >
-                      <div style={{ fontWeight: 900, fontSize: isElder ? 23 : 20, color: '#3B1800' }}>
-                        🏠 Gia đình Bác Ba & Bé An
-                      </div>
-                      <div style={{ fontSize: isElder ? 16 : 13, color: '#78350F', fontWeight: 700, marginTop: 2 }}>
-                        {isVi
-                          ? 'Nhịp sinh hoạt 3 nhịp gắn kết • Hộp thư thoại bất đồng bộ'
-                          : '3-Rhythm Daily Bonding • Async Voice Mailbox'}
-                      </div>
-                    </div>
-
-                    {/* Rhythm 1: Morning */}
-                    <div
-                      style={{
-                        backgroundColor: '#FFFDF5',
-                        border: '2px solid #FCD34D',
-                        borderRadius: 28,
-                        padding: 16,
+                        backgroundColor: isDark ? '#2B200E' : '#FFF3DC',
+                        borderRadius: '32px 32px 14px 14px',
+                        padding: 18,
+                        color: isDark ? '#FFDF9E' : '#261900',
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span
                           style={{
-                            backgroundColor: '#FEF3C7',
-                            color: '#92400E',
+                            backgroundColor: isDark ? '#5C4000' : '#FFE08A',
                             fontSize: 11,
                             fontWeight: 900,
-                            padding: '3px 10px',
+                            padding: '4px 10px',
                             borderRadius: 999,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
                           }}
                         >
-                          ☀️ {isVi ? 'SÁNG (06:30 – 07:15)' : 'MORNING (06:30 – 07:15)'}
+                          <MIcon name="wb_sunny" size={14} />
+                          06:30 – 07:15
                         </span>
-                        <span style={{ fontSize: 12, fontWeight: 800, color: '#15803D' }}>
-                          {morningDone ? (isVi ? '✓ Đã chào 06:45' : '✓ Sent 06:45') : ''}
-                        </span>
+                        {morningDone && (
+                          <span
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 800,
+                              color: '#15803D',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                            }}
+                          >
+                            <MIcon name="check_circle" size={16} color="#15803D" />
+                            {morningTime || 'Synced'}
+                          </span>
+                        )}
                       </div>
-                      <div style={{ fontWeight: 900, fontSize: isElder ? 22 : 19, color: '#451A03', marginTop: 8 }}>
-                        {isVi ? 'Tiếng chuông buổi sáng & Hộp thư 1 chạm' : 'Morning Bell & 1-Touch Mailbox'}
+
+                      <div style={{ fontWeight: 900, fontSize: isElder ? 22 : 19, marginTop: 8 }}>
+                        {isVi ? 'Nhịp Sáng – Tiếng chuông & 1 chạm' : 'Morning Rhythm – 1-Touch'}
                       </div>
-                      <div
-                        style={{
-                          backgroundColor: '#FEF3C7',
-                          borderRadius: 18,
-                          padding: 10,
-                          marginTop: 8,
-                          fontSize: isElder ? 16 : 13,
-                          fontWeight: 700,
-                          color: '#78350F',
-                        }}
-                      >
-                        🔔 {isVi ? 'Lời chúc hẹn giờ của mẹ: “An ơi dậy ăn sáng cùng bà rồi đi học vui nhé!”' : 'Mom’s scheduled bell: “Wake up and have breakfast with Grandma, An!”'}
-                      </div>
+
                       <button
-                        onClick={() => setMorningDone(true)}
+                        onClick={handleSendMorningToDb}
+                        disabled={submitting === 'MORNING'}
                         style={{
                           width: '100%',
                           marginTop: 10,
                           backgroundColor: '#F59E0B',
-                          border: '2px solid #D97706',
-                          borderBottomWidth: 5,
-                          borderRadius: 22,
-                          padding: '12px 16px',
+                          border: 'none',
+                          borderRadius: 24,
+                          padding: '13px 16px',
                           fontWeight: 900,
-                          fontSize: isElder ? 18 : 15,
-                          color: '#3B1800',
+                          fontSize: isElder ? 17 : 14,
+                          color: '#241000',
                           cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 8,
                         }}
                       >
-                        🎙️ {isVi ? '“Con chuẩn bị đi học đây ạ!” (1 Chạm)' : '“I am ready for school!” (1-Tap)'}
+                        <MIcon name={morningDone ? 'check_circle' : 'mic'} size={20} color="#241000" />
+                        {submitting === 'MORNING'
+                          ? isVi
+                            ? 'Đang lưu lên Server...'
+                            : 'Saving to Server...'
+                          : morningDone
+                          ? isVi
+                            ? 'Đã gửi lời chào sáng (Bấm để gửi lại)'
+                            : 'Morning Greeting Saved in DB'
+                          : isVi
+                          ? 'Gửi lời chào buổi sáng lên Server'
+                          : 'Send Morning Greeting to Server'}
                       </button>
                     </div>
 
-                    {/* Rhythm 2: Afternoon 15s Diary */}
+                    {/* Rhythm 2: Afternoon 15s Diary (Middle Card) */}
                     <div
                       style={{
-                        backgroundColor: '#FFF9F5',
-                        border: '2px solid #FDBA74',
-                        borderRadius: 28,
-                        padding: 16,
+                        backgroundColor: isDark ? '#301A12' : '#FFEDE3',
+                        borderRadius: 14,
+                        padding: 18,
+                        color: isDark ? '#FFDBCE' : '#351002',
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span
                           style={{
-                            backgroundColor: '#FFEDD5',
-                            color: '#9A3412',
+                            backgroundColor: isDark ? '#6B270E' : '#FFD3BD',
                             fontSize: 11,
                             fontWeight: 900,
-                            padding: '3px 10px',
+                            padding: '4px 10px',
                             borderRadius: 999,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
                           }}
                         >
-                          🎒 {isVi ? 'CHIỀU (17:00 – 18:30)' : 'AFTERNOON (17:00 – 18:30)'}
+                          <MIcon name="palette" size={14} />
+                          17:00 – 18:30
                         </span>
-                        <span style={{ fontSize: 11, fontWeight: 800, color: '#166534' }}>
-                          🛡️ {isVi ? 'Kênh an toàn' : 'Safe Channel'}
-                        </span>
+                        {afternoonDone && (
+                          <span
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 800,
+                              color: '#15803D',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                            }}
+                          >
+                            <MIcon name="check_circle" size={16} color="#15803D" />
+                            Saved in DB
+                          </span>
+                        )}
                       </div>
 
-                      <div style={{ fontWeight: 900, fontSize: isElder ? 22 : 19, color: '#431407', marginTop: 8 }}>
-                        {isVi ? 'Nhật ký tương tác 15 giây' : '15s Interactive Flash Diary'}
+                      <div style={{ fontWeight: 900, fontSize: isElder ? 22 : 19, marginTop: 8 }}>
+                        {isVi ? 'Nhịp Chiều – Nhật ký tương tác 15s' : 'Afternoon – 15s Flash Diary'}
                       </div>
 
-                      {/* 4 Mood Pills */}
+                      {/* 4 Mood Pills with Material Icons */}
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
                         {moods.map((m) => {
                           const active = selectedMood === m.id;
@@ -637,10 +961,10 @@ export default function HomePage() {
                               key={m.id}
                               onClick={() => setSelectedMood(m.id)}
                               style={{
-                                backgroundColor: active ? m.bg : '#FFFFFF',
-                                border: active ? `3px solid ${m.border}` : '1.5px solid #E6DFD7',
-                                borderRadius: 18,
-                                padding: '8px 10px',
+                                backgroundColor: active ? m.bg : isDark ? '#211B16' : '#FFFFFF',
+                                border: active ? `2.5px solid ${m.border}` : '2.5px solid transparent',
+                                borderRadius: active ? 999 : 18,
+                                padding: '8px 12px',
                                 cursor: 'pointer',
                                 textAlign: 'left',
                                 display: 'flex',
@@ -648,13 +972,16 @@ export default function HomePage() {
                                 gap: 8,
                               }}
                             >
-                              <span style={{ fontSize: 24 }}>{m.emoji}</span>
+                              <MIcon name={m.icon} size={24} color={m.border} />
                               <div>
-                                <div style={{ fontWeight: 800, fontSize: isElder ? 16 : 14, color: m.text }}>
+                                <div
+                                  style={{
+                                    fontWeight: 800,
+                                    fontSize: isElder ? 15 : 13,
+                                    color: active ? m.text : textPrimary,
+                                  }}
+                                >
                                   {isVi ? m.vi : m.en}
-                                </div>
-                                <div style={{ fontSize: 11, color: m.text, opacity: 0.85 }}>
-                                  {isVi ? m.subVi : m.subEn}
                                 </div>
                               </div>
                             </button>
@@ -662,257 +989,389 @@ export default function HomePage() {
                         })}
                       </div>
 
-                      {/* Doodle / Photo Picker */}
+                      {/* Voice Recording + Photo Capture/Upload Row */}
                       <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
-                        {doodles.map((d, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => setSelectedDoodle(idx)}
+                        <button
+                          onClick={handleToggleWebVoiceRecord}
+                          style={{
+                            flex: 1,
+                            backgroundColor: isRecordingWebAudio ? '#DC2626' : isDark ? '#211B16' : '#FFFFFF',
+                            color: isRecordingWebAudio ? '#FFFFFF' : textPrimary,
+                            border: 'none',
+                            borderRadius: 999,
+                            padding: '9px 10px',
+                            cursor: 'pointer',
+                            fontSize: 12,
+                            fontWeight: 800,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 5,
+                          }}
+                        >
+                          <MIcon
+                            name={isRecordingWebAudio ? 'stop' : 'mic'}
+                            size={18}
+                            color={isRecordingWebAudio ? '#FFFFFF' : '#DF5018'}
+                          />
+                          {isRecordingWebAudio
+                            ? isVi
+                              ? 'Dừng thu'
+                              : 'Stop'
+                            : recordedAudioSec > 0
+                            ? `${recordedAudioSec}s ✓`
+                            : isVi
+                            ? 'Thu âm'
+                            : 'Record'}
+                        </button>
+
+                        <button
+                          onClick={() => handlePickWebPhoto(true)}
+                          style={{
+                            flex: 1,
+                            backgroundColor: isDark ? '#211B16' : '#FFFFFF',
+                            color: textPrimary,
+                            border: 'none',
+                            borderRadius: 999,
+                            padding: '9px 10px',
+                            cursor: 'pointer',
+                            fontSize: 12,
+                            fontWeight: 800,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 5,
+                          }}
+                        >
+                          <MIcon name="add_a_photo" size={18} color="#10B981" />
+                          {isVi ? 'Chụp ảnh' : 'Camera'}
+                        </button>
+
+                        <button
+                          onClick={() => handlePickWebPhoto(false)}
+                          style={{
+                            flex: 1,
+                            backgroundColor: isDark ? '#211B16' : '#FFFFFF',
+                            color: textPrimary,
+                            border: 'none',
+                            borderRadius: 999,
+                            padding: '9px 10px',
+                            cursor: 'pointer',
+                            fontSize: 12,
+                            fontWeight: 800,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 5,
+                          }}
+                        >
+                          <MIcon name="file_upload" size={18} color="#0284C7" />
+                          {isVi ? 'Tải ảnh' : 'Upload'}
+                        </button>
+                      </div>
+
+                      {uploadedPhotoUrl ? (
+                        <div
+                          style={{
+                            marginTop: 8,
+                            backgroundColor: isDark ? '#211B16' : '#FFFFFF',
+                            borderRadius: 16,
+                            padding: 8,
+                          }}
+                        >
+                          <img
+                            src={uploadedPhotoUrl}
+                            alt="Uploaded"
                             style={{
-                              flex: 1,
-                              backgroundColor: selectedDoodle === idx ? '#FFEDD5' : '#FFFFFF',
-                              border: selectedDoodle === idx ? '2px solid #EA580C' : '1.5px solid #E6DFD7',
-                              borderRadius: 16,
-                              padding: '8px 6px',
-                              cursor: 'pointer',
-                              fontSize: 11,
-                              fontWeight: 800,
-                              color: '#431407',
+                              width: '100%',
+                              height: 130,
+                              objectFit: 'cover',
+                              borderRadius: 12,
                             }}
-                          >
-                            <div style={{ fontSize: 20 }}>{d.emoji}</div>
-                            {isVi ? d.vi.split(':')[1] : d.en.split(':')[1]}
-                          </button>
-                        ))}
+                          />
+                          <div style={{ fontSize: 11, fontWeight: 800, marginTop: 4, color: '#15803D' }}>
+                            <MIcon name="check_circle" size={14} color="#15803D" /> {uploadedPhotoName}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {/* Doodle / Photo Picker with Material Icons */}
+                      <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+                        {CREATIVE_ATTACHMENTS.map((d, idx) => {
+                          const active = selectedDoodleIdx === idx;
+                          return (
+                            <button
+                              key={d.id}
+                              onClick={() => setSelectedDoodleIdx(idx)}
+                              style={{
+                                flex: 1,
+                                backgroundColor: active ? '#FFD3BD' : isDark ? '#211B16' : '#FFFFFF',
+                                border: active ? '2px solid #DF5018' : '2px solid transparent',
+                                borderRadius: active ? 22 : 14,
+                                padding: '8px 4px',
+                                cursor: 'pointer',
+                                fontSize: 11,
+                                fontWeight: 800,
+                                color: active ? '#351002' : textPrimary,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                gap: 4,
+                              }}
+                            >
+                              <MIcon name={doodleIcons[idx] || 'brush'} size={20} color={d.dominantColor} />
+                              <span>{isVi ? d.titleVi.split(':')[1] : d.titleEn.split(':')[1]}</span>
+                            </button>
+                          );
+                        })}
                       </div>
 
                       <button
-                        onClick={() => setAfternoonDone(true)}
+                        onClick={handleSendAfternoonToDb}
+                        disabled={submitting === 'AFTERNOON'}
                         style={{
                           width: '100%',
                           marginTop: 10,
-                          backgroundColor: '#EA580C',
-                          border: '2px solid #C2410C',
-                          borderBottomWidth: 5,
-                          borderRadius: 22,
-                          padding: '12px 16px',
+                          backgroundColor: '#DF5018',
+                          border: 'none',
+                          borderRadius: 24,
+                          padding: '13px 16px',
                           fontWeight: 900,
-                          fontSize: isElder ? 18 : 15,
+                          fontSize: isElder ? 17 : 14,
                           color: '#FFFFFF',
                           cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 8,
                         }}
                       >
-                        💌 {isVi ? 'Gửi Cảm xúc + Ghi âm 15s + Nét vẽ' : 'Send Mood + 15s Voice + Doodle'}
+                        <MIcon name="send" size={19} color="#FFFFFF" />
+                        {submitting === 'AFTERNOON'
+                          ? isVi
+                            ? 'Đang gửi lên Server DB...'
+                            : 'Saving to Server DB...'
+                          : isVi
+                          ? 'Gửi Cảm xúc & Nét vẽ lên Server'
+                          : 'Save Mood & Doodle to Server'}
                       </button>
                     </div>
 
-                    {/* Rhythm 3: Evening */}
+                    {/* Rhythm 3: Evening (Bottom Asymmetric Card) */}
                     <div
                       style={{
-                        backgroundColor: '#F8FAFF',
-                        border: '2px solid #A5B4FC',
-                        borderRadius: 28,
-                        padding: 16,
+                        backgroundColor: isDark ? '#1D1B38' : '#EDEFFF',
+                        borderRadius: '14px 14px 32px 32px',
+                        padding: 18,
+                        color: isDark ? '#E1E0FF' : '#151152',
                       }}
                     >
                       <span
                         style={{
-                          backgroundColor: '#E0E7FF',
-                          color: '#3730A3',
+                          backgroundColor: isDark ? '#322C7A' : '#DCE0FF',
                           fontSize: 11,
                           fontWeight: 900,
-                          padding: '3px 10px',
+                          padding: '4px 10px',
                           borderRadius: 999,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
                         }}
                       >
-                        🌙 {isVi ? 'TỐI (20:30 – 21:00)' : 'EVENING (20:30 – 21:00)'}
+                        <MIcon name="nights_stay" size={14} />
+                        20:30 – 21:00
                       </span>
-                      <div style={{ fontWeight: 900, fontSize: isElder ? 21 : 18, color: '#1E1B4B', marginTop: 6 }}>
-                        {isVi ? 'Nghe lời chúc ngủ ngon từ Mẹ Hoa' : "Hear Mother Hoa's Bedtime Note"}
+                      <div style={{ fontWeight: 900, fontSize: isElder ? 20 : 17, marginTop: 8 }}>
+                        {eveningMessageText
+                          ? `“${eveningMessageText}”`
+                          : isVi
+                          ? 'Hộp thư thoại buổi tối từ Bố Mẹ'
+                          : 'Bedtime Voice Mailbox from Parents'}
                       </div>
                       <button
                         onClick={() => setEveningDone(true)}
                         style={{
                           width: '100%',
                           marginTop: 10,
-                          backgroundColor: '#4338CA',
-                          border: '2px solid #312E81',
-                          borderBottomWidth: 5,
-                          borderRadius: 22,
+                          backgroundColor: '#4C43D6',
+                          border: 'none',
+                          borderRadius: 24,
                           padding: '12px 16px',
                           fontWeight: 900,
-                          fontSize: isElder ? 18 : 15,
+                          fontSize: isElder ? 17 : 14,
                           color: '#FFFFFF',
                           cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 8,
                         }}
                       >
+                        <MIcon name={eveningDone ? 'check_circle' : 'play_arrow'} size={20} color="#FFFFFF" />
                         {eveningDone
                           ? isVi
-                            ? '✓ Đã nghe lời dặn dò ấm áp'
-                            : '✓ Listened to bedtime message'
+                            ? 'Đã nghe lời chúc ngủ ngon'
+                            : 'Listened to bedtime note'
                           : isVi
-                          ? '🎧 Bấm nghe giọng mẹ (25s)'
-                          : "🎧 Play Mother's Voice (25s)"}
+                          ? 'Bấm nghe giọng mẹ'
+                          : "Play Mother's Voice"}
                       </button>
                     </div>
                   </div>
                 ) : (
-                  /* MIGRANT PARENT VIEW (1-3 MIN HUB) */
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  /* MIGRANT PARENT VIEW */
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     <div
                       style={{
-                        backgroundColor: '#FFF4ED',
-                        border: '2px solid #FDBA74',
-                        borderRadius: 26,
-                        padding: 16,
+                        backgroundColor: surfaceLow,
+                        borderRadius: '32px 32px 14px 14px',
+                        padding: 18,
                       }}
                     >
-                      <div style={{ fontSize: 11, fontWeight: 900, color: '#9A3412' }}>
-                        👩‍🏭 {isVi ? 'CHA MẸ ĐI LÀM XA • THAO TÁC 1–3 PHÚT' : 'MIGRANT PARENT • 1–3 MIN CHECK-IN'}
-                      </div>
-                      <div style={{ fontWeight: 900, fontSize: 20, color: '#431407', marginTop: 2 }}>
-                        {isVi ? 'AI Gợi ý thấu cảm (30 giây)' : '30-Second AI Empathy Assistant'}
-                      </div>
-                      <div style={{ fontSize: 13, color: '#7C2D12', fontWeight: 600, marginTop: 2 }}>
-                        {isVi
-                          ? 'Xóa bỏ cắn rứt lương tâm • Tránh hỏi điểm số khô khan'
-                          : 'Relieving parental guilt • Avoiding dry grade grilling'}
-                      </div>
-                    </div>
-
-                    {/* AI Analysis Card */}
-                    <div
-                      style={{
-                        backgroundColor: '#F2FCF5',
-                        border: '2px solid #86EFAC',
-                        borderRadius: 26,
-                        padding: 16,
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                          {(liveAiResult?.keywords || ['#VẽHoaSen', '#ĐượcCôKhen', '#CanhChuaBàNấu']).map((kw, i) => (
-                            <span
-                              key={i}
-                              style={{
-                                backgroundColor: '#DCFCE7',
-                                color: '#14532D',
-                                fontSize: 11,
-                                fontWeight: 800,
-                                padding: '3px 9px',
-                                borderRadius: 999,
-                              }}
-                            >
-                              {kw}
-                            </span>
-                          ))}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <MIcon name="auto_awesome" size={20} color="#9C4400" />
+                          <span style={{ fontWeight: 900, fontSize: 17 }}>
+                            {isVi ? 'AI Gợi ý thấu cảm (Từ Server)' : 'Server AI Empathy Assistant'}
+                          </span>
                         </div>
                         <button
-                          onClick={() => triggerLiveServerAi(selectedMood, selectedDoodle, lang)}
+                          onClick={() => triggerLiveServerAi(selectedMood, selectedDoodleIdx, lang)}
                           disabled={aiLoading}
                           style={{
-                            border: '1.5px solid #22C55E',
-                            backgroundColor: '#DCFCE7',
-                            color: '#15803D',
+                            border: 'none',
+                            backgroundColor: '#FFDCC6',
+                            color: '#331200',
                             borderRadius: 999,
-                            padding: '4px 10px',
+                            padding: '5px 12px',
                             fontSize: 11,
                             fontWeight: 800,
                             cursor: 'pointer',
                           }}
                         >
-                          {aiLoading ? '⏳ AI Server...' : '✨ AI Server'}
+                          {aiLoading ? 'Loading...' : isVi ? 'Phân tích lại' : 'Re-analyze'}
                         </button>
                       </div>
 
-                      <div style={{ backgroundColor: '#FFFFFF', borderRadius: 18, padding: 12, border: '1.5px solid #BBF7D0' }}>
-                        <div style={{ fontSize: 11, fontWeight: 900, color: '#15803D' }}>
-                          {isVi ? 'TÓM TẮT NHẬT KÝ 15S CỦA BÉ AN:' : "BE AN'S 15S DIARY SUMMARY:"}
-                        </div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: '#1E293B', marginTop: 4 }}>
-                          {liveAiResult?.summary || (isVi ? currentAi.summaryVi : currentAi.summaryEn)}
-                        </div>
-                      </div>
-
-                      {/* Computer Vision Non-Diagnostic Signal */}
                       <div
                         style={{
-                          backgroundColor: '#FFF7ED',
-                          borderRadius: 16,
-                          padding: 10,
-                          marginTop: 8,
-                          border: '1.5px solid #FED7AA',
-                          fontSize: 12,
+                          backgroundColor: surfaceHigh,
+                          borderRadius: 18,
+                          padding: 12,
+                          marginTop: 10,
+                          fontSize: 13,
                           fontWeight: 700,
-                          color: '#7C2D12',
                         }}
                       >
-                        {doodles[selectedDoodle].emoji}{' '}
-                        {liveAiResult?.cvInsight || (isVi ? doodles[selectedDoodle].cvVi : doodles[selectedDoodle].cvEn)}
+                        {liveAiResult?.summary ||
+                          (isVi
+                            ? `Tâm trạng của Bé An trong DB: ${selectedMood}. Bấm chọn 1 câu hỏi gợi ý bên dưới để gửi vào hộp thư thoại tối cho con:`
+                            : `Be An's mood in DB: ${selectedMood}. Pick a suggested prompt below to send to your child's bedtime mailbox:`)}
                       </div>
 
-                      <div style={{ fontSize: 13, fontWeight: 800, color: '#052E16', marginTop: 10, marginBottom: 6 }}>
-                        👇 {isVi ? 'Câu hỏi mở gợi ý cho bố mẹ (30s):' : 'Suggested Open Prompts (30s):'}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
+                        {(
+                          liveAiResult?.suggestedPrompts || [
+                            isVi
+                              ? 'Hôm nay ở trường có chuyện gì làm con cười nhiều nhất thế?'
+                              : 'What made you laugh the most at school today?',
+                            isVi
+                              ? 'Bà nấu món canh gì cho An ăn chiều thế? Cuối tuần bố mẹ về nhé!'
+                              : 'What did Grandma cook for dinner? Mom and Dad will visit this weekend!',
+                          ]
+                        ).map((p, idx) => {
+                          const active = selectedPrompt === p;
+                          return (
+                            <button
+                              key={idx}
+                              onClick={() => setSelectedPrompt(p)}
+                              style={{
+                                textAlign: 'left',
+                                backgroundColor: active ? '#FFDCC6' : surfaceHigh,
+                                color: active ? '#331200' : textPrimary,
+                                border: 'none',
+                                borderRadius: active ? 24 : 16,
+                                padding: '10px 14px',
+                                fontSize: 13,
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                              }}
+                            >
+                              <MIcon
+                                name={active ? 'check_circle' : 'chat_bubble_outline'}
+                                size={18}
+                                color={active ? '#9C4400' : textSecondary}
+                              />
+                              <span>“{p}”</span>
+                            </button>
+                          );
+                        })}
                       </div>
-
-                      {(liveAiResult?.suggestedPrompts || (isVi ? currentAi.promptsVi : currentAi.promptsEn)).map((p, idx) => (
-                        <div
-                          key={idx}
-                          style={{
-                            backgroundColor: '#FFFFFF',
-                            border: '2px solid #CBEAD6',
-                            borderRadius: 18,
-                            padding: '10px 12px',
-                            marginBottom: 6,
-                            fontSize: 13,
-                            fontWeight: 700,
-                            color: '#1E1510',
-                          }}
-                        >
-                          💬 “{p}”
-                        </div>
-                      ))}
                     </div>
 
-                    {/* Weekly Recap Box */}
                     <div
                       style={{
-                        backgroundColor: '#FFFBEB',
-                        border: '2px solid #FCD34D',
-                        borderRadius: 26,
-                        padding: 16,
+                        backgroundColor: isDark ? '#1D1B38' : '#EDEFFF',
+                        borderRadius: '14px 14px 32px 32px',
+                        padding: 18,
+                        color: isDark ? '#E1E0FF' : '#151152',
                       }}
                     >
-                      <div style={{ fontWeight: 900, fontSize: 16, color: '#451A03' }}>
-                        📰 {isVi ? 'Bản tin tổng kết tuần (Weekly Recap)' : 'Weekly Recap Newsletter'}
+                      <div style={{ fontWeight: 900, fontSize: 17 }}>
+                        {isVi ? 'Gửi Hộp thư thoại 30s về quê (Lưu vào DB)' : 'Send 30s Bedtime Voice Note to DB'}
                       </div>
-                      <div style={{ fontSize: 13, color: '#78350F', fontWeight: 700, marginTop: 6 }}>
-                        • {isVi ? 'Cột mốc: Tự giác dậy đúng giờ 6/7 buổi sáng & vẽ hoa sen tặng mẹ.' : 'Milestone: Woke up on time 6/7 mornings & drew a lotus for Mom.'}
-                      </div>
-                      <div style={{ fontSize: 13, color: '#78350F', fontWeight: 700, marginTop: 4 }}>
-                        • {isVi ? 'Chủ đề lặp lại (AI Cấp độ 2): Chuyện vẽ tranh ở lớp, mong cuối tuần bố mẹ về.' : 'Recurring topics (AI Level 2): Drawing class, waiting for weekend visit.'}
-                      </div>
+                      <button
+                        onClick={handleSendParentMessageToDb}
+                        disabled={submitting === 'EVENING_MSG'}
+                        style={{
+                          width: '100%',
+                          marginTop: 10,
+                          backgroundColor: '#4C43D6',
+                          border: 'none',
+                          borderRadius: 24,
+                          padding: '13px 16px',
+                          fontWeight: 900,
+                          fontSize: 14,
+                          color: '#FFFFFF',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 8,
+                        }}
+                      >
+                        <MIcon name="send" size={19} color="#FFFFFF" />
+                        {submitting === 'EVENING_MSG'
+                          ? isVi
+                            ? 'Đang lưu vào DB...'
+                            : 'Saving to DB...'
+                          : isVi
+                          ? 'Gửi lời nhắn tối vào Hộp thư Gia đình'
+                          : 'Send Bedtime Note to Family Mailbox'}
+                      </button>
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Bottom M3 Expressive Persona Switcher Dock */}
+              {/* Bottom M3 Expressive Persona Switcher Dock with Material Icons */}
               <div
                 style={{
-                  marginTop: 18,
-                  backgroundColor: '#FFFFFF',
+                  marginTop: 16,
+                  backgroundColor: surfaceHigh,
                   borderRadius: 999,
                   padding: 5,
-                  border: '2px solid #E5DEC9',
                   display: 'flex',
-                  gap: 4,
+                  gap: 6,
                 }}
               >
                 {[
-                  { id: 'CHILD' as Persona, emoji: '🧒', vi: 'Bé An', en: 'Child', bg: '#FEF3C7', border: '#F59E0B' },
-                  { id: 'GRANDPARENT' as Persona, emoji: '👵', vi: 'Bà Nội', en: 'Elder', bg: '#E0E7FF', border: '#4F46E5' },
-                  { id: 'PARENT' as Persona, emoji: '👩‍🏭', vi: 'Mẹ Hoa', en: 'Parent', bg: '#FFEDD5', border: '#EA580C' },
+                  { id: 'CHILD' as Persona, icon: 'child_care', vi: 'Bé An', en: 'Child' },
+                  { id: 'GRANDPARENT' as Persona, icon: 'elderly', vi: 'Bà Nội', en: 'Elder' },
+                  { id: 'PARENT' as Persona, icon: 'supervisor_account', vi: 'Mẹ Hoa', en: 'Parent' },
                 ].map((tab) => {
                   const active = persona === tab.id;
                   return (
@@ -921,22 +1380,27 @@ export default function HomePage() {
                       onClick={() => {
                         setPersona(tab.id);
                         if (tab.id === 'PARENT') {
-                          triggerLiveServerAi(selectedMood, selectedDoodle, lang);
+                          triggerLiveServerAi(selectedMood, selectedDoodleIdx, lang);
                         }
                       }}
                       style={{
                         flex: 1,
-                        border: active ? `1.5px solid ${tab.border}` : '1.5px solid transparent',
-                        backgroundColor: active ? tab.bg : 'transparent',
-                        borderRadius: 999,
-                        padding: '10px 6px',
+                        border: 'none',
+                        backgroundColor: active ? '#FFDCC6' : 'transparent',
+                        borderRadius: active ? 999 : 18,
+                        padding: '10px 8px',
                         cursor: 'pointer',
                         fontWeight: 800,
                         fontSize: 13,
-                        color: '#1E1510',
+                        color: active ? '#331200' : textPrimary,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
                       }}
                     >
-                      {tab.emoji} {isVi ? tab.vi : tab.en}
+                      <MIcon name={tab.icon} size={18} color={active ? '#9C4400' : textSecondary} />
+                      {isVi ? tab.vi : tab.en}
                     </button>
                   );
                 })}

@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { useRhythm } from '../context/RhythmContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -18,7 +19,6 @@ export const ChildHomeScreen: React.FC<ChildHomeScreenProps> = ({
   onNavigateToMorning,
   onNavigateToAfternoon,
   onNavigateToEvening,
-  onNavigateToSwitch,
 }) => {
   const { family, member } = useAuth();
   const { state } = useRhythm();
@@ -62,7 +62,11 @@ export const ChildHomeScreen: React.FC<ChildHomeScreenProps> = ({
             accessibilityRole="button"
             accessibilityLabel="Toggle theme"
           >
-            <AccessibleText variant="label">{isDark ? '🌙' : '☀️'}</AccessibleText>
+            <MaterialIcons
+              name={isDark ? 'dark-mode' : 'wb-sunny'}
+              size={20}
+              color={colors.primary}
+            />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -128,8 +132,14 @@ export const ChildHomeScreen: React.FC<ChildHomeScreenProps> = ({
               { backgroundColor: colors.morningContainer },
             ]}
           >
+            <MaterialIcons
+              name="cloud-upload"
+              size={15}
+              color={colors.onMorningContainer}
+              style={{ marginRight: 5 }}
+            />
             <AccessibleText variant="caption" color={colors.onMorningContainer} weight="800">
-              ⚡ {t('offlinePendingBadge')}: {state.pendingOfflineCount}
+              {t('offlinePendingBadge')}: {state.pendingOfflineCount}
             </AccessibleText>
           </View>
         )}
@@ -156,9 +166,12 @@ export const ChildHomeScreen: React.FC<ChildHomeScreenProps> = ({
               </AccessibleText>
             </View>
             {state.morningCompleted && (
-              <AccessibleText variant="label" color={colors.success} weight="800">
-                ✓ {state.morningTime || '06:45'}
-              </AccessibleText>
+              <View style={styles.statusRow}>
+                <MaterialIcons name="check-circle" size={16} color={colors.success} />
+                <AccessibleText variant="label" color={colors.success} weight="800" style={{ marginLeft: 4 }}>
+                  {state.morningTime || '06:45'}
+                </AccessibleText>
+              </View>
             )}
           </View>
 
@@ -181,7 +194,7 @@ export const ChildHomeScreen: React.FC<ChildHomeScreenProps> = ({
           <BigButton
             title={state.morningCompleted ? t('morningAlreadyDone') : t('morningButtonPrompt')}
             subtitle={t('morningQuote')}
-            icon={state.morningCompleted ? '🔔' : '☀️'}
+            icon={state.morningCompleted ? 'notifications-active' : 'wb-sunny'}
             variant={state.morningCompleted ? 'success' : 'morning'}
             size="hero"
             onPress={onNavigateToMorning}
@@ -207,9 +220,12 @@ export const ChildHomeScreen: React.FC<ChildHomeScreenProps> = ({
               </AccessibleText>
             </View>
             {state.afternoonCompleted && (
-              <AccessibleText variant="label" color={colors.success} weight="800">
-                ✓ {state.afternoonTime}
-              </AccessibleText>
+              <View style={styles.statusRow}>
+                <MaterialIcons name="check-circle" size={16} color={colors.success} />
+                <AccessibleText variant="label" color={colors.success} weight="800" style={{ marginLeft: 4 }}>
+                  {state.afternoonTime}
+                </AccessibleText>
+              </View>
             )}
           </View>
 
@@ -242,7 +258,7 @@ export const ChildHomeScreen: React.FC<ChildHomeScreenProps> = ({
                 ? 'Chọn cảm xúc, ghi âm 15s & đính kèm nét vẽ'
                 : 'Pick emotion, 15s voice & attach doodle'
             }
-            icon="🎨"
+            icon="palette"
             variant="afternoon"
             size="hero"
             onPress={onNavigateToAfternoon}
@@ -268,9 +284,12 @@ export const ChildHomeScreen: React.FC<ChildHomeScreenProps> = ({
               </AccessibleText>
             </View>
             {state.eveningListened && (
-              <AccessibleText variant="label" color={colors.success} weight="800">
-                {t('eveningListenedBadge')}
-              </AccessibleText>
+              <View style={styles.statusRow}>
+                <MaterialIcons name="check-circle" size={16} color={colors.success} />
+                <AccessibleText variant="label" color={colors.success} weight="800" style={{ marginLeft: 4 }}>
+                  {t('eveningListenedBadge')}
+                </AccessibleText>
+              </View>
             )}
           </View>
 
@@ -301,7 +320,7 @@ export const ChildHomeScreen: React.FC<ChildHomeScreenProps> = ({
                 ? 'Mở hộp thư thoại buổi tối'
                 : 'Open evening voice mailbox'
             }
-            icon="🌙"
+            icon="nights-stay"
             variant="evening"
             size="hero"
             onPress={onNavigateToEvening}
@@ -369,6 +388,8 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   offlineChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
     alignSelf: 'flex-start',
     paddingHorizontal: 12,
     paddingVertical: 5,
@@ -376,7 +397,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   groupedStack: {
-    gap: 6, // M3 Expressive tight gap between stacked asymmetric containers
+    gap: 6,
   },
   stackCardTop: {
     borderTopLeftRadius: 36,
@@ -399,6 +420,10 @@ const styles = StyleSheet.create({
   cardMetaRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  statusRow: {
+    flexDirection: 'row',
     alignItems: 'center',
   },
   timePill: {

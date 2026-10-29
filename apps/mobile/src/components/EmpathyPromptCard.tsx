@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { THEME } from '../constants/theme';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
@@ -49,6 +50,14 @@ export const EmpathyPromptCard: React.FC<EmpathyPromptCardProps> = ({
             },
           ]}
         >
+          {isSelected && (
+            <MaterialIcons
+              name="check"
+              size={14}
+              color={colors.onSecondary}
+              style={{ marginRight: 4 }}
+            />
+          )}
           <Text
             style={[
               styles.badgeText,
@@ -59,7 +68,6 @@ export const EmpathyPromptCard: React.FC<EmpathyPromptCardProps> = ({
               },
             ]}
           >
-            {isSelected ? '✓ ' : ''}
             {isVi ? `Gợi ý ${index + 1}` : `Prompt ${index + 1}`}
           </Text>
         </View>
@@ -92,6 +100,8 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 10,
     paddingVertical: 3,
     borderRadius: 999,
