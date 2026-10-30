@@ -45,59 +45,59 @@ export const BigButton: React.FC<BigButtonProps> = ({
     switch (variant) {
       case 'primary':
         return {
-          bg: colors.primary,
-          text: isDark ? '#3A0E00' : colors.onPrimary,
-          border: isDark ? '1px solid rgba(255, 181, 156, 0.4)' : 'none',
-          shadow: isDark ? '0 4px 16px rgba(0, 0, 0, 0.45)' : '0 4px 14px rgba(184, 67, 24, 0.28)',
+          bg: isDark ? '#DF5018' : colors.primary,
+          text: '#FFFFFF',
+          border: isDark ? '1px solid rgba(255, 181, 156, 0.35)' : 'none',
+          shadow: isDark ? '0 4px 16px rgba(0, 0, 0, 0.5)' : '0 4px 14px rgba(184, 67, 24, 0.28)',
         };
       case 'secondary':
         return {
-          bg: colors.secondary,
-          text: isDark ? '#032B14' : colors.onSecondary,
-          border: isDark ? '1px solid rgba(156, 212, 175, 0.4)' : 'none',
-          shadow: isDark ? '0 4px 16px rgba(0, 0, 0, 0.45)' : '0 4px 14px rgba(38, 108, 68, 0.28)',
+          bg: isDark ? '#1E6B39' : colors.secondary,
+          text: '#FFFFFF',
+          border: isDark ? '1px solid rgba(156, 212, 175, 0.35)' : 'none',
+          shadow: isDark ? '0 4px 16px rgba(0, 0, 0, 0.5)' : '0 4px 14px rgba(38, 108, 68, 0.28)',
         };
       case 'morning':
         return {
           bg: isDark ? '#E59400' : '#F59E0B',
           text: '#241000',
-          border: isDark ? '1px solid rgba(255, 213, 128, 0.5)' : 'none',
-          shadow: isDark ? '0 4px 16px rgba(0, 0, 0, 0.45)' : '0 4px 16px rgba(140, 79, 0, 0.24)',
+          border: isDark ? '1px solid rgba(255, 213, 128, 0.4)' : 'none',
+          shadow: isDark ? '0 4px 16px rgba(0, 0, 0, 0.5)' : '0 4px 16px rgba(140, 79, 0, 0.24)',
         };
       case 'afternoon':
         return {
-          bg: isDark ? '#DF5018' : colors.afternoonPrimary,
+          bg: isDark ? '#C8430E' : colors.afternoonPrimary,
           text: '#FFFFFF',
-          border: isDark ? '1px solid rgba(255, 181, 155, 0.4)' : 'none',
-          shadow: isDark ? '0 4px 16px rgba(0, 0, 0, 0.45)' : '0 4px 16px rgba(158, 51, 6, 0.28)',
+          border: isDark ? '1px solid rgba(255, 181, 155, 0.35)' : 'none',
+          shadow: isDark ? '0 4px 16px rgba(0, 0, 0, 0.5)' : '0 4px 16px rgba(158, 51, 6, 0.28)',
         };
       case 'evening':
         return {
           bg: isDark ? '#544BE0' : colors.eveningPrimary,
           text: '#FFFFFF',
-          border: isDark ? '1px solid rgba(193, 193, 255, 0.4)' : 'none',
-          shadow: isDark ? '0 4px 16px rgba(0, 0, 0, 0.45)' : '0 4px 16px rgba(61, 50, 184, 0.28)',
+          border: isDark ? '1px solid rgba(193, 193, 255, 0.35)' : 'none',
+          shadow: isDark ? '0 4px 16px rgba(0, 0, 0, 0.5)' : '0 4px 16px rgba(61, 50, 184, 0.28)',
         };
       case 'tonal':
         return {
-          bg: isDark ? colors.surfaceContainerHighest : colors.surfaceContainerHigh,
-          text: colors.textDark,
-          border: `1px solid ${colors.outlineVariant}`,
+          bg: isDark ? '#2C221C' : colors.surfaceContainerHigh,
+          text: isDark ? '#F4E5DC' : colors.textDark,
+          border: isDark ? '1px solid #483931' : `1px solid ${colors.outlineVariant}`,
           shadow: 'none',
         };
       case 'danger':
         return {
           bg: isDark ? '#DC2626' : colors.error,
           text: '#FFFFFF',
-          border: isDark ? '1px solid rgba(239, 68, 68, 0.5)' : 'none',
-          shadow: isDark ? '0 4px 16px rgba(0, 0, 0, 0.45)' : '0 4px 14px rgba(186, 26, 26, 0.28)',
+          border: isDark ? '1px solid rgba(239, 68, 68, 0.4)' : 'none',
+          shadow: isDark ? '0 4px 16px rgba(0, 0, 0, 0.5)' : '0 4px 14px rgba(186, 26, 26, 0.28)',
         };
       case 'outline':
       default:
         return {
           bg: 'transparent',
           text: colors.textDark,
-          border: `2px solid ${isDark ? colors.outline : colors.borderBold}`,
+          border: isDark ? '2px solid #5E4C41' : '2px solid #A8958A',
           shadow: 'none',
         };
     }
