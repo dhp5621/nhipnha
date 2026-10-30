@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { EmpathyAssistantResponse, MoodType } from '@nhipnha/shared';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 const DEFAULT_AI_BASE_URL = 'https://chat-api.chuyenbienhoa.com';
 const DEFAULT_AI_MODEL = 'gemini-3.8-flash';
@@ -181,9 +182,9 @@ Nguyên tắc AI lấy con người làm trung tâm (Cấp độ 1 & 2):
 Hãy phân tích và trả về JSON đúng cấu trúc.`;
 
   try {
-    // 9-second timeout to prevent serverless function hangs
+    // 45-second timeout allowing CYO gemini-web2api ample time to complete generation
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 9000);
+    const timer = setTimeout(() => controller.abort(), 45000);
 
     const aiResponse = await fetch(`${baseUrl}/v1/chat/completions`, {
       method: 'POST',
