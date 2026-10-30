@@ -122,10 +122,20 @@ async function generateEmpathyData(params: GenerateParams) {
     attachmentTitle
   );
 
-  // Read API key & endpoint from environment variables (never hardcoded in source)
-  const apiKey = process.env.AI_API_KEY || process.env.GEMINI_API_KEY;
-  const baseUrl = (process.env.AI_BASE_URL || DEFAULT_AI_BASE_URL).replace(/\/+$/, '');
-  const model = process.env.AI_MODEL || DEFAULT_AI_MODEL;
+  // Dedicated API key & endpoint for Text & Empathy generation
+  const apiKey =
+    process.env.AI_API_KEY ||
+    process.env.TEXT_AI_API_KEY ||
+    'sk-ilovecyo';
+  const baseUrl = (
+    process.env.AI_BASE_URL ||
+    process.env.TEXT_AI_BASE_URL ||
+    DEFAULT_AI_BASE_URL
+  ).replace(/\/+$/, '');
+  const model =
+    process.env.AI_MODEL ||
+    process.env.TEXT_AI_MODEL ||
+    DEFAULT_AI_MODEL;
 
   if (!apiKey) {
     return {
