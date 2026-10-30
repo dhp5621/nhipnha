@@ -1,4 +1,3 @@
-import type { Role } from '@nhipnha/shared';
 'use client';
 
 import React, { useState } from 'react';
@@ -30,25 +29,12 @@ type ScreenName =
   | 'OWNER_CONSOLE';
 
 function NavigationRoot() {
-  const { isPaired, isLoading, member, family, switchRole } = useAuth();
-  const [switchingDemoRole, setSwitchingDemoRole] = useState<{ role: Role; name: string } | null>(null);
+  const { isPaired, isLoading, member, family } = useAuth();
   const { activeLanguage } = useLanguage();
   const { colors, isDark, toggleTheme, textScale } = useTheme();
   const [currentScreen, setCurrentScreen] = useState<ScreenName | null>(null);
   const [showFamilyCode, setShowFamilyCode] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
-
-  const handleDemoQuickSwitch = async (targetRole: Role, targetName: string) => {
-    if (member?.role === targetRole || switchingDemoRole !== null) return;
-    setSwitchingDemoRole({ role: targetRole, name: targetName });
-    try {
-      await new Promise((r) => setTimeout(r, 420));
-      await switchRole(targetRole, targetName);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } finally {
-      setSwitchingDemoRole(null);
-    }
-  };
 
   const navigateTo = (target: ScreenName | null) => {
     if (target === currentScreen) return;
@@ -395,57 +381,6 @@ function NavigationRoot() {
           </button>
         </div>
       </nav>
-
-      {/* Demo Quick Role Switching Loading Overlay */}
-      {switchingDemoRole && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: isDark ? 'rgba(21, 16, 12, 0.82)' : 'rgba(252, 246, 238, 0.86)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-            zIndex: 99999,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 16,
-            animation: 'm3ScreenFadeIn 0.22s ease-out forwards',
-          }}
-        >
-          <div
-            style={{
-              padding: 24,
-              borderRadius: 32,
-              backgroundColor: colors.surfaceContainer,
-              border: `1.5px solid ${colors.outlineVariant}`,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 16,
-              boxShadow: isDark
-                ? '0 16px 48px rgba(0, 0, 0, 0.55)'
-                : '0 16px 40px rgba(0, 0, 0, 0.12)',
-              maxWidth: 320,
-              width: '90%',
-              textAlign: 'center',
-            }}
-          >
-            <GoogleLoadingIndicator size={52} strokeWidth={4} multiColor={true} />
-            <div>
-              <div style={{ fontSize: 16, fontWeight: 900, color: colors.textDark, marginBottom: 4 }}>
-                {isVi
-                  ? `Äang chuyá»ƒn sang gÃ³c nhÃ¬n ${switchingDemoRole.name}...`
-                  : `Switching to ${switchingDemoRole.name}...`}
-              </div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: colors.textSecondary }}>
-                {isVi ? 'TÃ¹y biáº¿n giao diá»‡n vÃ  nhá»‹p káº¿t ná»‘i phÃ¹ há»£p' : 'Adapting UI & daily connection rhythms'}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Global Responsive, Google Sans Flex & Material 3 CSS */}
       <style jsx global>{`

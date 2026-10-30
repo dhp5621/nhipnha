@@ -569,65 +569,6 @@ export const RoleSwitchScreen: React.FC<RoleSwitchScreenProps> = ({
       >
         {isVi ? 'Ngắt Kết Nối Thiết Bị & Đăng Xuất' : 'Disconnect Device & Log Out'}
       </BigButton>
-
-      {/* Animated Role Switching Loading Overlay */}
-      {switchingRoleId && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: isDark ? 'rgba(21, 16, 12, 0.82)' : 'rgba(252, 246, 238, 0.86)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-            zIndex: 99999,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 16,
-            animation: 'm3ScreenFadeIn 0.22s ease-out forwards',
-          }}
-        >
-          <div
-            style={{
-              padding: 24,
-              borderRadius: 32,
-              backgroundColor: colors.surfaceContainer,
-              border: `1.5px solid ${colors.outlineVariant}`,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 16,
-              boxShadow: isDark
-                ? '0 16px 48px rgba(0, 0, 0, 0.55)'
-                : '0 16px 40px rgba(0, 0, 0, 0.12)',
-              maxWidth: 320,
-              width: '90%',
-              textAlign: 'center',
-            }}
-          >
-            <GoogleLoadingIndicator size={52} strokeWidth={4} multiColor={true} />
-            <div>
-              <div style={{ fontSize: 16, fontWeight: 900, color: colors.textDark, marginBottom: 4 }}>
-                {isVi
-                  ? `Đang chuyển sang góc nhìn ${
-                      switchingRoleId === 'CHILD'
-                        ? 'Trẻ em (Bé An)'
-                        : switchingRoleId === 'PARENT'
-                        ? 'Phụ huynh (Mẹ Hoa)'
-                        : 'Ông bà (Bà Nội)'
-                    }...`
-                  : `Switching to ${switchingRoleId} perspective...`}
-              </div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: colors.textSecondary }}>
-                {isVi
-                  ? 'Tùy biến giao diện và nhịp kết nối phù hợp'
-                  : 'Adapting UI & daily connection rhythms'}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

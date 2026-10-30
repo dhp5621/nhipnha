@@ -54,22 +54,6 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/icon?family=Material+Icons"
           rel="stylesheet"
         />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                try {
-                  var theme = localStorage.getItem("nhipnha_theme_mode") || "system";
-                  var isDark = theme === "dark" || (theme === "system" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
-                  var root = document.documentElement;
-                  root.setAttribute("data-theme", isDark ? "dark" : "light");
-                  root.style.colorScheme = isDark ? "dark" : "light";
-                  root.style.backgroundColor = isDark ? "#15100C" : "#FCF6EE";
-                } catch (e) {}
-              })();
-            `,
-          }}
-        />
         <style dangerouslySetInnerHTML={{ __html: `
           /* Google Sans Vietnamese */
           @font-face {
@@ -255,11 +239,10 @@ export default function RootLayout({
             --text-color: #F4E5DC;
             color-scheme: dark;
           }
-          html, body {
+          body {
             margin: 0;
             padding: 0;
-            min-height: 100%;
-            background-color: var(--bg-color) !important;
+            background-color: var(--bg-color);
             color: var(--text-color);
             font-family: 'Google Sans', 'Google Sans Text', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             -webkit-font-smoothing: antialiased;
