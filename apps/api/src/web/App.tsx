@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import type { Role } from '@nhipnha/shared';
 import { LanguageProvider, useLanguage } from './context/LanguageContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
@@ -29,12 +30,25 @@ type ScreenName =
   | 'OWNER_CONSOLE';
 
 function NavigationRoot() {
-  const { isPaired, isLoading, member, family } = useAuth();
+  const { isPaired, isLoading, member, family, switchRole } = useAuth();
   const { activeLanguage } = useLanguage();
   const { colors, isDark, toggleTheme, textScale } = useTheme();
   const [currentScreen, setCurrentScreen] = useState<ScreenName | null>(null);
   const [showFamilyCode, setShowFamilyCode] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
+  const [switchingDemoRole, setSwitchingDemoRole] = useState<{ role: Role; name: string } | null>(null);
+
+  const handleDemoQuickSwitch = async (targetRole: Role, targetName: string) => {
+    if (member?.role === targetRole || switchingDemoRole !== null) return;
+    setSwitchingDemoRole({ role: targetRole, name: targetName });
+    try {
+      await new Promise((r) => setTimeout(r, 400));
+      await switchRole(targetRole, targetName);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } finally {
+      setSwitchingDemoRole(null);
+    }
+  };
 
   const navigateTo = (target: ScreenName | null) => {
     if (target === currentScreen) return;
@@ -294,7 +308,113 @@ function NavigationRoot() {
         </aside>
 
         {/* Main Content Area */}
-        <main className="app-main-content">
+        <main
+          className="app-main-content"
+          style={{
+            backgroundColor: colors.background,
+            transition: 'background-color 0.2s cubic-bezier(0.2, 0, 0, 1)',
+          }}
+        >
+          {/* Interactive Demo Perspective Switcher Bar (Judge & Presentation Ready) */}
+          {family?.code === 'DEMO-FAMILY-2026' && (
+            <div
+              style={{
+                width: '100%',
+                maxWidth: 780,
+                margin: '12px auto 0',
+                padding: '0 16px',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 8,
+                  padding: '10px 16px',
+                  borderRadius: 20,
+                  backgroundColor: isDark ? 'rgba(42, 27, 8, 0.45)' : '#FFF6EA',
+                  border: `1.5px solid ${isDark ? '#B06A00' : '#FFDEA8'}`,
+                  backdropFilter: 'blur(10px)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <MIcon name="badge" size={18} color="#E59400" />
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 900,
+                      letterSpacing: 0.5,
+                      textTransform: 'uppercase',
+                      color: isDark ? '#FFDF9E' : '#8C4F00',
+                    }}
+                  >
+                    {isVi ? 'Chế độ Demo (3 Góc Nhìn):' : 'Demo Mode (3 Personas):'}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {[
+                    { role: 'CHILD' as Role, name: 'Bé An', icon: 'child_care', color: '#F59E0B' },
+                    { role: 'PARENT' as Role, name: 'Mẹ Hoa', icon: 'supervisor_account', color: '#DF5018' },
+                    { role: 'GRANDPARENT' as Role, name: 'Bà Nội', icon: 'elderly', color: '#4C43D6' },
+                  ].map((p) => {
+                    const isActive = member?.role === p.role;
+                    return (
+                      <button
+                        key={p.role}
+                        type="button"
+                        disabled={switchingDemoRole !== null}
+                        onClick={() => handleDemoQuickSwitch(p.role, p.name)}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: 999,
+                          border: isActive ? `2px solid ${p.color}` : `1px solid ${colors.outlineVariant}`,
+                          backgroundColor: isActive
+                            ? isDark
+                              ? 'rgba(255, 255, 255, 0.16)'
+                              : '#FFFFFF'
+                            : colors.surfaceContainer,
+                          cursor: isActive ? 'default' : 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          fontWeight: 800,
+                          fontSize: 12,
+                          boxShadow: isActive ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
+                          transform: isActive ? 'scale(1.03)' : 'scale(1)',
+                          transition: 'all 0.2s cubic-bezier(0.2, 0, 0, 1)',
+                        }}
+                      >
+                        {switchingDemoRole?.role === p.role ? (
+                          <GoogleLoadingIndicator size={14} strokeWidth={2.5} multiColor={true} />
+                        ) : (
+                          <MIcon name={p.icon} size={16} color={p.color} />
+                        )}
+                        <span style={{ color: isActive ? colors.textDark : colors.textSecondary }}>{p.name}</span>
+                        {isActive && (
+                          <span
+                            style={{
+                              fontSize: 9,
+                              padding: '1px 6px',
+                              borderRadius: 999,
+                              backgroundColor: p.color,
+                              color: '#FFFFFF',
+                              fontWeight: 900,
+                            }}
+                          >
+                            {isVi ? 'Đang xem' : 'Active'}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
           {renderMainContent()}
         </main>
       </div>
@@ -381,6 +501,57 @@ function NavigationRoot() {
           </button>
         </div>
       </nav>
+
+      {/* Demo Quick Role Switching Loading Overlay */}
+      {switchingDemoRole && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: isDark ? 'rgba(21, 16, 12, 0.82)' : 'rgba(252, 246, 238, 0.86)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            zIndex: 99999,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 16,
+            animation: 'm3ScreenFadeIn 0.22s ease-out forwards',
+          }}
+        >
+          <div
+            style={{
+              padding: 24,
+              borderRadius: 32,
+              backgroundColor: colors.surfaceContainer,
+              border: `1.5px solid ${colors.outlineVariant}`,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 16,
+              boxShadow: isDark
+                ? '0 16px 48px rgba(0, 0, 0, 0.55)'
+                : '0 16px 40px rgba(0, 0, 0, 0.12)',
+              maxWidth: 320,
+              width: '90%',
+              textAlign: 'center',
+            }}
+          >
+            <GoogleLoadingIndicator size={52} strokeWidth={4} multiColor={true} />
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 900, color: colors.textDark, marginBottom: 4 }}>
+                {isVi
+                  ? `Đang chuyển sang góc nhìn ${switchingDemoRole.name}...`
+                  : `Switching to ${switchingDemoRole.name}...`}
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: colors.textSecondary }}>
+                {isVi ? 'Tùy biến giao diện và nhịp kết nối phù hợp' : 'Adapting UI & daily connection rhythms'}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Global Responsive, Google Sans Flex & Material 3 CSS */}
       <style jsx global>{`

@@ -27,6 +27,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
   const [aiData, setAiData] = useState<EmpathyAssistantResponse | null>(null);
   const [selectedPrompt, setSelectedPrompt] = useState<string>('');
   const [messageNote, setMessageNote] = useState<string>('');
+  const [dashboardTab, setDashboardTab] = useState<'TODAY' | 'WEEKLY_RECAP'>('TODAY');
 
   const [isRecording30s, setIsRecording30s] = useState(false);
   const [durationLeft, setDurationLeft] = useState(30);
@@ -232,6 +233,9 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
         display: 'flex',
         flexDirection: 'column',
         gap: 20,
+        backgroundColor: colors.background,
+        color: colors.textDark,
+        transition: 'background-color 0.2s cubic-bezier(0.2, 0, 0, 1), color 0.2s cubic-bezier(0.2, 0, 0, 1)',
       }}
     >
       {/* Top Header */}
@@ -336,15 +340,363 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
         </div>
       </div>
 
-      {/* Responsive Two-Column Layout (PC side-by-side, Mobile stacked) */}
+      {/* Top Segmented Tab Switcher: Today Rhythms vs Weekly Recap */}
       <div
         style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
-          gap: 24,
-          alignItems: 'start',
+          display: 'flex',
+          gap: 8,
+          backgroundColor: colors.surfaceContainerLow,
+          padding: 6,
+          borderRadius: 999,
+          border: `1.5px solid ${colors.outlineVariant}`,
+          width: 'fit-content',
         }}
       >
+        <button
+          type="button"
+          onClick={() => setDashboardTab('TODAY')}
+          style={{
+            padding: '8px 18px',
+            borderRadius: 999,
+            border: 'none',
+            backgroundColor: dashboardTab === 'TODAY' ? colors.primary : 'transparent',
+            color: dashboardTab === 'TODAY' ? colors.onPrimary : colors.textSecondary,
+            fontWeight: 800,
+            fontSize: 13,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            transition: 'all 0.18s ease',
+          }}
+        >
+          <MIcon name="calendar_today" size={16} />
+          <span>{isVi ? 'Nhịp Hôm Nay' : 'Today Rhythms'}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setDashboardTab('WEEKLY_RECAP')}
+          style={{
+            padding: '8px 18px',
+            borderRadius: 999,
+            border: 'none',
+            backgroundColor: dashboardTab === 'WEEKLY_RECAP' ? colors.primary : 'transparent',
+            color: dashboardTab === 'WEEKLY_RECAP' ? colors.onPrimary : colors.textSecondary,
+            fontWeight: 800,
+            fontSize: 13,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            transition: 'all 0.18s ease',
+          }}
+        >
+          <MIcon name="auto_stories" size={16} />
+          <span>{isVi ? 'Bản Tin Tổng Kết Tuần' : 'Weekly Recap'}</span>
+          <span
+            style={{
+              fontSize: 10,
+              padding: '1px 6px',
+              borderRadius: 999,
+              backgroundColor: dashboardTab === 'WEEKLY_RECAP' ? 'rgba(255,255,255,0.25)' : colors.primaryContainer,
+              color: dashboardTab === 'WEEKLY_RECAP' ? '#FFFFFF' : colors.onPrimaryContainer,
+              fontWeight: 900,
+            }}
+          >
+            {isVi ? '7 Ngày' : '7 Days'}
+          </span>
+        </button>
+      </div>
+
+      {dashboardTab === 'WEEKLY_RECAP' ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Hero Recap Header Card */}
+          <div
+            style={{
+              background: isDark
+                ? 'linear-gradient(135deg, #2E1508 0%, #1A0D04 100%)'
+                : 'linear-gradient(135deg, #FFE8D6 0%, #FFD3B6 100%)',
+              borderRadius: 32,
+              padding: '24px 22px',
+              border: `1.5px solid ${colors.outlineVariant}`,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span
+                  style={{
+                    backgroundColor: '#B84318',
+                    color: '#FFFFFF',
+                    fontSize: 11,
+                    fontWeight: 900,
+                    padding: '4px 12px',
+                    borderRadius: 999,
+                    letterSpacing: 0.5,
+                  }}
+                >
+                  {isVi ? 'BẢN TIN TỔNG KẾT TUẦN' : 'WEEKLY RECAP'}
+                </span>
+                <span
+                  style={{
+                    backgroundColor: isDark ? 'rgba(34, 197, 94, 0.22)' : '#DCFCE7',
+                    color: isDark ? '#86EFAC' : '#15803D',
+                    fontSize: 12,
+                    fontWeight: 900,
+                    padding: '4px 10px',
+                    borderRadius: 999,
+                  }}
+                >
+                  🔥 {isVi ? 'Chuỗi 7 ngày gắn kết' : '7-Day Streak'}
+                </span>
+              </div>
+
+              <span style={{ fontSize: 12, color: colors.textSecondary, fontWeight: 700 }}>
+                {isVi ? 'Tổng hợp 7 ngày vừa qua' : 'Last 7 days summary'}
+              </span>
+            </div>
+
+            <AccessibleText variant="h1" weight="900" color={isDark ? '#FFDBCF' : '#3B0900'}>
+              {isVi ? 'Bản Tin Đồng Hành Tuần Này Của Bé An' : "An's Weekly Bonding Recap"}
+            </AccessibleText>
+
+            <AccessibleText variant="bodyLarge" color={isDark ? '#F4CBB8' : '#6A2A10'} weight="600">
+              {isVi
+                ? 'Tổng hợp toàn bộ nhịp chuyện, cảm xúc và các nét vẽ của con trong tuần để bố mẹ đi làm xa không bao giờ bỏ lỡ quá trình khôn lớn của con.'
+                : 'A warm summary of your child’s emotions, doodles, and daily stories so you never miss a step.'}
+            </AccessibleText>
+          </div>
+
+          {/* 7-Day Emotion Analytics Card */}
+          <div
+            style={{
+              backgroundColor: colors.surfaceContainerLow,
+              borderRadius: 30,
+              padding: 22,
+              border: `1.5px solid ${colors.outlineVariant}`,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <MIcon name="insights" size={22} color={colors.primary} />
+              <AccessibleText variant="h2" weight="900" color={colors.textDark}>
+                {isVi ? 'Xu Hướng Cảm Xúc 7 Ngày Qua (Phân Tích Dữ Liệu)' : '7-Day Emotion Trend Analytics'}
+              </AccessibleText>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+              <div
+                style={{
+                  padding: 16,
+                  borderRadius: 20,
+                  backgroundColor: isDark ? 'rgba(245, 158, 11, 0.15)' : '#FEF3C7',
+                  border: '1px solid #F59E0B',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ fontWeight: 800, fontSize: 13, color: '#92400E' }}>😊 {isVi ? 'Vui vẻ' : 'Joyful'}</span>
+                  <span style={{ fontWeight: 900, fontSize: 13, color: '#92400E' }}>4 ngày (57%)</span>
+                </div>
+                <div style={{ height: 8, borderRadius: 999, backgroundColor: 'rgba(245, 158, 11, 0.3)', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: '57%', backgroundColor: '#F59E0B', borderRadius: 999 }} />
+                </div>
+              </div>
+
+              <div
+                style={{
+                  padding: 16,
+                  borderRadius: 20,
+                  backgroundColor: isDark ? 'rgba(2, 132, 199, 0.15)' : '#E0F2FE',
+                  border: '1px solid #0284C7',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ fontWeight: 800, fontSize: 13, color: '#075985' }}>☁️ {isVi ? 'Bình yên' : 'Calm'}</span>
+                  <span style={{ fontWeight: 900, fontSize: 13, color: '#075985' }}>2 ngày (29%)</span>
+                </div>
+                <div style={{ height: 8, borderRadius: 999, backgroundColor: 'rgba(2, 132, 199, 0.3)', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: '29%', backgroundColor: '#0284C7', borderRadius: 999 }} />
+                </div>
+              </div>
+
+              <div
+                style={{
+                  padding: 16,
+                  borderRadius: 20,
+                  backgroundColor: isDark ? 'rgba(107, 114, 128, 0.15)' : '#F3F4F6',
+                  border: '1px solid #6B7280',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ fontWeight: 800, fontSize: 13, color: '#374151' }}>😴 {isVi ? 'Hơi mệt' : 'Tired'}</span>
+                  <span style={{ fontWeight: 900, fontSize: 13, color: '#374151' }}>1 ngày (14%)</span>
+                </div>
+                <div style={{ height: 8, borderRadius: 999, backgroundColor: 'rgba(107, 114, 128, 0.3)', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: '14%', backgroundColor: '#6B7280', borderRadius: 999 }} />
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                padding: '12px 16px',
+                borderRadius: 18,
+                backgroundColor: colors.surfaceContainer,
+                fontSize: 13,
+                color: colors.textSecondary,
+                lineHeight: '20px',
+              }}
+            >
+              <strong>💡 {isVi ? 'Tín hiệu AI tổng quan:' : 'AI Overview:'}</strong>{' '}
+              {isVi
+                ? 'Nhịp cảm xúc của con trong tuần diễn ra rất tích cực. Con duy trì sự vui vẻ và êm đềm ở quê cùng bà. Ngày thứ Tư con hơi mệt sau giờ học thể dục nhưng đã lấy lại năng lượng nhờ nghe tin nhắn thoại vỗ về của mẹ.'
+                : 'Overall positive emotional rhythm. Mostly calm and joyful. One tired afternoon on Wednesday was resolved after listening to Mom’s reassuring voice note.'}
+            </div>
+          </div>
+
+          {/* AI Narrative Summary Card (NLP Cấp độ 2) */}
+          <div
+            style={{
+              backgroundColor: colors.surfaceContainerLow,
+              borderRadius: 30,
+              padding: 22,
+              border: `1.5px solid ${colors.outlineVariant}`,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 14,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <MIcon name="psychology" size={22} color={colors.primary} />
+              <AccessibleText variant="h2" weight="900" color={colors.textDark}>
+                {isVi ? 'Mạch Chuyện Trong Tuần (AI Tổng Hợp Cấp Độ 2)' : 'Weekly Narrative Summary (NLP Level 2)'}
+              </AccessibleText>
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12,
+                fontSize: 14,
+                lineHeight: '22px',
+                color: colors.textDark,
+              }}
+            >
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <span style={{ fontSize: 16 }}>🎨</span>
+                <div>
+                  <strong>{isVi ? 'Đam mê vẽ tranh:' : 'Passion for drawing:'}</strong>{' '}
+                  {isVi
+                    ? 'Con thường xuyên nhắc đến môn Mỹ thuật và đã vẽ tặng mẹ 2 bức tranh (Hoa sen hồng và Cả nhà sum họp).'
+                    : 'Child frequently mentioned art class and made 2 doodles for Mom.'}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <span style={{ fontSize: 16 }}>🍲</span>
+                <div>
+                  <strong>{isVi ? 'Bữa cơm cùng bà:' : 'Meals with grandma:'}</strong>{' '}
+                  {isVi
+                    ? 'Con thích nhất món canh chua bà nấu chiều thứ Năm và chụp ảnh gửi mẹ khoe đã ăn hết 2 bát cơm.'
+                    : 'Loved grandma’s sour soup on Thursday and sent a photo proud of finishing dinner.'}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <span style={{ fontSize: 16 }}>❤️</span>
+                <div>
+                  <strong>{isVi ? 'Mong ngóng cuối tuần:' : 'Weekend anticipation:'}</strong>{' '}
+                  {isVi
+                    ? 'Con nhắc đến lời hẹn cuối tuần bố mẹ về thăm nhà 3 lần trong các tin nhắn thoại buổi chiều.'
+                    : 'Mentioned looking forward to parents visiting on the weekend 3 times in voice notes.'}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Weekly Creative Gallery (Doodles & Photos from 15s Diary) */}
+          <div
+            style={{
+              backgroundColor: colors.surfaceContainerLow,
+              borderRadius: 30,
+              padding: 22,
+              border: `1.5px solid ${colors.outlineVariant}`,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16,
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <MIcon name="photo_library" size={22} color={colors.primary} />
+                <AccessibleText variant="h2" weight="900" color={colors.textDark}>
+                  {isVi ? 'Bộ Sưu Tập Nhật Ký 15s Tuần Này' : 'Weekly 15s Diary Gallery'}
+                </AccessibleText>
+              </div>
+              <span style={{ fontSize: 12, fontWeight: 800, color: colors.primary }}>
+                {isVi ? '4 khoảnh khắc' : '4 moments'}
+              </span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+              {[
+                { title: isVi ? 'Nét vẽ: Hoa sen hồng tặng mẹ' : 'Doodle: Pink lotus for Mom', icon: 'local_florist', color: '#F472B6', day: isVi ? 'Thứ Hai' : 'Mon' },
+                { title: isVi ? 'Nét vẽ: Cả nhà mình sum họp' : 'Doodle: Family together', icon: 'home', color: '#F59E0B', day: isVi ? 'Thứ Ba' : 'Tue' },
+                { title: isVi ? 'Ảnh chụp: Bữa cơm canh chua' : 'Photo: Sour soup dinner', icon: 'restaurant', color: '#10B981', day: isVi ? 'Thứ Năm' : 'Thu' },
+                { title: isVi ? 'Nét vẽ: Chiều mưa ngoài hiên' : 'Doodle: Rainy afternoon', icon: 'grain', color: '#60A5FA', day: isVi ? 'Hôm nay' : 'Today' },
+              ].map((item, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    padding: 16,
+                    borderRadius: 22,
+                    backgroundColor: colors.surfaceContainer,
+                    border: `1px solid ${colors.outlineVariant}`,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 10,
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div
+                      style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 12,
+                        backgroundColor: item.color,
+                        color: '#FFFFFF',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <MIcon name={item.icon} size={22} color="#FFFFFF" />
+                    </div>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: colors.textSecondary }}>{item.day}</span>
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: colors.textDark }}>
+                    {item.title}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+            gap: 24,
+            alignItems: 'start',
+          }}
+        >
         {/* Left Column: Child's Daily Connection Timeline */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div
@@ -814,6 +1166,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 };

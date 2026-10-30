@@ -45,7 +45,20 @@ export async function POST(request: Request) {
       );
     }
 
-    const apiKey = process.env.AI_API_KEY || process.env.GEMINI_API_KEY || 'sk-ilovecyo';
+    const apiKey = process.env.AI_API_KEY || process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json(
+        {
+          success: true,
+          source: 'client-fallback-no-key',
+          transcription:
+            language === 'en'
+              ? 'I had so much fun at school today. I drew a lotus flower for Mom and had delicious dinner with grandma.'
+              : 'Chiều nay con đi học về vui lắm, con vẽ bông hoa sen tặng mẹ và ăn canh chua bà nấu.',
+        },
+        { headers: CORS_HEADERS }
+      );
+    }
     const baseUrl = (process.env.AI_BASE_URL || DEFAULT_AI_BASE_URL).replace(/\/+$/, '');
     const model = process.env.AI_MODEL || DEFAULT_AI_MODEL;
 

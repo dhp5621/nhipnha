@@ -42,6 +42,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [isProcessingQR, setIsProcessingQR] = useState(false);
   const [alertInfo, setAlertInfo] = useState<{ title: string; message: string } | null>(null);
+  const [demoLoadingRole, setDemoLoadingRole] = useState<Role | null>(null);
 
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -239,6 +240,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
   };
 
   const handleDemo = async (role: Role = 'CHILD') => {
+    if (demoLoadingRole) return;
+    setDemoLoadingRole(role);
     try {
       await loginDemoAccount(role);
     } catch (err: any) {
@@ -246,6 +249,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
         title: 'Demo',
         message: err?.message || 'Không thể tải tài khoản demo',
       });
+    } finally {
+      setDemoLoadingRole(null);
     }
   };
 
@@ -744,12 +749,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
             <button
               onClick={() => handleDemo('CHILD')}
               type="button"
+              disabled={demoLoadingRole !== null}
               style={{
                 padding: '12px 8px',
                 borderRadius: 18,
                 backgroundColor: colors.surfaceContainerLow,
                 border: `1px solid ${colors.outlineVariant}`,
-                cursor: 'pointer',
+                cursor: demoLoadingRole !== null ? 'wait' : 'pointer',
                 fontFamily: 'inherit',
                 fontSynthesis: 'none',
                 display: 'flex',
@@ -758,7 +764,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
                 gap: 4,
               }}
             >
-              <MIcon name="child_care" size={24} color="#F59E0B" />
+              {demoLoadingRole === 'CHILD' ? (
+                <GoogleLoadingIndicator size={24} strokeWidth={3} multiColor={true} />
+              ) : (
+                <MIcon name="child_care" size={24} color="#F59E0B" />
+              )}
               <span style={{ fontSize: 13, fontWeight: 700, color: colors.textDark, fontFamily: 'inherit' }}>Bé An</span>
               <span style={{ fontSize: 10, fontWeight: 500, color: colors.textSecondary, fontFamily: 'inherit' }}>
                 {isVi ? 'Trẻ em' : 'Child'}
@@ -768,12 +778,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
             <button
               onClick={() => handleDemo('PARENT')}
               type="button"
+              disabled={demoLoadingRole !== null}
               style={{
                 padding: '12px 8px',
                 borderRadius: 18,
                 backgroundColor: colors.surfaceContainerLow,
                 border: `1px solid ${colors.outlineVariant}`,
-                cursor: 'pointer',
+                cursor: demoLoadingRole !== null ? 'wait' : 'pointer',
                 fontFamily: 'inherit',
                 fontSynthesis: 'none',
                 display: 'flex',
@@ -782,7 +793,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
                 gap: 4,
               }}
             >
-              <MIcon name="supervisor_account" size={24} color="#DF5018" />
+              {demoLoadingRole === 'PARENT' ? (
+                <GoogleLoadingIndicator size={24} strokeWidth={3} multiColor={true} />
+              ) : (
+                <MIcon name="supervisor_account" size={24} color="#DF5018" />
+              )}
               <span style={{ fontSize: 13, fontWeight: 700, color: colors.textDark, fontFamily: 'inherit' }}>Mẹ Hoa</span>
               <span style={{ fontSize: 10, fontWeight: 500, color: colors.textSecondary, fontFamily: 'inherit' }}>
                 {isVi ? 'Phụ huynh' : 'Parent'}
@@ -792,12 +807,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
             <button
               onClick={() => handleDemo('GRANDPARENT')}
               type="button"
+              disabled={demoLoadingRole !== null}
               style={{
                 padding: '12px 8px',
                 borderRadius: 18,
                 backgroundColor: colors.surfaceContainerLow,
                 border: `1px solid ${colors.outlineVariant}`,
-                cursor: 'pointer',
+                cursor: demoLoadingRole !== null ? 'wait' : 'pointer',
                 fontFamily: 'inherit',
                 fontSynthesis: 'none',
                 display: 'flex',
@@ -806,7 +822,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
                 gap: 4,
               }}
             >
-              <MIcon name="elderly" size={24} color="#4C43D6" />
+              {demoLoadingRole === 'GRANDPARENT' ? (
+                <GoogleLoadingIndicator size={24} strokeWidth={3} multiColor={true} />
+              ) : (
+                <MIcon name="elderly" size={24} color="#4C43D6" />
+              )}
               <span style={{ fontSize: 13, fontWeight: 700, color: colors.textDark, fontFamily: 'inherit' }}>Bà Nội</span>
               <span style={{ fontSize: 10, fontWeight: 500, color: colors.textSecondary, fontFamily: 'inherit' }}>
                 {isVi ? 'Chữ lớn' : 'Elder'}
@@ -902,6 +922,63 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
             <BigButton variant="primary" onClick={() => setAlertInfo(null)}>
               OK
             </BigButton>
+          </div>
+        </div>
+      )}
+
+      {/* 1-Tap Demo Account Connection Loading Overlay */}
+      {demoLoadingRole && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: isDark ? 'rgba(21, 16, 12, 0.82)' : 'rgba(252, 246, 238, 0.86)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            zIndex: 99999,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 16,
+            animation: 'm3ScreenFadeIn 0.22s ease-out forwards',
+          }}
+        >
+          <div
+            style={{
+              padding: 24,
+              borderRadius: 32,
+              backgroundColor: colors.surfaceContainer,
+              border: `1.5px solid ${colors.outlineVariant}`,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 16,
+              boxShadow: isDark
+                ? '0 16px 48px rgba(0, 0, 0, 0.55)'
+                : '0 16px 40px rgba(0, 0, 0, 0.12)',
+              maxWidth: 320,
+              width: '90%',
+              textAlign: 'center',
+            }}
+          >
+            <GoogleLoadingIndicator size={52} strokeWidth={4} multiColor={true} />
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 900, color: colors.textDark, marginBottom: 4 }}>
+                {isVi
+                  ? `Đang kết nối góc nhìn ${
+                      demoLoadingRole === 'CHILD'
+                        ? 'Bé An (Trẻ em)'
+                        : demoLoadingRole === 'PARENT'
+                        ? 'Mẹ Hoa (Phụ huynh)'
+                        : 'Bà Nội (Ông bà)'
+                    }...`
+                  : `Connecting ${demoLoadingRole} demo persona...`}
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: colors.textSecondary }}>
+                {isVi ? 'Đang đồng bộ nhịp sinh hoạt gia đình' : 'Synchronizing family daily rhythms'}
+              </div>
+            </div>
           </div>
         </div>
       )}
