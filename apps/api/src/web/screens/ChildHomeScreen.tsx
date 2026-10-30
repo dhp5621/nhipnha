@@ -147,8 +147,18 @@ export const ChildHomeScreen: React.FC<ChildHomeScreenProps> = ({
 
           <span
             style={{
-              backgroundColor: completedCount === 3 ? '#DCFCE7' : colors.surfaceContainerHigh,
-              color: completedCount === 3 ? '#15803D' : colors.textDark,
+              backgroundColor:
+                completedCount === 3
+                  ? isDark
+                    ? 'rgba(34, 197, 94, 0.22)'
+                    : '#DCFCE7'
+                  : colors.surfaceContainerHigh,
+              color:
+                completedCount === 3
+                  ? isDark
+                    ? '#86EFAC'
+                    : '#15803D'
+                  : colors.textDark,
               fontSize: 12,
               fontWeight: 800,
               padding: '4px 10px',
@@ -203,14 +213,14 @@ export const ChildHomeScreen: React.FC<ChildHomeScreenProps> = ({
                   width: 44,
                   height: 44,
                   borderRadius: 16,
-                  backgroundColor: '#FFDEA8',
-                  color: '#8C4F00',
+                  backgroundColor: isDark ? 'rgba(255, 185, 69, 0.2)' : '#FFDEA8',
+                  color: isDark ? '#FFB945' : '#8C4F00',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                <MIcon name="wb_sunny" size={26} color="#8C4F00" />
+                <MIcon name="wb_sunny" size={26} color={isDark ? '#FFB945' : '#8C4F00'} />
               </div>
               <div>
                 <AccessibleText variant="h2" weight="900" color={isDark ? '#FFDF9E' : '#2C1600'}>
@@ -233,8 +243,8 @@ export const ChildHomeScreen: React.FC<ChildHomeScreenProps> = ({
             {state.morningCompleted ? (
               <span
                 style={{
-                  backgroundColor: '#DCFCE7',
-                  color: '#15803D',
+                  backgroundColor: isDark ? 'rgba(34, 197, 94, 0.22)' : '#DCFCE7',
+                  color: isDark ? '#86EFAC' : '#15803D',
                   fontSize: 12,
                   fontWeight: 900,
                   padding: '4px 10px',
@@ -244,7 +254,7 @@ export const ChildHomeScreen: React.FC<ChildHomeScreenProps> = ({
                   gap: 4,
                 }}
               >
-                <MIcon name="check_circle" size={16} color="#15803D" />
+                <MIcon name="check_circle" size={16} color={isDark ? '#86EFAC' : '#15803D'} />
                 {isVi ? 'Đã Gửi' : 'Done'}
               </span>
             ) : null}
@@ -284,14 +294,14 @@ export const ChildHomeScreen: React.FC<ChildHomeScreenProps> = ({
                   width: 44,
                   height: 44,
                   borderRadius: 16,
-                  backgroundColor: '#FFDBCE',
-                  color: '#9E3306',
+                  backgroundColor: isDark ? 'rgba(255, 181, 155, 0.2)' : '#FFDBCE',
+                  color: isDark ? '#FFB59B' : '#9E3306',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                <MIcon name="palette" size={26} color="#9E3306" />
+                <MIcon name="palette" size={26} color={isDark ? '#FFB59B' : '#9E3306'} />
               </div>
               <div>
                 <AccessibleText variant="h2" weight="900" color={isDark ? '#FFD4C2' : '#370E00'}>
@@ -314,8 +324,8 @@ export const ChildHomeScreen: React.FC<ChildHomeScreenProps> = ({
             {state.afternoonCompleted ? (
               <span
                 style={{
-                  backgroundColor: '#DCFCE7',
-                  color: '#15803D',
+                  backgroundColor: isDark ? 'rgba(34, 197, 94, 0.22)' : '#DCFCE7',
+                  color: isDark ? '#86EFAC' : '#15803D',
                   fontSize: 12,
                   fontWeight: 900,
                   padding: '4px 10px',
@@ -325,7 +335,7 @@ export const ChildHomeScreen: React.FC<ChildHomeScreenProps> = ({
                   gap: 4,
                 }}
               >
-                <MIcon name="check_circle" size={16} color="#15803D" />
+                <MIcon name="check_circle" size={16} color={isDark ? '#86EFAC' : '#15803D'} />
                 {isVi ? 'Đã Gửi' : 'Done'}
               </span>
             ) : null}
@@ -365,14 +375,14 @@ export const ChildHomeScreen: React.FC<ChildHomeScreenProps> = ({
                   width: 44,
                   height: 44,
                   borderRadius: 16,
-                  backgroundColor: '#E1E0FF',
-                  color: '#3D32B8',
+                  backgroundColor: isDark ? 'rgba(193, 193, 255, 0.2)' : '#E1E0FF',
+                  color: isDark ? '#C1C1FF' : '#3D32B8',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                <MIcon name="nights_stay" size={26} color="#3D32B8" />
+                <MIcon name="nights_stay" size={26} color={isDark ? '#C1C1FF' : '#3D32B8'} />
               </div>
               <div>
                 <AccessibleText variant="h2" weight="900" color={isDark ? '#D8D6FF' : '#110563'}>
@@ -395,8 +405,8 @@ export const ChildHomeScreen: React.FC<ChildHomeScreenProps> = ({
             {state.eveningListened ? (
               <span
                 style={{
-                  backgroundColor: '#DCFCE7',
-                  color: '#15803D',
+                  backgroundColor: isDark ? 'rgba(34, 197, 94, 0.22)' : '#DCFCE7',
+                  color: isDark ? '#86EFAC' : '#15803D',
                   fontSize: 12,
                   fontWeight: 900,
                   padding: '4px 10px',
@@ -406,7 +416,7 @@ export const ChildHomeScreen: React.FC<ChildHomeScreenProps> = ({
                   gap: 4,
                 }}
               >
-                <MIcon name="headset" size={16} color="#15803D" />
+                <MIcon name="headset" size={16} color={isDark ? '#86EFAC' : '#15803D'} />
                 {isVi ? 'Đã Nghe' : 'Listened'}
               </span>
             ) : null}

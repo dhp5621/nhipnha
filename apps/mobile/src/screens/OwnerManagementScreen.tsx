@@ -27,7 +27,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const OwnerManagementScreen: React.FC<OwnerManagementScreenProps> = ({ onBack }) => {
   const { family, member, personalLoginCode, savePersonalLoginCode } = useAuth();
   const { activeLanguage } = useLanguage();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const isVi = activeLanguage === 'vi';
 
   const [tab, setTab] = useState<'members' | 'invites' | 'owner_qr'>('members');
@@ -650,10 +650,21 @@ export const OwnerManagementScreen: React.FC<OwnerManagementScreenProps> = ({ on
                   {!m.isOwner && (
                     <TouchableOpacity
                       onPress={() => handleRemoveMember(m)}
-                      style={[styles.smallBtn, { backgroundColor: '#FEE2E2' }]}
+                      style={[
+                        styles.smallBtn,
+                        { backgroundColor: isDark ? 'rgba(185, 28, 28, 0.2)' : '#FEE2E2' },
+                      ]}
                     >
-                      <MaterialIcons name="person-remove" size={16} color="#B91C1C" />
-                      <AccessibleText variant="caption" weight="800" color="#B91C1C">
+                      <MaterialIcons
+                        name="person-remove"
+                        size={16}
+                        color={isDark ? '#FCA5A5' : '#B91C1C'}
+                      />
+                      <AccessibleText
+                        variant="caption"
+                        weight="800"
+                        color={isDark ? '#FCA5A5' : '#B91C1C'}
+                      >
                         {isVi ? ' Xóa' : ' Remove'}
                       </AccessibleText>
                     </TouchableOpacity>
@@ -789,9 +800,16 @@ export const OwnerManagementScreen: React.FC<OwnerManagementScreenProps> = ({ on
                   {st === 'ACTIVE' && (
                     <TouchableOpacity
                       onPress={() => handleRevokeInvite(inv)}
-                      style={[styles.smallBtn, { backgroundColor: '#FEE2E2' }]}
+                      style={[
+                        styles.smallBtn,
+                        { backgroundColor: isDark ? 'rgba(185, 28, 28, 0.2)' : '#FEE2E2' },
+                      ]}
                     >
-                      <AccessibleText variant="caption" weight="800" color="#B91C1C">
+                      <AccessibleText
+                        variant="caption"
+                        weight="800"
+                        color={isDark ? '#FCA5A5' : '#B91C1C'}
+                      >
                         {isVi ? 'Thu hồi' : 'Revoke'}
                       </AccessibleText>
                     </TouchableOpacity>

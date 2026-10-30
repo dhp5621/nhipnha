@@ -53,8 +53,8 @@ export const SecurityQRCard: React.FC<SecurityQRCardProps> = ({
       {badgeLabel ? (
         <span
           style={{
-            backgroundColor: '#FFDCC6',
-            color: '#331200',
+            backgroundColor: isDark ? 'rgba(255, 181, 156, 0.2)' : '#FFDCC6',
+            color: isDark ? '#FFB59C' : '#331200',
             fontSize: 11,
             fontWeight: 800,
             padding: '4px 12px',

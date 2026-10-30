@@ -39,48 +39,48 @@ export const AccessibleText: React.FC<AccessibleTextProps> = ({
       case 'display':
         return {
           fontSize: THEME.typography.display + fontBoost,
-          lineHeight: THEME.typography.lineHeightDisplay + fontBoost,
-          fontWeight: '900' as const,
+          lineHeight: Math.round((THEME.typography.display + fontBoost) * 1.35),
+          fontWeight: '700' as const,
           letterSpacing: -0.8,
         };
       case 'hero':
         return {
           fontSize: THEME.typography.hero + fontBoost,
-          lineHeight: THEME.typography.lineHeightHero + fontBoost,
-          fontWeight: '800' as const,
+          lineHeight: Math.round((THEME.typography.hero + fontBoost) * 1.35),
+          fontWeight: '700' as const,
           letterSpacing: -0.5,
         };
       case 'h1':
         return {
           fontSize: THEME.typography.h1 + fontBoost,
-          lineHeight: THEME.typography.lineHeightHeading + fontBoost,
-          fontWeight: '800' as const,
+          lineHeight: Math.round((THEME.typography.h1 + fontBoost) * 1.35),
+          fontWeight: '700' as const,
           letterSpacing: -0.3,
         };
       case 'h2':
         return {
           fontSize: THEME.typography.h2 + fontBoost,
-          lineHeight: THEME.typography.lineHeightH2 + fontBoost,
+          lineHeight: Math.round((THEME.typography.h2 + fontBoost) * 1.35),
           fontWeight: '700' as const,
           letterSpacing: -0.2,
         };
       case 'bodyLarge':
         return {
           fontSize: THEME.typography.bodyLarge + fontBoost,
-          lineHeight: THEME.typography.lineHeightBody + fontBoost,
-          fontWeight: '600' as const,
+          lineHeight: Math.round((THEME.typography.bodyLarge + fontBoost) * 1.38),
+          fontWeight: '700' as const,
         };
       case 'label':
         return {
           fontSize: THEME.typography.label + labelBoost,
-          lineHeight: 20 + labelBoost,
+          lineHeight: Math.round((THEME.typography.label + labelBoost) * 1.38),
           fontWeight: '700' as const,
           letterSpacing: 0.2,
         };
       case 'caption':
         return {
           fontSize: THEME.typography.caption + labelBoost,
-          lineHeight: 16 + labelBoost,
+          lineHeight: Math.round((THEME.typography.caption + labelBoost) * 1.38),
           fontWeight: '700' as const,
           letterSpacing: 0.4,
         };
@@ -88,13 +88,22 @@ export const AccessibleText: React.FC<AccessibleTextProps> = ({
       default:
         return {
           fontSize: THEME.typography.bodyRegular + fontBoost,
-          lineHeight: 24 + fontBoost,
-          fontWeight: '500' as const,
+          lineHeight: Math.round((THEME.typography.bodyRegular + fontBoost) * 1.38),
+          fontWeight: 'normal' as const,
         };
     }
   };
 
   const variantStyle = getStyleForVariant();
+
+  const finalWeight =
+    weight !== 'normal'
+      ? weight === '900' || weight === '800' || weight === '700'
+        ? '700'
+        : weight === '600' || weight === '500'
+        ? '500'
+        : 'normal'
+      : variantStyle.fontWeight;
 
   return (
     <Text
@@ -104,7 +113,7 @@ export const AccessibleText: React.FC<AccessibleTextProps> = ({
         {
           color: resolvedColor,
           textAlign: center ? 'center' : 'left',
-          fontWeight: weight !== 'normal' ? weight : variantStyle.fontWeight,
+          fontWeight: finalWeight,
         },
         style,
       ]}

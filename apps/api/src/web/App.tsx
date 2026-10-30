@@ -375,7 +375,8 @@ function NavigationRoot() {
       <style jsx global>{`
         * {
           box-sizing: border-box;
-          font-family: 'Google Sans Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          font-family: 'Google Sans', 'Google Sans Text', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          font-synthesis: none;
         }
 
         /* Smooth page and card entrance animations */

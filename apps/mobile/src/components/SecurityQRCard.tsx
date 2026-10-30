@@ -20,7 +20,7 @@ export const SecurityQRCard: React.FC<SecurityQRCardProps> = ({
   codeBadge,
   isLoginSecret = true,
 }) => {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { activeLanguage } = useLanguage();
   const isVi = activeLanguage === 'vi';
 
@@ -66,15 +66,36 @@ export const SecurityQRCard: React.FC<SecurityQRCardProps> = ({
       </View>
 
       {/* Strict Security Leak Warning Banner */}
-      <View style={[styles.warningBox, { backgroundColor: '#FEF2F2', borderColor: '#FCA5A5' }]}>
-        <MaterialIcons name="gpp-maybe" size={22} color="#B91C1C" style={{ marginRight: 10 }} />
+      <View
+        style={[
+          styles.warningBox,
+          {
+            backgroundColor: isDark ? 'rgba(185, 28, 28, 0.2)' : '#FEF2F2',
+            borderColor: isDark ? 'rgba(239, 68, 68, 0.4)' : '#FCA5A5',
+          },
+        ]}
+      >
+        <MaterialIcons
+          name="gpp-maybe"
+          size={22}
+          color={isDark ? '#FCA5A5' : '#B91C1C'}
+          style={{ marginRight: 10 }}
+        />
         <View style={{ flex: 1 }}>
-          <AccessibleText variant="label" weight="900" color="#991B1B">
+          <AccessibleText
+            variant="label"
+            weight="900"
+            color={isDark ? '#FCA5A5' : '#991B1B'}
+          >
             {isVi
               ? 'CẢNH BÁO BẢO MẬT — CẤM RÒ RỈ MÃ QR'
               : 'SECURITY WARNING — DO NOT LEAK THIS QR CODE'}
           </AccessibleText>
-          <AccessibleText variant="caption" color="#7F1D1D" style={{ marginTop: 2 }}>
+          <AccessibleText
+            variant="caption"
+            color={isDark ? '#F87171' : '#7F1D1D'}
+            style={{ marginTop: 2 }}
+          >
             {isLoginSecret
               ? isVi
                 ? 'Mã QR này dùng để đăng nhập trực tiếp không cần mật khẩu (tối đa 3 thiết bị cùng lúc). Bất kỳ ai chụp hoặc có được mã QR này đều có thể đăng nhập vào tài khoản. Tuyệt đối không đăng công khai hay gửi cho người lạ!'

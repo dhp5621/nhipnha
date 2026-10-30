@@ -155,8 +155,8 @@ export const RoleSwitchScreen: React.FC<RoleSwitchScreenProps> = ({
             type="button"
             style={{
               border: 'none',
-              backgroundColor: '#FFDCC6',
-              color: '#331200',
+              backgroundColor: isDark ? 'rgba(255, 181, 156, 0.2)' : '#FFDCC6',
+              color: isDark ? '#FFB59C' : '#331200',
               padding: '8px 16px',
               borderRadius: 999,
               fontWeight: 800,
@@ -520,8 +520,16 @@ export const RoleSwitchScreen: React.FC<RoleSwitchScreenProps> = ({
             style={{
               padding: '10px 14px',
               borderRadius: 12,
-              backgroundColor: passwordMsg.isError ? colors.errorBg : '#DCFCE7',
-              color: passwordMsg.isError ? colors.error : '#15803D',
+              backgroundColor: passwordMsg.isError
+                ? colors.errorBg
+                : isDark
+                ? 'rgba(34, 197, 94, 0.22)'
+                : '#DCFCE7',
+              color: passwordMsg.isError
+                ? colors.error
+                : isDark
+                ? '#86EFAC'
+                : '#15803D',
               fontSize: 13,
               fontWeight: 700,
             }}

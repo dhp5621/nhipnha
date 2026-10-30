@@ -112,14 +112,14 @@ export const MorningTouchScreen: React.FC<MorningTouchScreenProps> = ({ onBack }
             width: 80,
             height: 80,
             borderRadius: '50%',
-            backgroundColor: '#FFDEA8',
+            backgroundColor: isDark ? 'rgba(255, 185, 69, 0.2)' : '#FFDEA8',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             boxShadow: '0 6px 20px rgba(140, 79, 0, 0.2)',
           }}
         >
-          <MIcon name="wb_sunny" size={48} color="#8C4F00" />
+          <MIcon name="wb_sunny" size={48} color={isDark ? '#FFB945' : '#8C4F00'} />
         </div>
 
         <div>

@@ -174,13 +174,29 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
   const getMoodBadge = (mood?: string) => {
     switch (mood) {
       case 'JOYFUL':
-        return { label: isVi ? 'Vui vẻ 😄' : 'Joyful 😄', bg: '#FEF3C7', color: '#92400E' };
+        return {
+          label: isVi ? 'Vui vẻ 😄' : 'Joyful 😄',
+          bg: isDark ? 'rgba(254, 243, 199, 0.2)' : '#FEF3C7',
+          color: isDark ? '#FDE68A' : '#92400E',
+        };
       case 'CALM':
-        return { label: isVi ? 'Bình yên ⛅' : 'Calm ⛅', bg: '#E0F2FE', color: '#075985' };
+        return {
+          label: isVi ? 'Bình yên ⛅' : 'Calm ⛅',
+          bg: isDark ? 'rgba(224, 242, 254, 0.2)' : '#E0F2FE',
+          color: isDark ? '#BAE6FD' : '#075985',
+        };
       case 'TIRED':
-        return { label: isVi ? 'Hơi mệt 🌧️' : 'Tired 🌧️', bg: '#F3F4F6', color: '#374151' };
+        return {
+          label: isVi ? 'Hơi mệt 🌧️' : 'Tired 🌧️',
+          bg: isDark ? 'rgba(243, 244, 246, 0.2)' : '#F3F4F6',
+          color: isDark ? '#E5E7EB' : '#374151',
+        };
       case 'NEED_HUG':
-        return { label: isVi ? 'Cần ôm 🫂' : 'Need a Hug 🫂', bg: '#FCE7F3', color: '#9D174D' };
+        return {
+          label: isVi ? 'Cần ôm 🫂' : 'Need a Hug 🫂',
+          bg: isDark ? 'rgba(252, 231, 243, 0.2)' : '#FCE7F3',
+          color: isDark ? '#FBCFE8' : '#9D174D',
+        };
       default:
         return { label: isVi ? 'Chưa điểm danh' : 'Pending', bg: colors.surfaceContainerLow, color: colors.textMuted };
     }
@@ -227,8 +243,8 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
               </AccessibleText>
               <span
                 style={{
-                  backgroundColor: '#FFDCC6',
-                  color: '#331200',
+                  backgroundColor: isDark ? 'rgba(255, 181, 156, 0.2)' : '#FFDCC6',
+                  color: isDark ? '#FFB59C' : '#331200',
                   fontSize: 11,
                   fontWeight: 800,
                   padding: '3px 9px',

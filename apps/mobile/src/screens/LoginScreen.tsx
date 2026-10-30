@@ -470,9 +470,26 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
 
         {mode === 'qr' && (
           <View>
-            <View style={[styles.warningBanner, { backgroundColor: '#FEF2F2', borderColor: '#FCA5A5' }]}>
-              <MaterialIcons name="security" size={20} color="#B91C1C" style={{ marginRight: 8 }} />
-              <AccessibleText variant="caption" color="#7F1D1D" style={{ flex: 1 }}>
+            <View
+              style={[
+                styles.warningBanner,
+                {
+                  backgroundColor: isDark ? 'rgba(185, 28, 28, 0.2)' : '#FEF2F2',
+                  borderColor: isDark ? 'rgba(239, 68, 68, 0.4)' : '#FCA5A5',
+                },
+              ]}
+            >
+              <MaterialIcons
+                name="security"
+                size={20}
+                color={isDark ? '#FCA5A5' : '#B91C1C'}
+                style={{ marginRight: 8 }}
+              />
+              <AccessibleText
+                variant="caption"
+                color={isDark ? '#F87171' : '#7F1D1D'}
+                style={{ flex: 1 }}
+              >
                 {isVi
                   ? 'Lưu ý: Vai trò của bạn được ấn định sẵn bởi Chủ nhà. Không chia sẻ mã QR cá nhân cho người lạ vì mã QR cho phép đăng nhập trực tiếp.'
                   : 'Note: Your role is pre-assigned by the Family Owner. Never share your personal login QR with strangers.'}

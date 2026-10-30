@@ -237,8 +237,8 @@ export const OwnerManagementScreen: React.FC<OwnerManagementScreenProps> = ({ on
             </AccessibleText>
             <span
               style={{
-                backgroundColor: '#FFDCC6',
-                color: '#331200',
+                backgroundColor: isDark ? 'rgba(255, 181, 156, 0.2)' : '#FFDCC6',
+                color: isDark ? '#FFB59C' : '#331200',
                 fontSize: 11,
                 fontWeight: 800,
                 padding: '3px 9px',
@@ -449,8 +449,8 @@ export const OwnerManagementScreen: React.FC<OwnerManagementScreenProps> = ({ on
                               {m.isOwner ? (
                                 <span
                                   style={{
-                                    backgroundColor: '#FFDCC6',
-                                    color: '#331200',
+                                    backgroundColor: isDark ? 'rgba(255, 181, 156, 0.2)' : '#FFDCC6',
+                                    color: isDark ? '#FFB59C' : '#331200',
                                     fontSize: 10,
                                     fontWeight: 900,
                                     padding: '2px 8px',
@@ -736,13 +736,17 @@ export const OwnerManagementScreen: React.FC<OwnerManagementScreenProps> = ({ on
                           borderRadius: 999,
                           backgroundColor:
                             status === 'ACTIVE'
-                              ? '#DCFCE7'
+                              ? isDark
+                                ? 'rgba(34, 197, 94, 0.22)'
+                                : '#DCFCE7'
                               : status === 'USED'
                               ? colors.surfaceContainerHighest
                               : colors.errorBg,
                           color:
                             status === 'ACTIVE'
-                              ? '#15803D'
+                              ? isDark
+                                ? '#86EFAC'
+                                : '#15803D'
                               : status === 'USED'
                               ? colors.textSecondary
                               : colors.error,

@@ -119,14 +119,14 @@ export const EveningTouchScreen: React.FC<EveningTouchScreenProps> = ({ onBack }
             width: 80,
             height: 80,
             borderRadius: '50%',
-            backgroundColor: '#E1E0FF',
+            backgroundColor: isDark ? 'rgba(193, 193, 255, 0.2)' : '#E1E0FF',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             boxShadow: '0 6px 20px rgba(61, 50, 184, 0.25)',
           }}
         >
-          <MIcon name="nights_stay" size={46} color="#3D32B8" />
+          <MIcon name="nights_stay" size={46} color={isDark ? '#C1C1FF' : '#3D32B8'} />
         </div>
 
         <div>
@@ -207,8 +207,8 @@ export const EveningTouchScreen: React.FC<EveningTouchScreenProps> = ({ onBack }
             style={{
               padding: '12px 18px',
               borderRadius: 18,
-              backgroundColor: '#DCFCE7',
-              color: '#15803D',
+              backgroundColor: isDark ? 'rgba(34, 197, 94, 0.22)' : '#DCFCE7',
+              color: isDark ? '#86EFAC' : '#15803D',
               fontSize: 14,
               fontWeight: 800,
               textAlign: 'center',

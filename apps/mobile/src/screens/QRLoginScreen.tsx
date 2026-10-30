@@ -446,9 +446,26 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess, onBackT
           </AccessibleText>
 
           {/* Security Warning */}
-          <View style={[styles.leakWarning, { backgroundColor: '#FEF2F2', borderColor: '#FCA5A5' }]}>
-            <MaterialIcons name="gpp-maybe" size={20} color="#B91C1C" style={{ marginRight: 8 }} />
-            <AccessibleText variant="caption" color="#7F1D1D" style={{ flex: 1 }}>
+          <View
+            style={[
+              styles.leakWarning,
+              {
+                backgroundColor: isDark ? 'rgba(185, 28, 28, 0.2)' : '#FEF2F2',
+                borderColor: isDark ? 'rgba(239, 68, 68, 0.4)' : '#FCA5A5',
+              },
+            ]}
+          >
+            <MaterialIcons
+              name="gpp-maybe"
+              size={20}
+              color={isDark ? '#FCA5A5' : '#B91C1C'}
+              style={{ marginRight: 8 }}
+            />
+            <AccessibleText
+              variant="caption"
+              color={isDark ? '#F87171' : '#7F1D1D'}
+              style={{ flex: 1 }}
+            >
               {isVi
                 ? 'CẢNH BÁO: Tuyệt đối không chụp gửi mã QR đăng nhập cho người ngoài vì bất kỳ ai có mã đều có thể truy cập tài khoản.'
                 : 'WARNING: Never share your login QR with outsiders—anyone with the QR can access the account.'}

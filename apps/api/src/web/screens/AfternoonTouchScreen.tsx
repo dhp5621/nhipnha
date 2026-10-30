@@ -211,8 +211,8 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span
             style={{
-              backgroundColor: '#FFDBCE',
-              color: '#370E00',
+              backgroundColor: isDark ? 'rgba(255, 181, 155, 0.2)' : '#FFDBCE',
+              color: isDark ? '#FFB59B' : '#370E00',
               fontWeight: 900,
               fontSize: 12,
               padding: '3px 10px',
@@ -245,8 +245,8 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span
               style={{
-                backgroundColor: '#FFDBCE',
-                color: '#370E00',
+                backgroundColor: isDark ? 'rgba(255, 181, 155, 0.2)' : '#FFDBCE',
+                color: isDark ? '#FFB59B' : '#370E00',
                 fontWeight: 900,
                 fontSize: 12,
                 padding: '3px 10px',
@@ -329,8 +329,8 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span
               style={{
-                backgroundColor: '#FFDBCE',
-                color: '#370E00',
+                backgroundColor: isDark ? 'rgba(255, 181, 155, 0.2)' : '#FFDBCE',
+                color: isDark ? '#FFB59B' : '#370E00',
                 fontWeight: 900,
                 fontSize: 12,
                 padding: '3px 10px',
@@ -501,8 +501,8 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
           style={{
             padding: '14px 20px',
             borderRadius: 20,
-            backgroundColor: '#DCFCE7',
-            color: '#15803D',
+            backgroundColor: isDark ? 'rgba(34, 197, 94, 0.22)' : '#DCFCE7',
+            color: isDark ? '#86EFAC' : '#15803D',
             fontSize: 15,
             fontWeight: 800,
             textAlign: 'center',
@@ -512,7 +512,7 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
             gap: 8,
           }}
         >
-          <MIcon name="check_circle" size={20} color="#15803D" />
+          <MIcon name="check_circle" size={20} color={isDark ? '#86EFAC' : '#15803D'} />
           <span>{isVi ? 'Đã lưu nhật ký chiều lên máy chủ thành công!' : 'Afternoon diary saved successfully!'}</span>
         </div>
       ) : null}

@@ -40,13 +40,13 @@ export const EmpathyPromptCard: React.FC<EmpathyPromptCardProps> = ({
               width: 36,
               height: 36,
               borderRadius: '50%',
-              backgroundColor: '#FFDCC6',
+              backgroundColor: isDark ? 'rgba(255, 181, 156, 0.2)' : '#FFDCC6',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
             }}
           >
-            <MIcon name="psychology" size={22} color="#9C4400" />
+            <MIcon name="psychology" size={22} color={isDark ? '#FFB59C' : '#9C4400'} />
           </div>
           <div>
             <AccessibleText variant="h2" weight="900" color={colors.textDark}>
@@ -60,8 +60,8 @@ export const EmpathyPromptCard: React.FC<EmpathyPromptCardProps> = ({
 
         <span
           style={{
-            backgroundColor: '#DCFCE7',
-            color: '#15803D',
+            backgroundColor: isDark ? 'rgba(34, 197, 94, 0.22)' : '#DCFCE7',
+            color: isDark ? '#86EFAC' : '#15803D',
             fontSize: 11,
             fontWeight: 800,
             padding: '3px 9px',
