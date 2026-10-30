@@ -2,6 +2,9 @@
 const nextConfig = {
   transpilePackages: ['@nhipnha/shared'],
   reactStrictMode: true,
+  experimental: {
+    ...(process.platform === 'android' ? { useWasmBinary: true } : {}),
+  },
   // Ensure CORS headers for Expo mobile app development & production
   async headers() {
     return [

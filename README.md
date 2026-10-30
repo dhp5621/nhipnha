@@ -2,7 +2,9 @@
 ### Đề án RBPC 2026 • Hướng tới SDG 3, 4, 8
 
 Monorepo hoàn chỉnh xây dựng bằng **Turborepo** và **pnpm**, bao gồm:
-1. `apps/api`: **Next.js Serverless API** (sẵn sàng deploy Vercel), kết nối **Neon / PostgreSQL** thông qua **Drizzle ORM** (kèm bộ nhớ đệm in-memory fallback mượt mà khi chạy demo ngoại tuyến). Quản lý 4 thực thể chính: `Family`, `Member`, `CheckIn`, `Messages`.
+1. `apps/api`: **Next.js Full-Stack App** (sẵn sàng deploy Vercel):
+   - **Root Domain (`/`)**: Ứng dụng Web hoàn chỉnh đầy đủ tính năng theo chuẩn **Material Design 3 Expressive (M3E)**, thích ứng tối ưu cho cả **Điện thoại Di động** (Mobile Dock Bar, chạm lớn $\ge 56$px) và **Máy tính PC/Tablet** (Navigation Rail, bố cục 2 cột trực quan).
+   - **API Routes (`/api/...`)**: Serverless REST API kết nối **Neon / PostgreSQL** thông qua **Drizzle ORM** (kèm bộ nhớ đệm in-memory fallback mượt mà khi chạy demo ngoại tuyến). Quản lý 4 thực thể chính: `Family`, `Member`, `CheckIn`, `Messages`.
 2. `apps/mobile`: **Expo React Native (TypeScript, Tailwind/NativeWind)** thiết kế riêng cho **trẻ em nông thôn (6–12 tuổi)** và **ông bà già yếu (65–70 tuổi)** sử dụng điện thoại Android đời cũ / giá rẻ:
    - **Zero-Type Login**: Ghép đôi một chạm bằng mã QR dán ở quê, không cần gõ mật khẩu hay chờ SMS OTP.
    - **Luồng Trẻ Em "3 Nhịp Gắn Kết"**:
