@@ -122,8 +122,10 @@ export const BigButton: React.FC<BigButtonProps> = ({
         color: disabled ? colors.textMuted : text,
         border,
         boxShadow: disabled ? 'none' : shadow,
+        fontFamily: "'Google Sans', 'Google Sans Text', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
         fontSize: 16,
-        fontWeight: 800,
+        fontWeight: 700,
+        fontSynthesis: 'none',
         letterSpacing: 0.2,
         cursor: disabled || loading ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.65 : 1,
@@ -144,7 +146,7 @@ export const BigButton: React.FC<BigButtonProps> = ({
       ) : iconName ? (
         <MIcon name={iconName} size={22} color={disabled ? colors.textMuted : text} />
       ) : null}
-      <span>{children}</span>
+      <span style={{ fontFamily: 'inherit', fontWeight: 'inherit', fontSynthesis: 'none' }}>{children}</span>
     </button>
   );
 };

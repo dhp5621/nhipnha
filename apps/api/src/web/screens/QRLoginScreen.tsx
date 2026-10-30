@@ -212,8 +212,10 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess, onBackT
                 color: colors.textDark,
                 padding: '8px 14px',
                 borderRadius: 999,
-                fontWeight: 800,
+                fontWeight: 700,
                 fontSize: 13,
+                fontFamily: 'inherit',
+                fontSynthesis: 'none',
                 cursor: 'pointer',
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -221,7 +223,7 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess, onBackT
               }}
             >
               <MIcon name="arrow_back" size={18} />
-              <span>{isVi ? 'Về Đăng Nhập' : 'Back to Login'}</span>
+              <span style={{ fontFamily: 'inherit', fontWeight: 'inherit' }}>{isVi ? 'Về Đăng Nhập' : 'Back to Login'}</span>
             </button>
           ) : <div />}
 
@@ -230,7 +232,9 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess, onBackT
               backgroundColor: isDark ? 'rgba(255, 181, 156, 0.2)' : '#FFDCC6',
               color: isDark ? '#FFB59C' : '#331200',
               fontSize: 11,
-              fontWeight: 800,
+              fontWeight: 700,
+              fontFamily: 'inherit',
+              fontSynthesis: 'none',
               padding: '4px 12px',
               borderRadius: 999,
             }}
@@ -260,11 +264,13 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess, onBackT
               cursor: 'pointer',
               backgroundColor: tab === 'join' ? colors.primary : 'transparent',
               color: tab === 'join' ? colors.onPrimary : colors.textSecondary,
-              fontWeight: 800,
+              fontWeight: 700,
               fontSize: 13,
+              fontFamily: 'inherit',
+              fontSynthesis: 'none',
             }}
           >
-            {isVi ? 'Tham Gia Gia Đình' : 'Join Family'}
+            <span style={{ fontFamily: 'inherit', fontWeight: 'inherit' }}>{isVi ? 'Tham Gia Gia Đình' : 'Join Family'}</span>
           </button>
           <button
             onClick={() => setTab('create')}
@@ -277,11 +283,13 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess, onBackT
               cursor: 'pointer',
               backgroundColor: tab === 'create' ? colors.primary : 'transparent',
               color: tab === 'create' ? colors.onPrimary : colors.textSecondary,
-              fontWeight: 800,
+              fontWeight: 700,
               fontSize: 13,
+              fontFamily: 'inherit',
+              fontSynthesis: 'none',
             }}
           >
-            {isVi ? 'Tạo Gia Đình Mới' : 'Create Family'}
+            <span style={{ fontFamily: 'inherit', fontWeight: 'inherit' }}>{isVi ? 'Tạo Gia Đình Mới' : 'Create Family'}</span>
           </button>
         </div>
 
@@ -393,8 +401,10 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess, onBackT
                         border: active ? `2px solid ${colors.primary}` : `1px solid ${colors.outlineVariant}`,
                         backgroundColor: active ? colors.primaryContainer : colors.surfaceContainerLow,
                         color: active ? colors.onPrimaryContainer : colors.textDark,
-                        fontWeight: 800,
+                        fontWeight: 700,
                         fontSize: 12,
+                        fontFamily: 'inherit',
+                        fontSynthesis: 'none',
                         cursor: 'pointer',
                         display: 'flex',
                         flexDirection: 'column',
@@ -403,7 +413,7 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess, onBackT
                       }}
                     >
                       <MIcon name={r.icon} size={20} color={active ? colors.onPrimaryContainer : colors.textSecondary} />
-                      <span>{isVi ? r.labelVi : r.labelEn}</span>
+                      <span style={{ fontFamily: 'inherit', fontWeight: 'inherit' }}>{isVi ? r.labelVi : r.labelEn}</span>
                     </button>
                   );
                 })}

@@ -190,7 +190,7 @@ function NavigationRoot() {
                 size={22}
                 color={isHomeTab ? colors.onPrimaryContainer : colors.textSecondary}
               />
-              <span style={{ fontWeight: 800, fontSize: 14 }}>
+              <span style={{ fontWeight: 700, fontSize: 14, fontFamily: 'inherit', fontSynthesis: 'none' }}>
                 {member?.role === 'PARENT'
                   ? isVi
                     ? 'Nhịp Gia Đình'
@@ -215,7 +215,7 @@ function NavigationRoot() {
                 size={22}
                 color={!isHomeTab && currentScreen !== 'OWNER_CONSOLE' ? colors.onPrimaryContainer : colors.textSecondary}
               />
-              <span style={{ fontWeight: 800, fontSize: 14 }}>
+              <span style={{ fontWeight: 700, fontSize: 14, fontFamily: 'inherit', fontSynthesis: 'none' }}>
                 {isVi ? 'Cài Đặt & Vai Trò' : 'Settings & Role'}
               </span>
             </button>
@@ -235,7 +235,7 @@ function NavigationRoot() {
                   size={22}
                   color={currentScreen === 'OWNER_CONSOLE' ? colors.onPrimaryContainer : colors.textSecondary}
                 />
-                <span style={{ fontWeight: 800, fontSize: 14 }}>
+                <span style={{ fontWeight: 700, fontSize: 14, fontFamily: 'inherit', fontSynthesis: 'none' }}>
                   {isVi ? 'Quản Trị Chủ Nhà' : 'Owner Console'}
                 </span>
               </button>
@@ -376,6 +376,11 @@ function NavigationRoot() {
         * {
           box-sizing: border-box;
           font-family: 'Google Sans', 'Google Sans Text', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          font-synthesis: none;
+        }
+
+        button, input, select, textarea, span, p, a, label {
+          font-family: inherit;
           font-synthesis: none;
         }
 

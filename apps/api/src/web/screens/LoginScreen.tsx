@@ -293,8 +293,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
             color: colors.textDark,
             padding: '7px 14px',
             borderRadius: 999,
-            fontWeight: 800,
+            fontWeight: 700,
             fontSize: 12,
+            fontFamily: 'inherit',
+            fontSynthesis: 'none',
             cursor: 'pointer',
             display: 'inline-flex',
             alignItems: 'center',
@@ -302,7 +304,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
           }}
         >
           <MIcon name={isDark ? 'dark_mode' : 'wb_sunny'} size={16} color="#F59E0B" />
-          <span>{isDark ? (isVi ? 'Tối' : 'Dark') : isVi ? 'Sáng' : 'Light'}</span>
+          <span style={{ fontFamily: 'inherit', fontWeight: 'inherit' }}>{isDark ? (isVi ? 'Tối' : 'Dark') : isVi ? 'Sáng' : 'Light'}</span>
         </button>
 
         <button
@@ -314,8 +316,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
             color: colors.textDark,
             padding: '7px 14px',
             borderRadius: 999,
-            fontWeight: 800,
+            fontWeight: 700,
             fontSize: 12,
+            fontFamily: 'inherit',
+            fontSynthesis: 'none',
             cursor: 'pointer',
             display: 'inline-flex',
             alignItems: 'center',
@@ -323,7 +327,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
           }}
         >
           <MIcon name="language" size={16} color={colors.primary} />
-          <span>{isVi ? 'English' : 'Tiếng Việt'}</span>
+          <span style={{ fontFamily: 'inherit', fontWeight: 'inherit' }}>{isVi ? 'English' : 'Tiếng Việt'}</span>
         </button>
       </div>
 
@@ -389,8 +393,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
                   cursor: 'pointer',
                   backgroundColor: active ? colors.primary : 'transparent',
                   color: active ? colors.onPrimary : colors.textSecondary,
-                  fontWeight: 800,
+                  fontWeight: 700,
                   fontSize: 13,
+                  fontFamily: 'inherit',
+                  fontSynthesis: 'none',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -399,7 +405,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
                 }}
               >
                 <MIcon name={tab.icon} size={16} color={active ? colors.onPrimary : colors.textSecondary} />
-                <span>{tab.label}</span>
+                <span style={{ fontFamily: 'inherit', fontWeight: 'inherit' }}>{tab.label}</span>
               </button>
             );
           })}
@@ -662,8 +668,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
                         border: active ? `2px solid ${colors.primary}` : `1px solid ${colors.outlineVariant}`,
                         backgroundColor: active ? colors.primaryContainer : colors.surfaceContainerLow,
                         color: active ? colors.onPrimaryContainer : colors.textDark,
-                        fontWeight: 800,
+                        fontWeight: 700,
                         fontSize: 12,
+                        fontFamily: 'inherit',
+                        fontSynthesis: 'none',
                         cursor: 'pointer',
                         display: 'flex',
                         flexDirection: 'column',
@@ -672,7 +680,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
                       }}
                     >
                       <MIcon name={r.icon} size={20} color={active ? colors.onPrimaryContainer : colors.textSecondary} />
-                      <span>{r.label}</span>
+                      <span style={{ fontFamily: 'inherit', fontWeight: 'inherit' }}>{r.label}</span>
                     </button>
                   );
                 })}
@@ -742,6 +750,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
                 backgroundColor: colors.surfaceContainerLow,
                 border: `1px solid ${colors.outlineVariant}`,
                 cursor: 'pointer',
+                fontFamily: 'inherit',
+                fontSynthesis: 'none',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
@@ -749,8 +759,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
               }}
             >
               <MIcon name="child_care" size={24} color="#F59E0B" />
-              <span style={{ fontSize: 13, fontWeight: 800, color: colors.textDark }}>Bé An</span>
-              <span style={{ fontSize: 10, fontWeight: 700, color: colors.textSecondary }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: colors.textDark, fontFamily: 'inherit' }}>Bé An</span>
+              <span style={{ fontSize: 10, fontWeight: 500, color: colors.textSecondary, fontFamily: 'inherit' }}>
                 {isVi ? 'Trẻ em' : 'Child'}
               </span>
             </button>
@@ -764,6 +774,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
                 backgroundColor: colors.surfaceContainerLow,
                 border: `1px solid ${colors.outlineVariant}`,
                 cursor: 'pointer',
+                fontFamily: 'inherit',
+                fontSynthesis: 'none',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
@@ -771,8 +783,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
               }}
             >
               <MIcon name="supervisor_account" size={24} color="#DF5018" />
-              <span style={{ fontSize: 13, fontWeight: 800, color: colors.textDark }}>Mẹ Hoa</span>
-              <span style={{ fontSize: 10, fontWeight: 700, color: colors.textSecondary }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: colors.textDark, fontFamily: 'inherit' }}>Mẹ Hoa</span>
+              <span style={{ fontSize: 10, fontWeight: 500, color: colors.textSecondary, fontFamily: 'inherit' }}>
                 {isVi ? 'Phụ huynh' : 'Parent'}
               </span>
             </button>
@@ -786,6 +798,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
                 backgroundColor: colors.surfaceContainerLow,
                 border: `1px solid ${colors.outlineVariant}`,
                 cursor: 'pointer',
+                fontFamily: 'inherit',
+                fontSynthesis: 'none',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
@@ -793,8 +807,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
               }}
             >
               <MIcon name="elderly" size={24} color="#4C43D6" />
-              <span style={{ fontSize: 13, fontWeight: 800, color: colors.textDark }}>Bà Nội</span>
-              <span style={{ fontSize: 10, fontWeight: 700, color: colors.textSecondary }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: colors.textDark, fontFamily: 'inherit' }}>Bà Nội</span>
+              <span style={{ fontSize: 10, fontWeight: 500, color: colors.textSecondary, fontFamily: 'inherit' }}>
                 {isVi ? 'Chữ lớn' : 'Elder'}
               </span>
             </button>
