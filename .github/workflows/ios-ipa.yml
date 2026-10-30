@@ -50,8 +50,8 @@ jobs:
           path: |
             ~/Library/Caches/CocoaPods
             ~/.cocoapods
-          key: pods-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: pods-${{ runner.os }}-
+          key: pods-v2-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'apps/mobile/app.json') }}
+          restore-keys: pods-v2-${{ runner.os }}-
 
       - name: 📦 Cache Xcode DerivedData
         uses: actions/cache@v4
