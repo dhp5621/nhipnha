@@ -83,12 +83,7 @@ jobs:
         working-directory: apps/mobile/ios
         run: |
           WORKSPACE=$(ls -d *.xcworkspace | head -1)
-          SCHEME=$(xcodebuild -list -workspace "$WORKSPACE" -json | node -e '
-            const fs = require("fs");
-            const data = JSON.parse(fs.readFileSync(0, "utf-8"));
-            const schemes = data.workspace.schemes;
-            console.log(schemes.find(s => !s.startsWith("Pods-")) || schemes[0]);
-          ')
+          SCHEME="${WORKSPACE%.xcworkspace}"
           echo "Building unsigned workspace: $WORKSPACE with scheme: $SCHEME"
           set -o pipefail
 
@@ -110,10 +105,10 @@ jobs:
       - name: 📦 Package Unsigned IPA
         run: |
           echo "Locating built .app bundle..."
-          APP_PATH=$(find "$RUNNER_TEMP/DerivedData/Build/Products/Release-iphoneos" -name "*.app" -maxdepth 1 | head -1)
+          APP_PATH=$(find "$RUNNER_TEMP/DerivedData" -name "*.app" -type d | head -1)
           if [ -z "$APP_PATH" ]; then
             echo "::error::Could not find compiled .app bundle"
-            find "$RUNNER_TEMP/DerivedData/Build/Products" -maxdepth 3 || true
+            find "$RUNNER_TEMP/DerivedData" -maxdepth 4 || true
             exit 1
           fi
           echo "Found .app at: $APP_PATH"
