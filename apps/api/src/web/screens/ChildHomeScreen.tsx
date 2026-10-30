@@ -41,6 +41,9 @@ export const ChildHomeScreen: React.FC<ChildHomeScreenProps> = ({
         display: 'flex',
         flexDirection: 'column',
         gap: 20,
+        backgroundColor: colors.background,
+        color: colors.textDark,
+        transition: 'background-color 0.2s cubic-bezier(0.2, 0, 0, 1), color 0.2s cubic-bezier(0.2, 0, 0, 1)',
       }}
     >
       {/* Top Bar: Family Branding & Quick Controls */}
@@ -197,10 +200,10 @@ export const ChildHomeScreen: React.FC<ChildHomeScreenProps> = ({
         {/* Rhythm 1: Morning Touch */}
         <div
           style={{
-            backgroundColor: isDark ? '#2B200E' : '#FFF5E0',
+            backgroundColor: isDark ? colors.morningSurface : '#FFF5E0',
             borderRadius: 28,
             padding: 20,
-            border: `2px solid ${state.morningCompleted ? colors.successBorder : '#E59400'}`,
+            border: `2px solid ${state.morningCompleted ? colors.successBorder : (isDark ? colors.morningBorder : '#E59400')}`,
             display: 'flex',
             flexDirection: 'column',
             gap: 12,
@@ -278,10 +281,10 @@ export const ChildHomeScreen: React.FC<ChildHomeScreenProps> = ({
         {/* Rhythm 2: Afternoon Touch */}
         <div
           style={{
-            backgroundColor: isDark ? '#2E140B' : '#FFF0EA',
+            backgroundColor: isDark ? colors.afternoonSurface : '#FFF0EA',
             borderRadius: 28,
             padding: 20,
-            border: `2px solid ${state.afternoonCompleted ? colors.successBorder : '#D94D1A'}`,
+            border: `2px solid ${state.afternoonCompleted ? colors.successBorder : (isDark ? colors.afternoonBorder : '#D94D1A')}`,
             display: 'flex',
             flexDirection: 'column',
             gap: 12,
