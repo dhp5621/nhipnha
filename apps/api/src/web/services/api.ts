@@ -178,19 +178,29 @@ export const apiClient = {
   async loginWithQR(
     qrPayload: string
   ): Promise<{ family: Family; member: Member; token: string; loginCode?: string }> {
-    const data = await request<{
-      data: { family: Family; member: Member; token: string; loginCode?: string };
+    const res = await request<{
+      data?: { family: Family; member: Member; token: string; loginCode?: string };
+      family?: Family;
+      member?: Member;
+      token?: string;
+      loginCode?: string;
     }>('/auth/qr-login', {
       method: 'POST',
-      body: JSON.stringify({ qrPayload }),
+      body: JSON.stringify({ payload: qrPayload, qrPayload }),
     });
+    const result = res.data || (res as any);
     await webStorage.saveAuth(
-      data.data.family,
-      data.data.member,
-      data.data.token,
-      data.data.loginCode
+      result.family,
+      result.member,
+      result.token,
+      result.loginCode || qrPayload
     );
-    return data.data;
+    return {
+      family: result.family,
+      member: result.member,
+      token: result.token,
+      loginCode: result.loginCode || qrPayload,
+    };
   },
 
   // Fetch full member profile

@@ -1,5 +1,4 @@
 import React, { useState, useRef } from 'react';
-import jsQR from 'jsqr';
 import type { Role } from '@nhipnha/shared';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -8,6 +7,8 @@ import { BigButton } from '../components/BigButton';
 import { AccessibleText } from '../components/AccessibleText';
 import { MIcon } from '../components/MIcon';
 import { QRScannerModal } from '../components/QRScannerModal';
+import { GoogleLoadingIndicator } from '../components/GoogleLoadingIndicator';
+import { decodeQRFromFile, extractCodeFromQR } from '../services/qrDecoder';
 
 interface LoginScreenProps {
   onJoinWithCode: () => void;
@@ -19,6 +20,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
   const {
     loginWithEmail,
     loginWithQR,
+    pairWithQR,
+    pairWithCode,
     createNewFamily,
     loginDemoAccount,
     isLoading,
@@ -37,40 +40,89 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
   const [qrInput, setQrInput] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [isProcessingQR, setIsProcessingQR] = useState(false);
   const [alertInfo, setAlertInfo] = useState<{ title: string; message: string } | null>(null);
 
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
 
-  const handleUploadQRImage = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const img = new Image();
-    img.onload = () => {
+  const handleAutoLoginOrPair = async (qrPayloadString: string) => {
+    setIsProcessingQR(true);
+    const trimmed = qrPayloadString.trim();
+    try {
+      // 1. Check if it's personal QR login JSON
       try {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0);
-          const imgData = ctx.getImageData(0, 0, img.width, img.height);
-          const code = jsQR(imgData.data, imgData.width, imgData.height);
-          if (code && code.data) {
-            handleLoginQR(code.data);
-            return;
-          }
+        const parsed = JSON.parse(trimmed);
+        if (parsed?.type === 'login' || (parsed?.memberId && parsed?.secret)) {
+          await loginWithQR(trimmed);
+          return;
         }
       } catch {}
+
+      // 2. Try personal QR login first directly
+      try {
+        await loginWithQR(trimmed);
+        return;
+      } catch (errLogin: any) {
+        // If not personal login, fall through to pairing
+      }
+
+      // 3. Try pairing with QR payload or code
+      const extracted = extractCodeFromQR(trimmed);
+      try {
+        await pairWithQR(trimmed);
+        return;
+      } catch {
+        if (extracted) {
+          await pairWithCode(extracted);
+          return;
+        }
+      }
+
+      throw new Error(
+        isVi
+          ? 'Mã QR không hợp lệ hoặc không tìm thấy gia đình tương ứng.'
+          : 'Invalid QR code or matching family not found.'
+      );
+    } catch (err: any) {
       setAlertInfo({
-        title: isVi ? 'Không nhận diện được mã QR' : 'No QR Code Detected',
-        message: isVi
-          ? 'Không tìm thấy mã QR trong hình ảnh vừa chọn.'
-          : 'Could not detect a QR code from this image.',
+        title: isVi ? 'Đăng nhập bằng mã QR thất bại' : 'QR Sign-in Failed',
+        message:
+          err?.message ||
+          (isVi
+            ? 'Không thể đăng nhập bằng mã QR trong ảnh này. Vui lòng kiểm tra lại mã QR hoặc mở camera để quét.'
+            : 'Could not sign in with this QR code. Please check the image or scan with camera.'),
       });
-    };
-    img.src = URL.createObjectURL(file);
+    } finally {
+      setIsProcessingQR(false);
+    }
+  };
+
+  const handleUploadQRImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
     e.target.value = '';
+
+    setIsProcessingQR(true);
+    try {
+      const qrData = await decodeQRFromFile(file);
+      if (qrData) {
+        await handleAutoLoginOrPair(qrData);
+      } else {
+        setIsProcessingQR(false);
+        setAlertInfo({
+          title: isVi ? 'Không tìm thấy mã QR trong ảnh' : 'No QR Code Detected',
+          message: isVi
+            ? 'Không nhận diện được mã QR từ ảnh chụp màn hình này. Vui lòng chọn ảnh chụp rõ nét hơn hoặc mở máy ảnh quét trực tiếp.'
+            : 'Could not detect a QR code from this screenshot. Please try a clearer screenshot or scan with camera.',
+        });
+      }
+    } catch (err: any) {
+      setIsProcessingQR(false);
+      setAlertInfo({
+        title: isVi ? 'Lỗi đọc ảnh' : 'Image Read Error',
+        message: err?.message || (isVi ? 'Không thể đọc tệp ảnh vừa chọn.' : 'Could not read the selected image file.'),
+      });
+    }
   };
 
   const [errors, setErrors] = useState<{
@@ -476,7 +528,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
 
             <BigButton
               variant="tonal"
-              iconName="pin"
+              iconName="tag"
               onClick={onJoinWithCode}
             >
               {isVi ? 'Nhập Mã Mời Gia Đình (8 Ký Tự)' : 'Enter 8-digit Invite Code'}
@@ -756,9 +808,47 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
         onClose={() => setScannerOpen(false)}
         onScanSuccess={(data) => {
           setScannerOpen(false);
-          handleLoginQR(data);
+          handleAutoLoginOrPair(data);
         }}
       />
+
+      {/* QR Processing Loading Overlay */}
+      {isProcessingQR && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 16,
+            zIndex: 1200,
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: colors.surface,
+              padding: '24px 32px',
+              borderRadius: 24,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 14,
+              boxShadow: '0 12px 36px rgba(0,0,0,0.3)',
+            }}
+          >
+            <GoogleLoadingIndicator size={44} strokeWidth={4} multiColor={true} />
+            <AccessibleText variant="bodyLarge" weight="800" color={colors.textDark}>
+              {isVi ? 'Đang đọc mã QR và đăng nhập...' : 'Scanning QR & signing in...'}
+            </AccessibleText>
+          </div>
+        </div>
+      )}
 
       {/* Alert Dialog */}
       {alertInfo && (

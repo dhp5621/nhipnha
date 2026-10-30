@@ -31,11 +31,18 @@ type ScreenName =
 function NavigationRoot() {
   const { isPaired, isLoading, member, family } = useAuth();
   const { activeLanguage } = useLanguage();
-  const { colors, isDark, toggleTheme } = useTheme();
+  const { colors, isDark, toggleTheme, textScale } = useTheme();
   const [currentScreen, setCurrentScreen] = useState<ScreenName | null>(null);
   const [showFamilyCode, setShowFamilyCode] = useState(false);
 
   const isVi = activeLanguage === 'vi';
+
+  // Responsive dock bar sizing based on accessibility text size preference
+  const isLargeText = textScale === 'large' || (textScale === 'role_default' && member?.role === 'GRANDPARENT');
+  const isExtraLargeText = textScale === 'extra_large';
+  const navIconSize = isExtraLargeText ? 28 : isLargeText ? 25 : 22;
+  const navMinHeight = isExtraLargeText ? 62 : isLargeText ? 54 : 46;
+  const navPadding = isExtraLargeText ? '12px 18px' : isLargeText ? '10px 16px' : '8px 14px';
 
   if (isLoading) {
     return (
@@ -47,10 +54,10 @@ function NavigationRoot() {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: 16,
+          gap: 18,
         }}
       >
-        <GoogleLoadingIndicator size={48} strokeWidth={4} multiColor={true} />
+        <GoogleLoadingIndicator size={52} strokeWidth={4} multiColor={true} />
         <AccessibleText variant="bodyLarge" weight="800" color={colors.textDark}>
           {isVi ? 'Đang tải Nhịp Nhà...' : 'Loading Home Rhythm...'}
         </AccessibleText>
@@ -285,14 +292,21 @@ function NavigationRoot() {
       <nav
         className="mobile-dock-wrapper"
         style={{
-          backgroundColor: isDark ? 'rgba(21, 16, 12, 0.94)' : 'rgba(252, 246, 238, 0.94)',
+          background: 'transparent',
+          pointerEvents: 'none',
         }}
       >
         <div
           className="mobile-dock-bar"
           style={{
-            backgroundColor: colors.surfaceContainerHigh,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+            pointerEvents: 'auto',
+            backgroundColor: isDark ? 'rgba(30, 24, 18, 0.76)' : 'rgba(255, 255, 255, 0.78)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)'}`,
+            boxShadow: isDark
+              ? '0 12px 36px rgba(0, 0, 0, 0.45)'
+              : '0 12px 36px rgba(0, 0, 0, 0.14)',
           }}
         >
           <button
@@ -301,14 +315,16 @@ function NavigationRoot() {
             className="mobile-dock-item"
             style={{
               backgroundColor: isHomeTab ? colors.primaryContainer : 'transparent',
-              borderRadius: isHomeTab ? 999 : 20,
+              borderRadius: 999,
               border: 'none',
               cursor: 'pointer',
+              minHeight: navMinHeight,
+              padding: navPadding,
             }}
           >
             <MIcon
               name={member?.role === 'PARENT' ? 'insights' : 'home'}
-              size={22}
+              size={navIconSize}
               color={isHomeTab ? colors.onPrimaryContainer : colors.textSecondary}
             />
             <AccessibleText
@@ -332,14 +348,16 @@ function NavigationRoot() {
             className="mobile-dock-item"
             style={{
               backgroundColor: !isHomeTab ? colors.primaryContainer : 'transparent',
-              borderRadius: !isHomeTab ? 999 : 20,
+              borderRadius: 999,
               border: 'none',
               cursor: 'pointer',
+              minHeight: navMinHeight,
+              padding: navPadding,
             }}
           >
             <MIcon
               name="tune"
-              size={22}
+              size={navIconSize}
               color={!isHomeTab ? colors.onPrimaryContainer : colors.textSecondary}
             />
             <AccessibleText
@@ -443,7 +461,7 @@ function NavigationRoot() {
         .app-main-content {
           flex: 1;
           min-width: 0;
-          padding-bottom: 90px;
+          padding-bottom: 110px;
         }
 
         .mobile-dock-wrapper {
@@ -452,8 +470,9 @@ function NavigationRoot() {
           bottom: 0;
           left: 0;
           right: 0;
-          padding: 8px 18px 14px;
-          backdrop-filter: blur(12px);
+          padding: 8px 18px 16px;
+          background: transparent !important;
+          pointer-events: none;
           z-index: 100;
         }
 
@@ -462,10 +481,12 @@ function NavigationRoot() {
           align-items: center;
           justify-content: space-between;
           gap: 8px;
-          padding: 5px;
+          padding: 6px;
           border-radius: 999px;
           max-width: 480px;
           margin: 0 auto;
+          pointer-events: auto;
+          transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
         }
 
         .mobile-dock-item {
@@ -474,8 +495,6 @@ function NavigationRoot() {
           align-items: center;
           justify-content: center;
           gap: 8px;
-          padding: 10px 14px;
-          min-height: 48px;
           transition: all 0.16s ease;
         }
 

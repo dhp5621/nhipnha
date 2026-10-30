@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text, TextProps, StyleSheet } from 'react-native';
+import { Text, TextProps, StyleSheet, Platform } from 'react-native';
 import { THEME } from '../constants/theme';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -118,6 +118,6 @@ export const AccessibleText: React.FC<AccessibleTextProps> = ({
 
 const styles = StyleSheet.create({
   base: {
-    includeFontPadding: false,
+    includeFontPadding: true,
   },
 });

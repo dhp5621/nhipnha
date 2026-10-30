@@ -57,19 +57,22 @@ export const AccessibleText: React.FC<AccessibleTextProps> = ({
     }
   };
 
-  const { fontSize, lineHeight, defaultWeight } = getVariantStyles();
+  const { fontSize, lineHeight: baseLineHeight, defaultWeight } = getVariantStyles();
+  const safeLineHeight = Math.max(baseLineHeight, Math.round(fontSize * 1.36));
 
   return (
     <span
       className={className}
       style={{
-        display: 'inline-block',
+        display: align !== 'left' ? 'block' : 'inline',
         fontSize,
-        lineHeight: `${lineHeight}px`,
+        lineHeight: `${safeLineHeight}px`,
         fontWeight: weight || defaultWeight,
         color: color || colors.textDark,
         textAlign: align,
         letterSpacing: variant === 'display' || variant === 'hero' ? '-0.02em' : 'normal',
+        wordBreak: 'break-word',
+        WebkitFontSmoothing: 'antialiased',
         ...style,
       }}
       {...props}

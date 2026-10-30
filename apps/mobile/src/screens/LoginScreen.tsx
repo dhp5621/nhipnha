@@ -157,18 +157,26 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
 
       const handleDecodedQR = async (decodedData: string) => {
         try {
-          if (decodedData.startsWith('{')) {
-            const parsed = JSON.parse(decodedData);
-            if (parsed.type === 'login' && parsed.memberId && parsed.secret) {
-              await loginWithQR(decodedData);
-              return;
-            }
+          const trimmed = decodedData.trim();
+          if (trimmed.startsWith('{')) {
+            try {
+              const parsed = JSON.parse(trimmed);
+              if (parsed.type === 'login' && parsed.memberId && parsed.secret) {
+                await loginWithQR(trimmed);
+                return;
+              }
+            } catch {}
           }
-          await pairWithCode(decodedData);
+          try {
+            await pairWithCode(trimmed);
+            return;
+          } catch {
+            await loginWithQR(trimmed);
+          }
         } catch (err: any) {
           Alert.alert(
-            isVi ? 'Mã không hợp lệ' : 'Invalid Code',
-            err?.message || (isVi ? 'Không thể đăng nhập bằng mã này.' : 'Could not sign in with this code.')
+            isVi ? 'Đăng nhập thất bại' : 'Sign-in Failed',
+            err?.message || (isVi ? 'Không thể đăng nhập bằng mã QR trong ảnh này.' : 'Could not sign in with this QR code.')
           );
         }
       };

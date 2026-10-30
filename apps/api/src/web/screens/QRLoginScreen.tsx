@@ -1,5 +1,4 @@
 import React, { useState, useRef } from 'react';
-import jsQR from 'jsqr';
 import type { Role } from '@nhipnha/shared';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -8,6 +7,8 @@ import { BigButton } from '../components/BigButton';
 import { AccessibleText } from '../components/AccessibleText';
 import { MIcon } from '../components/MIcon';
 import { QRScannerModal } from '../components/QRScannerModal';
+import { GoogleLoadingIndicator } from '../components/GoogleLoadingIndicator';
+import { decodeQRFromFile, extractCodeFromQR } from '../services/qrDecoder';
 
 interface QRLoginScreenProps {
   onSuccess: () => void;
@@ -35,43 +36,12 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess, onBackT
   const [ownerEmail, setOwnerEmail] = useState('');
   const [ownerPassword, setOwnerPassword] = useState('');
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [isProcessingQR, setIsProcessingQR] = useState(false);
   const [alertInfo, setAlertInfo] = useState<{ title: string; message: string } | null>(null);
 
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
 
   const isVi = activeLanguage === 'vi';
-
-  const handleUploadQRImage = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const img = new Image();
-    img.onload = () => {
-      try {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0);
-          const imgData = ctx.getImageData(0, 0, img.width, img.height);
-          const code = jsQR(imgData.data, imgData.width, imgData.height);
-          if (code && code.data) {
-            handlePairSuccess(code.data);
-            return;
-          }
-        }
-      } catch {}
-      setAlertInfo({
-        title: isVi ? 'Không nhận diện được mã QR' : 'No QR Code Detected',
-        message: isVi
-          ? 'Không tìm thấy mã QR trong hình ảnh vừa tải lên. Vui lòng chọn ảnh rõ hơn hoặc mở camera quét.'
-          : 'Could not detect a QR code from this image. Please try another image or scan live.',
-      });
-    };
-    img.src = URL.createObjectURL(file);
-    e.target.value = '';
-  };
 
   const roleOptions: { id: Role; labelVi: string; labelEn: string; icon: string }[] = [
     { id: 'CHILD', labelVi: 'Trẻ em', labelEn: 'Child', icon: 'child_care' },
@@ -80,22 +50,79 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess, onBackT
   ];
 
   const handlePairSuccess = async (qrPayloadString: string) => {
+    setIsProcessingQR(true);
+    const trimmed = qrPayloadString.trim();
     try {
+      // 1. Try personal login if JSON contains type: 'login' or memberId/secret
       try {
-        const parsed = JSON.parse(qrPayloadString);
-        if (parsed?.type === 'login') {
-          await loginWithQR(qrPayloadString);
+        const parsed = JSON.parse(trimmed);
+        if (parsed?.type === 'login' || (parsed?.memberId && parsed?.secret)) {
+          await loginWithQR(trimmed);
           onSuccess();
           return;
         }
       } catch {}
 
-      await pairWithQR(qrPayloadString, selectedRole, memberName || undefined);
-      onSuccess();
+      // 2. Try pairWithQR first
+      try {
+        await pairWithQR(trimmed, selectedRole, memberName || undefined);
+        onSuccess();
+        return;
+      } catch (errPair: any) {
+        // Fall back to clean code if possible
+        const cleanCode = extractCodeFromQR(trimmed);
+        if (cleanCode && cleanCode !== trimmed) {
+          await pairWithCode(cleanCode, selectedRole, memberName || undefined);
+          onSuccess();
+          return;
+        }
+        // If pairWithQR failed, also try direct loginWithQR as fallback
+        try {
+          await loginWithQR(trimmed);
+          onSuccess();
+          return;
+        } catch {}
+
+        throw errPair;
+      }
     } catch (err: any) {
       setAlertInfo({
         title: isVi ? 'Lỗi kết nối mã QR' : 'QR Connection Error',
-        message: err?.message || (isVi ? 'Mã QR không hợp lệ' : 'Invalid QR code'),
+        message:
+          err?.message ||
+          (isVi
+            ? 'Mã QR không hợp lệ hoặc đã hết hạn. Vui lòng thử lại với mã khác.'
+            : 'Invalid QR code or invitation expired. Please try another code.'),
+      });
+    } finally {
+      setIsProcessingQR(false);
+    }
+  };
+
+  const handleUploadQRImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+
+    setIsProcessingQR(true);
+    try {
+      const qrData = await decodeQRFromFile(file);
+      if (qrData) {
+        await handlePairSuccess(qrData);
+      } else {
+        setIsProcessingQR(false);
+        setAlertInfo({
+          title: isVi ? 'Không tìm thấy mã QR trong ảnh' : 'No QR Code Detected',
+          message: isVi
+            ? 'Không tìm thấy mã QR trong hình ảnh vừa tải lên. Vui lòng chọn ảnh rõ hơn hoặc mở camera quét trực tiếp.'
+            : 'Could not detect a QR code from this image. Please try another image or scan live.',
+        });
+      }
+    } catch (err: any) {
+      setIsProcessingQR(false);
+      setAlertInfo({
+        title: isVi ? 'Lỗi đọc ảnh' : 'Image Read Error',
+        message: err?.message || (isVi ? 'Không thể đọc tệp ảnh vừa chọn.' : 'Could not read the image file.'),
       });
     }
   };
@@ -461,6 +488,44 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess, onBackT
           handlePairSuccess(data);
         }}
       />
+
+      {/* QR Processing Loading Overlay */}
+      {isProcessingQR && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 16,
+            zIndex: 1200,
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: colors.surface,
+              padding: '24px 32px',
+              borderRadius: 24,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 14,
+              boxShadow: '0 12px 36px rgba(0,0,0,0.3)',
+            }}
+          >
+            <GoogleLoadingIndicator size={44} strokeWidth={4} multiColor={true} />
+            <AccessibleText variant="bodyLarge" weight="800" color={colors.textDark}>
+              {isVi ? 'Đang đọc mã QR và kết nối...' : 'Reading QR & connecting...'}
+            </AccessibleText>
+          </div>
+        </div>
+      )}
 
       {alertInfo && (
         <div

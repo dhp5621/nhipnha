@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { View, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, TouchableOpacity, Platform } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 
 import { LanguageProvider, useLanguage } from './src/context/LanguageContext';
@@ -32,11 +32,18 @@ type ScreenName =
 function NavigationRoot() {
   const { isPaired, isLoading, member } = useAuth();
   const { activeLanguage } = useLanguage();
-  const { colors, isDark } = useTheme();
+  const { colors, isDark, textScale } = useTheme();
   const [currentScreen, setCurrentScreen] = useState<ScreenName | null>(null);
   const [showFamilyCode, setShowFamilyCode] = useState(false);
 
   const isVi = activeLanguage === 'vi';
+
+  // Responsive floating navbar dimensions based on accessibility text size preference
+  const isLargeText = textScale === 'large' || (textScale === 'role_default' && member?.role === 'GRANDPARENT');
+  const isExtraLargeText = textScale === 'extra_large';
+  const navIconSize = isExtraLargeText ? 28 : isLargeText ? 25 : 22;
+  const navMinHeight = isExtraLargeText ? 62 : isLargeText ? 54 : 46;
+  const navPaddingVert = isExtraLargeText ? 13 : isLargeText ? 10 : 7;
 
   if (isLoading) {
     return (
@@ -127,15 +134,17 @@ function NavigationRoot() {
 
       {/* Material 3 Expressive Production Floating Navigation Bar */}
       <View
-        style={[
-          styles.dockWrapper,
-          { backgroundColor: colors.background },
-        ]}
+        pointerEvents="box-none"
+        style={styles.dockWrapper}
       >
         <View
           style={[
             styles.dockBar,
-            { backgroundColor: colors.surfaceContainerHigh },
+            {
+              backgroundColor: isDark ? 'rgba(30, 24, 18, 0.82)' : 'rgba(255, 255, 255, 0.85)',
+              borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+              borderWidth: 1,
+            },
           ]}
         >
           <TouchableOpacity
@@ -145,15 +154,17 @@ function NavigationRoot() {
               styles.dockItem,
               {
                 backgroundColor: isHomeTab ? colors.primaryContainer : 'transparent',
-                borderRadius: isHomeTab ? 999 : 20,
+                borderRadius: 999,
+                minHeight: navMinHeight,
+                paddingVertical: navPaddingVert,
               },
             ]}
             accessibilityRole="tab"
             accessibilityState={{ selected: isHomeTab }}
           >
             <MaterialIcons
-              name={member?.role === 'PARENT' ? 'insights' : 'home-filled'}
-              size={22}
+              name={member?.role === 'PARENT' ? 'insights' : 'home'}
+              size={navIconSize}
               color={isHomeTab ? colors.onPrimaryContainer : colors.textSecondary}
               style={styles.dockIcon}
             />
@@ -179,7 +190,9 @@ function NavigationRoot() {
               styles.dockItem,
               {
                 backgroundColor: !isHomeTab ? colors.primaryContainer : 'transparent',
-                borderRadius: !isHomeTab ? 999 : 20,
+                borderRadius: 999,
+                minHeight: navMinHeight,
+                paddingVertical: navPaddingVert,
               },
             ]}
             accessibilityRole="tab"
@@ -187,7 +200,7 @@ function NavigationRoot() {
           >
             <MaterialIcons
               name="tune"
-              size={22}
+              size={navIconSize}
               color={!isHomeTab ? colors.onPrimaryContainer : colors.textSecondary}
               style={styles.dockIcon}
             />
@@ -248,25 +261,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   dockWrapper: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     paddingHorizontal: 20,
-    paddingBottom: 10,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 14,
     paddingTop: 6,
+    backgroundColor: 'transparent',
   },
   dockBar: {
     flexDirection: 'row',
     borderRadius: 999,
-    padding: 5,
+    padding: 6,
     justifyContent: 'space-between',
     gap: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    elevation: 12,
   },
   dockItem: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 11,
-    paddingHorizontal: 14,
-    minHeight: 50,
+    paddingHorizontal: 12,
   },
   dockIcon: {
     marginRight: 8,

@@ -25,15 +25,16 @@ function sameHash(a: string, b: string | undefined): boolean {
 
 /** Accepts the scanned QR text ({"type":"login",...}) or { memberId, secret }. */
 function readCredentials(body: any): { memberId: string; secret: string } | null {
-  let source: any = body;
-  if (typeof body.payload === 'string') {
+  const candidate = body?.payload ?? body?.qrPayload ?? body;
+  let source: any = candidate;
+  if (typeof candidate === 'string') {
     try {
-      source = JSON.parse(body.payload);
+      source = JSON.parse(candidate);
     } catch {
       return null;
     }
-  } else if (body.payload && typeof body.payload === 'object') {
-    source = body.payload;
+  } else if (candidate && typeof candidate === 'object') {
+    source = candidate;
   }
   if (source?.type && source.type !== 'login') return null;
   const memberId = typeof source?.memberId === 'string' ? source.memberId.trim() : '';
@@ -68,12 +69,20 @@ export async function POST(request: Request) {
     await registerLoginSuccess(member.id, secrets);
     const deviceLabel = typeof body.deviceLabel === 'string' ? body.deviceLabel : undefined;
     const token = await issueSession(member.id, deviceLabel);
-    return NextResponse.json({
-      success: true,
+    const rawLoginCode = typeof body.payload === 'string' ? body.payload : (typeof body.qrPayload === 'string' ? body.qrPayload : undefined);
+    
+    const payloadResult = {
       family,
       member,
       token,
+      loginCode: rawLoginCode,
       hasPassword: !!secrets.passwordHash,
+    };
+
+    return NextResponse.json({
+      success: true,
+      data: payloadResult,
+      ...payloadResult,
     });
   } catch (err: any) {
     return fail(500, err?.message || 'Không thể đăng nhập bằng mã QR');

@@ -27,18 +27,37 @@ function cleanText(value: unknown, max: number): string {
   return typeof value === 'string' ? value.trim().slice(0, max) : '';
 }
 
-/** Accepts a raw code, or the JSON payload of a scanned QR, and returns the code inside. */
+/** Accepts a raw code, JSON payload, or URL of a scanned QR, and returns the clean code inside. */
 function extractCode(body: { code?: unknown; qrPayload?: unknown }): string {
-  if (body.qrPayload) {
+  const raw = body.qrPayload ?? body.code;
+  if (!raw) return '';
+  const text = typeof raw === 'string' ? raw.trim() : JSON.stringify(raw);
+
+  // Try JSON first
+  try {
+    const parsed: any = typeof raw === 'object' ? raw : JSON.parse(text);
+    const code = parsed?.inviteCode || parsed?.familyCode || parsed?.code || parsed?.familyId;
+    if (code) return String(code).trim().toUpperCase();
+  } catch {}
+
+  // Try URL parsing (e.g. if QR is a web link to pair/invite)
+  if (text.startsWith('http://') || text.startsWith('https://') || text.startsWith('nhipnha://')) {
     try {
-      const parsed: QRPairingPayload =
-        typeof body.qrPayload === 'string' ? JSON.parse(body.qrPayload) : (body.qrPayload as QRPairingPayload);
-      return String(parsed.inviteCode || parsed.familyCode || '').trim().toUpperCase();
-    } catch {
-      return String(body.qrPayload).trim().toUpperCase();
-    }
+      const url = new URL(text);
+      const codeParam =
+        url.searchParams.get('code') ||
+        url.searchParams.get('invite') ||
+        url.searchParams.get('inviteCode') ||
+        url.searchParams.get('qr');
+      if (codeParam) return codeParam.trim().toUpperCase();
+      const lastSeg = url.pathname.split('/').filter(Boolean).pop();
+      if (lastSeg && (lastSeg.includes('-') || lastSeg.length >= 6)) {
+        return lastSeg.trim().toUpperCase();
+      }
+    } catch {}
   }
-  return String(body.code || '').trim().toUpperCase();
+
+  return text.toUpperCase();
 }
 
 /**

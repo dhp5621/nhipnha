@@ -187,13 +187,16 @@ export const apiClient = {
     const res = await fetch(`${API_BASE}/auth/qr-login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ payload }),
+      body: JSON.stringify({ payload, qrPayload: typeof payload === 'string' ? payload : JSON.stringify(payload) }),
     });
     const data = await res.json();
-    if (data.success && data.family && data.member) {
+    const family = data.family || data.data?.family;
+    const member = data.member || data.data?.member;
+    const token = data.token || data.data?.token;
+    if (data.success && family && member) {
       const loginStr = typeof payload === 'string' ? payload : JSON.stringify(payload);
-      await offlineStorage.saveAuth(data.family, data.member, data.token, loginStr);
-      return { family: data.family, member: data.member, token: data.token };
+      await offlineStorage.saveAuth(family, member, token, loginStr);
+      return { family, member, token };
     }
     throw new Error(data.error || 'Mã QR đăng nhập không hợp lệ hoặc đã bị thay thế');
   },
