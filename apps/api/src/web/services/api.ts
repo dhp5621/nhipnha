@@ -231,11 +231,11 @@ export const apiClient = {
     familyId: string,
     input: { name: string; role: Role; email?: string; password?: string }
   ): Promise<{ member: Member; loginCode?: string }> {
-    const data = await request<{ data: Member; loginCode?: string }>('/family/members', {
+    const data = await request<{ data?: Member; member?: Member; loginCode?: string }>('/family/members', {
       method: 'POST',
       body: JSON.stringify({ familyId, ...input }),
     });
-    return { member: data.member || data.data, loginCode: data.loginCode };
+    return { member: (data.member || data.data) as Member, loginCode: data.loginCode };
   },
 
   async updateFamilyMember(
@@ -243,11 +243,11 @@ export const apiClient = {
     memberId: string,
     patch: { name?: string; role?: Role; email?: string; password?: string }
   ): Promise<{ member: Member; loginCode?: string }> {
-    const data = await request<{ data: Member; loginCode?: string }>(
+    const data = await request<{ data?: Member; member?: Member; loginCode?: string }>(
       `/family/members?familyId=${encodeURIComponent(familyId)}&memberId=${encodeURIComponent(memberId)}`,
       { method: 'PATCH', body: JSON.stringify({ familyId, memberId, ...patch }) }
     );
-    return { member: data.member || data.data, loginCode: data.loginCode };
+    return { member: (data.member || data.data) as Member, loginCode: data.loginCode };
   },
 
   async deleteFamilyMember(familyId: string, memberId: string): Promise<void> {
