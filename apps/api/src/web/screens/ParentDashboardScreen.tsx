@@ -406,15 +406,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
           });
       }
 
-      const childSpeech =
-        storedChildTranscript ||
-        autoTranscribedChildVoice ||
-        (isDemoAccount
-          ? isVi
-            ? 'Chiều nay con đi học về vui lắm, con ăn canh chua bà nấu ngon ơi là ngon!'
-            : 'School was so fun today, I took a photo of dinner with Grandma to show you!'
-          : '');
-      webAudioService.playAudioUrl(state.afternoonVoiceUrl, childSpeech, () => {
+      webAudioService.playAudioUrl(state.afternoonVoiceUrl, undefined, () => {
         setIsPlayingChildVoice(false);
       });
     }
@@ -429,7 +421,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
       setIsPlayingChildEveningVoice(true);
       webAudioService.playAudioUrl(
         state.eveningExtraVoiceUrl,
-        state.eveningExtraNote || '',
+        undefined,
         () => {
           setIsPlayingChildEveningVoice(false);
         }
@@ -446,7 +438,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
       setIsPlayingParentVoice(true);
       webAudioService.playAudioUrl(
         parentVoice.url,
-        parentVoice.transcript || messageNote || selectedPrompt || '',
+        undefined,
         () => {
           setIsPlayingParentVoice(false);
         }

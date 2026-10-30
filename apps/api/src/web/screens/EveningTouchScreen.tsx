@@ -60,7 +60,7 @@ export const EveningTouchScreen: React.FC<EveningTouchScreenProps> = ({ onBack }
     if (!isPlaying) {
       setIsPlaying(true);
       markEveningListened();
-      webAudioService.playAudioUrl(state.eveningAudioUrl, messageText, () => {
+      webAudioService.playAudioUrl(state.eveningAudioUrl, undefined, () => {
         setIsPlaying(false);
       });
     } else {
@@ -133,7 +133,7 @@ export const EveningTouchScreen: React.FC<EveningTouchScreenProps> = ({ onBack }
       setIsPlayingReply(false);
     } else {
       setIsPlayingReply(true);
-      webAudioService.playAudioUrl(replyVoice.url, replyVoice.transcript || '', () => {
+      webAudioService.playAudioUrl(replyVoice.url, undefined, () => {
         setIsPlayingReply(false);
       });
     }

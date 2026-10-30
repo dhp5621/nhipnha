@@ -57,7 +57,46 @@ class WebAudioService {
   }
 
   /**
-   * Request microphone and start audio recording with live waveform analyser & real-time Vietnamese speech recognition
+   * Play gentle acoustic chime melody for mock URIs (no creepy robotic TTS narrator)
+   */
+  playMockAcousticChime(durationSec: number = 4, onEnd?: () => void): void {
+    if (typeof window === 'undefined') {
+      setTimeout(() => onEnd?.(), 1000);
+      return;
+    }
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtx) {
+        const ctx = new AudioCtx();
+        const notes = [
+          { freq: 523.25, time: 0.0, dur: 0.7 }, // C5
+          { freq: 659.25, time: 0.5, dur: 0.7 }, // E5
+          { freq: 783.99, time: 1.0, dur: 0.7 }, // G5
+          { freq: 880.0, time: 1.5, dur: 0.9 }, // A5
+          { freq: 659.25, time: 2.2, dur: 1.1 }, // E5
+        ];
+        notes.forEach((n) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(n.freq, ctx.currentTime + n.time);
+          gain.gain.setValueAtTime(0.001, ctx.currentTime + n.time);
+          gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + n.time + 0.06);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + n.time + n.dur);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(ctx.currentTime + n.time);
+          osc.stop(ctx.currentTime + n.time + n.dur);
+        });
+      }
+    } catch (e) {
+      console.warn('Web Audio chime error:', e);
+    }
+    setTimeout(() => onEnd?.(), Math.max(1, durationSec) * 1000);
+  }
+
+  /**
+   * Request microphone and start audio recording with live waveform analyser & real-time speech recognition
    */
   async startAudioRecording(
     onWaveformSample?: (waveform: number[]) => void,
@@ -116,7 +155,7 @@ class WebAudioService {
         sampleWaveform();
       }
 
-      // 2. Real-time Vietnamese Speech-to-Text Recognition via Web Speech API
+      // 2. Real-time Speech-to-Text Recognition via Web Speech API (Local fallback)
       const SpeechRecognition =
         (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (SpeechRecognition) {
@@ -227,7 +266,6 @@ class WebAudioService {
       const recorder = this.mediaRecorder!;
       recorder.onstop = () => {
         try {
-          // Strip codec parameter (e.g. 'audio/webm;codecs=opus' -> 'audio/webm') for clean Gemini inlineData & HTML5 Audio compatibility
           const rawMime = recorder.mimeType || 'audio/webm';
           const cleanMime = rawMime.split(';')[0].trim() || 'audio/webm';
           const blob = new Blob(this.audioChunks, { type: cleanMime });
@@ -267,22 +305,28 @@ class WebAudioService {
   }
 
   /**
-   * Play audio URL with HTML5 Audio, Blob conversion for data URLs, or Web Speech fallback
+   * Play audio URL directly via HTML5 Audio element.
+   * STRICTLY ONLY plays actual audio — NEVER uses robotic TTS narrator.
    */
   async playAudioUrl(
     url?: string,
-    synthesizedText?: string,
+    _deprecatedSynthesizedText?: string,
     onEnd?: () => void
   ): Promise<void> {
     this.stopCurrentAudio();
 
-    // If it's a mock URI (e.g. mock://audio/...), bypass HTML Audio element and speak with TTS
-    if (url && (url.startsWith('mock://') || url.startsWith('file://'))) {
-      this.speakText(synthesizedText, onEnd);
+    if (!url) {
+      onEnd?.();
       return;
     }
 
-    if (url && (url.startsWith('data:audio') || url.startsWith('http') || url.startsWith('blob:'))) {
+    // If it's a mock URI (e.g. mock://audio/...), play a gentle acoustic musical chime instead of robotic narrator
+    if (url.startsWith('mock://') || url.startsWith('file://')) {
+      this.playMockAcousticChime(url.includes('14s') ? 5 : 4, onEnd);
+      return;
+    }
+
+    if (url.startsWith('data:audio') || url.startsWith('http') || url.startsWith('blob:')) {
       try {
         let playSrc = url;
         let objectUrlToRevoke: string | null = null;
@@ -293,16 +337,16 @@ class WebAudioService {
             const commaIdx = url.indexOf(',');
             if (commaIdx !== -1) {
               const header = url.slice(0, commaIdx);
-              const base64 = url.slice(commaIdx + 1);
+              const base64 = url.slice(commaIdx + 1).trim();
               const mimeMatch = header.match(/^data:([^;]+)/);
-              const mimeType = mimeMatch ? mimeMatch[1] : 'audio/webm';
+              const mimeType = mimeMatch ? mimeMatch[1].trim() : 'audio/webm';
               const binary = atob(base64);
               const bytes = new Uint8Array(binary.length);
               for (let i = 0; i < binary.length; i++) {
                 bytes[i] = binary.charCodeAt(i);
               }
               const blob = new Blob([bytes], { type: mimeType });
-              if (blob.size > 100) {
+              if (blob.size > 50) {
                 objectUrlToRevoke = URL.createObjectURL(blob);
                 playSrc = objectUrlToRevoke;
               }
@@ -333,68 +377,21 @@ class WebAudioService {
         };
 
         audio.onended = finishPlayback;
-        audio.onerror = () => {
-          if (objectUrlToRevoke) {
-            try {
-              URL.revokeObjectURL(objectUrlToRevoke);
-            } catch {}
-          }
-          if (this.currentAudioElement === audio) {
-            this.currentAudioElement = null;
-          }
-          if (!finished) {
-            finished = true;
-            if (synthesizedText && synthesizedText.trim()) {
-              this.speakText(synthesizedText, onEnd);
-            } else {
-              onEnd?.();
-            }
-          }
+        audio.onerror = (e) => {
+          console.warn('Audio playback error on source:', e);
+          finishPlayback();
         };
 
         await audio.play();
         return;
       } catch (err) {
         console.warn('HTMLAudio play error:', err);
-        if (synthesizedText && synthesizedText.trim()) {
-          this.speakText(synthesizedText, onEnd);
-        } else {
-          onEnd?.();
-        }
+        onEnd?.();
         return;
       }
     }
 
-    if (synthesizedText && synthesizedText.trim()) {
-      this.speakText(synthesizedText, onEnd);
-    } else {
-      onEnd?.();
-    }
-  }
-
-  private speakText(text?: string, onEnd?: () => void) {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window && text) {
-      try {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'vi-VN';
-        utterance.rate = 1.0;
-        utterance.pitch = 1.15; // Natural, cheerful young voice tone
-
-        // Select Vietnamese voice if available on user device
-        const voices = window.speechSynthesis.getVoices();
-        const viVoice = voices.find((v) => v.lang.toLowerCase().includes('vi'));
-        if (viVoice) {
-          utterance.voice = viVoice;
-        }
-
-        utterance.onend = () => onEnd?.();
-        utterance.onerror = () => onEnd?.();
-        window.speechSynthesis.speak(utterance);
-        return;
-      } catch {}
-    }
-    setTimeout(() => onEnd?.(), 2500);
+    onEnd?.();
   }
 
   stopCurrentAudio(): void {
@@ -404,6 +401,7 @@ class WebAudioService {
         this.currentAudioElement = null;
       } catch {}
     }
+    // Cancel any accidental speech synthesis immediately
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       try {
         window.speechSynthesis.cancel();

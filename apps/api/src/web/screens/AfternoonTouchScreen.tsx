@@ -148,8 +148,7 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
       setIsPlayingRecorded(false);
     } else {
       setIsPlayingRecorded(true);
-      const childSpeech = liveTranscript || noteText || '';
-      webAudioService.playAudioUrl(recordedVoice.url, childSpeech, () => {
+      webAudioService.playAudioUrl(recordedVoice.url, undefined, () => {
         setIsPlayingRecorded(false);
       });
     }
