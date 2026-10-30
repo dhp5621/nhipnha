@@ -330,6 +330,7 @@ export const RoleSwitchScreen: React.FC<RoleSwitchScreenProps> = ({
             title={member?.name || 'Thành viên'}
             subtitle={isVi ? 'Quét mã này trên bất kỳ máy tính/điện thoại nào để vào ngay' : 'Scan to sign in instantly'}
             codeText={personalLoginCode || `USER-${member?.id?.slice(-8) || '8868'}`}
+            qrPayload={personalLoginCode || undefined}
             badgeLabel={member?.role}
           />
         )}

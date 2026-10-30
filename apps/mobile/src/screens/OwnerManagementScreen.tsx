@@ -774,8 +774,8 @@ export const OwnerManagementScreen: React.FC<OwnerManagementScreenProps> = ({ on
                 style={[styles.memberCard, { backgroundColor: colors.surfaceContainerLow }]}
               >
                 <View style={styles.memberHeader}>
-                  <View style={{ flex: 1 }}>
-                    <AccessibleText variant="h2" weight="900">
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <AccessibleText variant="h2" weight="900" numberOfLines={1} ellipsizeMode="middle">
                       {inv.code}
                     </AccessibleText>
                     <AccessibleText variant="caption" color={colors.primary} weight="800">

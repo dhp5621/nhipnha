@@ -382,6 +382,7 @@ export const OwnerManagementScreen: React.FC<OwnerManagementScreenProps> = ({ on
               title={generatedMemberQR.memberName}
               subtitle={isVi ? 'Đưa mã này cho thành viên quét để đăng nhập 1 chạm' : 'Scan for instant login'}
               codeText={generatedMemberQR.loginCode}
+              qrPayload={generatedMemberQR.loginCode}
               badgeLabel={generatedMemberQR.role}
             />
           )}
@@ -718,11 +719,31 @@ export const OwnerManagementScreen: React.FC<OwnerManagementScreenProps> = ({ on
                       justifyContent: 'space-between',
                     }}
                   >
-                    <div>
-                      <code style={{ fontSize: 16, fontWeight: 900, color: colors.primary }}>
+                    <div style={{ minWidth: 0, flex: 1, marginRight: 8 }}>
+                      <code
+                        style={{
+                          fontSize: 16,
+                          fontWeight: 900,
+                          color: colors.primary,
+                          display: 'block',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          maxWidth: 240,
+                        }}
+                      >
                         {inv.code}
                       </code>
-                      <div style={{ fontSize: 12, color: colors.textSecondary, fontWeight: 600 }}>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: colors.textSecondary,
+                          fontWeight: 600,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
                         {inv.role} {inv.memberName ? `• ${inv.memberName}` : ''}
                       </div>
                     </div>
@@ -788,6 +809,7 @@ export const OwnerManagementScreen: React.FC<OwnerManagementScreenProps> = ({ on
           title={isVi ? `Mã Chủ Nhà: ${member?.name}` : `Owner: ${member?.name}`}
           subtitle={isVi ? 'Mã QR quyền cao nhất của chủ hộ. Vui lòng giữ bí mật.' : 'Master credentials for the family host.'}
           codeText={personalLoginCode || `OWNER-${family?.code}`}
+          qrPayload={personalLoginCode || undefined}
           badgeLabel="MASTER OWNER"
         />
       )}

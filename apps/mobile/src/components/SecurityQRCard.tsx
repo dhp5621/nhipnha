@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, StyleSheet, Image, TouchableOpacity, Alert, Platform } from 'react-native';
+import React, { useState } from 'react';
+import { View, StyleSheet, Image, TouchableOpacity, Alert, Platform, Share } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { AccessibleText } from './AccessibleText';
 import { useTheme } from '../context/ThemeContext';
@@ -22,22 +22,44 @@ export const SecurityQRCard: React.FC<SecurityQRCardProps> = ({
 }) => {
   const { colors, isDark } = useTheme();
   const { activeLanguage } = useLanguage();
+  const [copied, setCopied] = useState(false);
   const isVi = activeLanguage === 'vi';
 
+  const rawPayload = (qrPayload || codeBadge || '').trim();
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=12&data=${encodeURIComponent(
-    qrPayload
+    rawPayload
   )}`;
 
-  const handleCopyPayload = () => {
-    const textToCopy = codeBadge || qrPayload;
-    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
-      navigator.clipboard.writeText(qrPayload).catch(() => {});
+  // Detect JSON login or pairing payload
+  let isJson = false;
+  let parsedPayload: Record<string, any> | null = null;
+  if (rawPayload.startsWith('{') && rawPayload.endsWith('}')) {
+    try {
+      parsedPayload = JSON.parse(rawPayload);
+      isJson = true;
+    } catch {
+      isJson = false;
     }
+  }
+
+  const memberId = parsedPayload?.memberId ? String(parsedPayload.memberId) : null;
+
+  const handleCopyPayload = async () => {
+    const textToCopy = rawPayload;
+    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
+      await navigator.clipboard.writeText(textToCopy).catch(() => {});
+    } else {
+      try {
+        await Share.share({ message: textToCopy });
+      } catch {}
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
     Alert.alert(
       isVi ? 'Đã sao chép mã' : 'Copied to Clipboard',
       isVi
-        ? `Mã bảo mật đã được sao chép. Tuyệt đối chỉ gửi riêng cho đúng thành viên trong gia đình!`
-        : `Code copied. Only share privately with the intended family member!`
+        ? `Mã bảo mật đã được sao chép. Dán trực tiếp vào ô đăng nhập QR hoặc chỉ gửi riêng cho đúng người thân!`
+        : `Code copied. Paste directly into the QR login box or share privately!`
     );
   };
 
@@ -114,8 +136,62 @@ export const SecurityQRCard: React.FC<SecurityQRCardProps> = ({
 
         {codeBadge ? (
           <View style={[styles.codeBadge, { backgroundColor: colors.primaryContainer }]}>
-            <AccessibleText variant="h2" weight="900" color={colors.onPrimaryContainer}>
+            <AccessibleText
+              variant="h2"
+              weight="900"
+              color={colors.onPrimaryContainer}
+              numberOfLines={1}
+              ellipsizeMode="middle"
+            >
               {codeBadge}
+            </AccessibleText>
+          </View>
+        ) : null}
+
+        {isJson ? (
+          <View
+            style={[
+              styles.tokenPreviewBox,
+              {
+                backgroundColor: isDark ? 'rgba(0, 0, 0, 0.25)' : colors.surfaceContainerHighest,
+                borderColor: colors.outlineVariant,
+              },
+            ]}
+          >
+            <View style={styles.tokenHeaderRow}>
+              <AccessibleText
+                variant="caption"
+                weight="800"
+                color={colors.textSecondary}
+              >
+                {isVi ? 'TOKEN ĐĂNG NHẬP (BẢO MẬT)' : 'LOGIN CREDENTIAL'}
+              </AccessibleText>
+              {memberId ? (
+                <View
+                  style={[
+                    styles.memberIdBadge,
+                    { backgroundColor: isDark ? 'rgba(255, 181, 156, 0.15)' : '#FFECE2' },
+                  ]}
+                >
+                  <AccessibleText
+                    variant="caption"
+                    weight="900"
+                    color={colors.primary}
+                    numberOfLines={1}
+                  >
+                    {memberId}
+                  </AccessibleText>
+                </View>
+              ) : null}
+            </View>
+            <AccessibleText
+              variant="caption"
+              color={colors.textSecondary}
+              numberOfLines={1}
+              ellipsizeMode="middle"
+              style={styles.monoPreview}
+            >
+              {rawPayload}
             </AccessibleText>
           </View>
         ) : null}
@@ -123,12 +199,40 @@ export const SecurityQRCard: React.FC<SecurityQRCardProps> = ({
 
       <TouchableOpacity
         onPress={handleCopyPayload}
-        style={[styles.copyBtn, { backgroundColor: colors.surfaceContainerHigh }]}
+        style={[
+          styles.copyBtn,
+          {
+            backgroundColor: copied
+              ? isDark
+                ? '#064E3B'
+                : '#DCFCE7'
+              : colors.primary,
+            borderColor: copied
+              ? isDark
+                ? '#059669'
+                : '#86EFAC'
+              : 'transparent',
+          },
+        ]}
         accessibilityRole="button"
+        activeOpacity={0.8}
       >
-        <MaterialIcons name="content-copy" size={18} color={colors.primary} style={{ marginRight: 8 }} />
-        <AccessibleText variant="label" weight="800" color={colors.primary}>
-          {isVi ? 'Sao chép dữ liệu mã QR (để dán đăng nhập)' : 'Copy QR payload (for quick paste)'}
+        <MaterialIcons
+          name={copied ? 'done' : 'content-copy'}
+          size={18}
+          color={copied ? (isDark ? '#6EE7B7' : '#15803D') : colors.onPrimary}
+          style={{ marginRight: 8 }}
+        />
+        <AccessibleText
+          variant="label"
+          weight="800"
+          color={copied ? (isDark ? '#6EE7B7' : '#15803D') : colors.onPrimary}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+        >
+          {copied
+            ? (isVi ? 'Đã sao chép Token vào bộ nhớ!' : 'Token copied to clipboard!')
+            : (isVi ? 'Sao chép Token Đăng Nhập' : 'Copy Login Token')}
         </AccessibleText>
       </TouchableOpacity>
     </View>
@@ -141,6 +245,8 @@ const styles = StyleSheet.create({
     padding: 18,
     borderWidth: 1,
     marginVertical: 10,
+    maxWidth: '100%',
+    overflow: 'hidden',
   },
   headerRow: {
     flexDirection: 'row',
@@ -159,6 +265,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginVertical: 8,
+    width: '100%',
   },
   qrFrame: {
     backgroundColor: '#FFFFFF',
@@ -175,14 +282,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 8,
     borderRadius: 999,
+    maxWidth: '90%',
+  },
+  tokenPreviewBox: {
+    width: '100%',
+    maxWidth: 340,
+    padding: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginTop: 12,
+  },
+  tokenHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  memberIdBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  monoPreview: {
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    fontSize: 11,
   },
   copyBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 16,
     borderRadius: 999,
-    marginTop: 10,
+    borderWidth: 1,
+    marginTop: 12,
+    width: '100%',
   },
 });
