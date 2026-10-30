@@ -34,7 +34,7 @@ export const BigButton: React.FC<BigButtonProps> = ({
   className = '',
   ...props
 }) => {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
 
   const getVariantStyles = (): {
     bg: string;
@@ -46,64 +46,67 @@ export const BigButton: React.FC<BigButtonProps> = ({
       case 'primary':
         return {
           bg: colors.primary,
-          text: colors.onPrimary,
-          border: 'none',
-          shadow: '0 4px 14px rgba(184, 67, 24, 0.28)',
+          text: isDark ? '#3A0E00' : colors.onPrimary,
+          border: isDark ? '1px solid rgba(255, 181, 156, 0.4)' : 'none',
+          shadow: isDark ? '0 4px 16px rgba(0, 0, 0, 0.45)' : '0 4px 14px rgba(184, 67, 24, 0.28)',
         };
       case 'secondary':
         return {
           bg: colors.secondary,
-          text: colors.onSecondary,
-          border: 'none',
-          shadow: '0 4px 14px rgba(38, 108, 68, 0.28)',
+          text: isDark ? '#032B14' : colors.onSecondary,
+          border: isDark ? '1px solid rgba(156, 212, 175, 0.4)' : 'none',
+          shadow: isDark ? '0 4px 16px rgba(0, 0, 0, 0.45)' : '0 4px 14px rgba(38, 108, 68, 0.28)',
         };
       case 'morning':
         return {
-          bg: colors.morningPrimary,
-          text: '#FFFFFF',
-          border: 'none',
-          shadow: '0 4px 16px rgba(140, 79, 0, 0.24)',
+          bg: isDark ? '#E59400' : '#F59E0B',
+          text: '#241000',
+          border: isDark ? '1px solid rgba(255, 213, 128, 0.5)' : 'none',
+          shadow: isDark ? '0 4px 16px rgba(0, 0, 0, 0.45)' : '0 4px 16px rgba(140, 79, 0, 0.24)',
         };
       case 'afternoon':
         return {
-          bg: colors.afternoonPrimary,
+          bg: isDark ? '#DF5018' : colors.afternoonPrimary,
           text: '#FFFFFF',
-          border: 'none',
-          shadow: '0 4px 16px rgba(158, 51, 6, 0.28)',
+          border: isDark ? '1px solid rgba(255, 181, 155, 0.4)' : 'none',
+          shadow: isDark ? '0 4px 16px rgba(0, 0, 0, 0.45)' : '0 4px 16px rgba(158, 51, 6, 0.28)',
         };
       case 'evening':
         return {
-          bg: colors.eveningPrimary,
+          bg: isDark ? '#544BE0' : colors.eveningPrimary,
           text: '#FFFFFF',
-          border: 'none',
-          shadow: '0 4px 16px rgba(61, 50, 184, 0.28)',
+          border: isDark ? '1px solid rgba(193, 193, 255, 0.4)' : 'none',
+          shadow: isDark ? '0 4px 16px rgba(0, 0, 0, 0.45)' : '0 4px 16px rgba(61, 50, 184, 0.28)',
         };
       case 'tonal':
         return {
-          bg: colors.surfaceContainerHigh,
+          bg: isDark ? colors.surfaceContainerHighest : colors.surfaceContainerHigh,
           text: colors.textDark,
           border: `1px solid ${colors.outlineVariant}`,
           shadow: 'none',
         };
       case 'danger':
         return {
-          bg: colors.error,
+          bg: isDark ? '#DC2626' : colors.error,
           text: '#FFFFFF',
-          border: 'none',
-          shadow: '0 4px 14px rgba(186, 26, 26, 0.28)',
+          border: isDark ? '1px solid rgba(239, 68, 68, 0.5)' : 'none',
+          shadow: isDark ? '0 4px 16px rgba(0, 0, 0, 0.45)' : '0 4px 14px rgba(186, 26, 26, 0.28)',
         };
       case 'outline':
       default:
         return {
           bg: 'transparent',
           text: colors.textDark,
-          border: `2px solid ${colors.outline}`,
+          border: `2px solid ${isDark ? colors.outline : colors.borderBold}`,
           shadow: 'none',
         };
     }
   };
 
   const { bg, text, border, shadow } = getVariantStyles();
+  const effectiveText = disabled ? (isDark ? '#7E6D63' : colors.textMuted) : text;
+  const effectiveBg = disabled ? (isDark ? '#221A15' : colors.surfaceContainerLow) : bg;
+  const effectiveBorder = disabled ? (isDark ? '1px solid #33261F' : 'none') : border;
 
   return (
     <button
@@ -118,9 +121,9 @@ export const BigButton: React.FC<BigButtonProps> = ({
         minHeight,
         padding: '14px 22px',
         borderRadius: 24,
-        backgroundColor: disabled ? colors.surfaceContainerLow : bg,
-        color: disabled ? colors.textMuted : text,
-        border,
+        backgroundColor: effectiveBg,
+        color: effectiveText,
+        border: effectiveBorder,
         boxShadow: disabled ? 'none' : shadow,
         fontFamily: "'Google Sans', 'Google Sans Text', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
         fontSize: 16,
@@ -141,12 +144,12 @@ export const BigButton: React.FC<BigButtonProps> = ({
           size={20}
           strokeWidth={3.5}
           multiColor={false}
-          color={disabled ? colors.textMuted : text}
+          color={effectiveText}
         />
       ) : iconName ? (
-        <MIcon name={iconName} size={22} color={disabled ? colors.textMuted : text} />
+        <MIcon name={iconName} size={22} color={effectiveText} />
       ) : null}
-      <span style={{ fontFamily: 'inherit', fontWeight: 'inherit', fontSynthesis: 'none' }}>{children}</span>
+      <span style={{ fontFamily: 'inherit', fontWeight: 'inherit', fontSynthesis: 'none', color: effectiveText }}>{children}</span>
     </button>
   );
 };

@@ -772,10 +772,11 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                 style={{
                   padding: '12px 18px',
                   borderRadius: 18,
-                  backgroundColor: '#DCFCE7',
-                  color: '#15803D',
+                  backgroundColor: isDark ? 'rgba(21, 128, 61, 0.2)' : '#DCFCE7',
+                  color: isDark ? '#86EFAC' : '#15803D',
+                  border: isDark ? '1px solid rgba(134, 239, 172, 0.3)' : 'none',
                   fontSize: 14,
-                  fontWeight: 800,
+                  fontWeight: 700,
                   textAlign: 'center',
                 }}
               >

@@ -120,12 +120,12 @@ export const BigButton: React.FC<BigButtonProps> = ({
         return {
           bg: colors.primary,
           iconBg: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)',
-          iconColor: colors.onPrimary,
-          text: colors.onPrimary,
-          subtext: colors.onPrimary,
-          arrowBg: 'rgba(255, 255, 255, 0.2)',
-          arrowText: colors.onPrimary,
-          borderColor: 'transparent',
+          iconColor: isDark ? '#3A0E00' : colors.onPrimary,
+          text: isDark ? '#3A0E00' : colors.onPrimary,
+          subtext: isDark ? '#3A0E00' : colors.onPrimary,
+          arrowBg: isDark ? 'rgba(58, 14, 0, 0.15)' : 'rgba(255, 255, 255, 0.2)',
+          arrowText: isDark ? '#3A0E00' : colors.onPrimary,
+          borderColor: isDark ? 'rgba(255, 181, 156, 0.4)' : 'transparent',
         };
     }
   };
