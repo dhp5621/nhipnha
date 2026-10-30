@@ -13,6 +13,7 @@ export interface RecordedAudioResult {
 
 export interface PickedPhotoResult {
   dataUrl: string;
+  uri?: string;
   name: string;
   dominantColor: string;
 }
@@ -365,6 +366,7 @@ class MediaCaptureService {
             ? `data:image/jpeg;base64,${asset.base64}`
             : asset.uri;
           return {
+            uri: asset.uri,
             dataUrl,
             name: asset.fileName || 'camera_photo.jpg',
             dominantColor: '#DF5018',
@@ -390,6 +392,7 @@ class MediaCaptureService {
             ? `data:image/jpeg;base64,${asset.base64}`
             : asset.uri;
           return {
+            uri: asset.uri,
             dataUrl,
             name: asset.fileName || 'photo.jpg',
             dominantColor: '#DF5018',

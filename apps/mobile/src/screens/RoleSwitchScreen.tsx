@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Image,
   TextInput,
+  Platform,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
@@ -144,6 +145,23 @@ export const RoleSwitchScreen: React.FC<RoleSwitchScreenProps> = ({
   };
 
   const handleSignOut = () => {
+    const executeLogout = async () => {
+      await logout();
+      onGoToLogin();
+    };
+
+    if (Platform.OS === 'web') {
+      if (
+        typeof window !== 'undefined' &&
+        window.confirm(
+          isVi ? 'Bạn có chắc chắn muốn đăng xuất khỏi thiết bị này?' : 'Sign out of this device?'
+        )
+      ) {
+        executeLogout();
+      }
+      return;
+    }
+
     Alert.alert(
       isVi ? 'Đăng xuất khỏi thiết bị này?' : 'Sign out of this device?',
       isVi
@@ -154,10 +172,7 @@ export const RoleSwitchScreen: React.FC<RoleSwitchScreenProps> = ({
         {
           text: isVi ? 'Đăng xuất' : 'Sign Out',
           style: 'destructive',
-          onPress: async () => {
-            await logout();
-            onGoToLogin();
-          },
+          onPress: executeLogout,
         },
       ]
     );

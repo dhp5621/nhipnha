@@ -16,6 +16,7 @@ import { RoleSwitchScreen } from './screens/RoleSwitchScreen';
 import { OwnerManagementScreen } from './screens/OwnerManagementScreen';
 import { AccessibleText } from './components/AccessibleText';
 import { MIcon } from './components/MIcon';
+import { GoogleLoadingIndicator } from './components/GoogleLoadingIndicator';
 
 type ScreenName =
   | 'QR_LOGIN'
@@ -49,7 +50,7 @@ function NavigationRoot() {
           gap: 16,
         }}
       >
-        <MIcon name="refresh" size={40} className="spin-icon" color={colors.primary} />
+        <GoogleLoadingIndicator size={48} strokeWidth={4} multiColor={true} />
         <AccessibleText variant="bodyLarge" weight="800" color={colors.textDark}>
           {isVi ? 'Đang tải Nhịp Nhà...' : 'Loading Home Rhythm...'}
         </AccessibleText>
@@ -66,7 +67,10 @@ function NavigationRoot() {
           setShowFamilyCode(false);
           setCurrentScreen(null);
         }}
-        onBackToLogin={() => setShowFamilyCode(false)}
+        onBackToLogin={() => {
+          setShowFamilyCode(false);
+          setCurrentScreen(null);
+        }}
       />
     ) : (
       <LoginScreen onJoinWithCode={() => setShowFamilyCode(true)} />
@@ -94,7 +98,10 @@ function NavigationRoot() {
       return (
         <RoleSwitchScreen
           onBack={() => setCurrentScreen(null)}
-          onGoToLogin={() => setCurrentScreen('QR_LOGIN')}
+          onGoToLogin={() => {
+            setShowFamilyCode(false);
+            setCurrentScreen(null);
+          }}
           onOpenOwnerConsole={() => setCurrentScreen('OWNER_CONSOLE')}
         />
       );
@@ -346,10 +353,27 @@ function NavigationRoot() {
         </div>
       </nav>
 
-      {/* Global Responsive & Material CSS */}
+      {/* Global Responsive, Google Sans Flex & Material 3 CSS */}
       <style jsx global>{`
         * {
           box-sizing: border-box;
+          font-family: 'Google Sans Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        /* Smooth page and card entrance animations */
+        .app-main-content > * {
+          animation: m3-fade-slide-up 0.28s cubic-bezier(0.2, 0, 0, 1) backwards;
+        }
+
+        @keyframes m3-fade-slide-up {
+          from {
+            opacity: 0;
+            transform: translateY(14px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
         }
 
         .spin-icon {
@@ -364,6 +388,11 @@ function NavigationRoot() {
         @keyframes pulse {
           0%, 100% { opacity: 1; transform: scale(1); }
           50% { opacity: 0.8; transform: scale(1.08); }
+        }
+
+        /* Interactive tactile feedback */
+        .big-button {
+          transition: transform 0.16s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.16s ease, filter 0.16s ease !important;
         }
 
         .big-button:hover:not(:disabled) {

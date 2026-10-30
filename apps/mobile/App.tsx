@@ -58,7 +58,10 @@ function NavigationRoot() {
               setShowFamilyCode(false);
               setCurrentScreen(null);
             }}
-            onBackToLogin={() => setShowFamilyCode(false)}
+            onBackToLogin={() => {
+              setShowFamilyCode(false);
+              setCurrentScreen(null);
+            }}
           />
         ) : (
           <LoginScreen onJoinWithCode={() => setShowFamilyCode(true)} />
@@ -88,7 +91,10 @@ function NavigationRoot() {
       return (
         <RoleSwitchScreen
           onBack={() => setCurrentScreen(null)}
-          onGoToLogin={() => setCurrentScreen('QR_LOGIN')}
+          onGoToLogin={() => {
+            setShowFamilyCode(false);
+            setCurrentScreen(null);
+          }}
           onOpenOwnerConsole={() => setCurrentScreen('OWNER_CONSOLE')}
         />
       );

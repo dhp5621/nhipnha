@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
+import jsQR from 'jsqr';
 import type { Role } from '@nhipnha/shared';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -36,7 +37,41 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess, onBackT
   const [scannerOpen, setScannerOpen] = useState(false);
   const [alertInfo, setAlertInfo] = useState<{ title: string; message: string } | null>(null);
 
+  const uploadInputRef = useRef<HTMLInputElement | null>(null);
+
   const isVi = activeLanguage === 'vi';
+
+  const handleUploadQRImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          const imgData = ctx.getImageData(0, 0, img.width, img.height);
+          const code = jsQR(imgData.data, imgData.width, imgData.height);
+          if (code && code.data) {
+            handlePairSuccess(code.data);
+            return;
+          }
+        }
+      } catch {}
+      setAlertInfo({
+        title: isVi ? 'Không nhận diện được mã QR' : 'No QR Code Detected',
+        message: isVi
+          ? 'Không tìm thấy mã QR trong hình ảnh vừa tải lên. Vui lòng chọn ảnh rõ hơn hoặc mở camera quét.'
+          : 'Could not detect a QR code from this image. Please try another image or scan live.',
+      });
+    };
+    img.src = URL.createObjectURL(file);
+    e.target.value = '';
+  };
 
   const roleOptions: { id: Role; labelVi: string; labelEn: string; icon: string }[] = [
     { id: 'CHILD', labelVi: 'Trẻ em', labelEn: 'Child', icon: 'child_care' },
@@ -253,9 +288,25 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess, onBackT
               variant="morning"
               iconName="qr_code_scanner"
               onClick={() => setScannerOpen(true)}
-              minHeight={62}
+              minHeight={58}
             >
               {isVi ? 'MỞ CAMERA QUÉT MÃ QR' : 'SCAN QR WITH CAMERA'}
+            </BigButton>
+
+            <input
+              ref={uploadInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={handleUploadQRImage}
+            />
+
+            <BigButton
+              variant="tonal"
+              iconName="photo_library"
+              onClick={() => uploadInputRef.current?.click()}
+            >
+              {isVi ? 'TẢI ẢNH MÃ QR TỪ THIẾT BỊ' : 'UPLOAD QR IMAGE FROM DEVICE'}
             </BigButton>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0' }}>

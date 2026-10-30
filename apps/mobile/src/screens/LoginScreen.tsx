@@ -11,6 +11,9 @@ import {
   Image,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { scanFromURLAsync } from 'expo-camera';
+import jsQR from 'jsqr';
+import { mediaCaptureService } from '../services/mediaCapture';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
@@ -144,6 +147,84 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
         isVi ? 'Không thể tạo gia đình' : 'Could not create family',
         err?.message || (isVi ? 'Vui lòng kiểm tra lại thông tin' : 'Please check your input')
       );
+    }
+  };
+
+  const handlePickQRImage = async () => {
+    try {
+      const photo = await mediaCaptureService.pickOrCapturePhoto(false);
+      if (!photo) return;
+
+      const handleDecodedQR = async (decodedData: string) => {
+        try {
+          if (decodedData.startsWith('{')) {
+            const parsed = JSON.parse(decodedData);
+            if (parsed.type === 'login' && parsed.memberId && parsed.secret) {
+              await loginWithQR(decodedData);
+              return;
+            }
+          }
+          await pairWithCode(decodedData);
+        } catch (err: any) {
+          Alert.alert(
+            isVi ? 'Mã không hợp lệ' : 'Invalid Code',
+            err?.message || (isVi ? 'Không thể đăng nhập bằng mã này.' : 'Could not sign in with this code.')
+          );
+        }
+      };
+
+      // 1. Native iOS & Android: decode directly via expo-camera scanFromURLAsync
+      if (Platform.OS !== 'web' && typeof scanFromURLAsync === 'function') {
+        try {
+          const fileUri = photo.uri || photo.dataUrl;
+          const results = await scanFromURLAsync(fileUri, ['qr']);
+          if (results && results.length > 0 && results[0]?.data) {
+            await handleDecodedQR(results[0].data);
+            return;
+          }
+        } catch (nativeErr) {
+          console.warn('Native scanFromURLAsync error:', nativeErr);
+        }
+      }
+
+      // 2. Web DOM Canvas fallback using jsQR
+      if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+        const img = new (window as any).Image();
+        img.onload = async () => {
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0);
+              const imgData = ctx.getImageData(0, 0, img.width, img.height);
+              const qr = jsQR(imgData.data, imgData.width, imgData.height);
+              if (qr && qr.data) {
+                await handleDecodedQR(qr.data);
+                return;
+              }
+            }
+          } catch {}
+          Alert.alert(
+            isVi ? 'Không tìm thấy mã QR' : 'No QR Detected',
+            isVi
+              ? 'Không tìm thấy mã QR trong ảnh. Bạn có thể mở máy ảnh quét trực tiếp hoặc nhập mã mời.'
+              : 'No QR code found in image. You can scan live with camera or enter the invite code.'
+          );
+        };
+        img.src = photo.dataUrl;
+        return;
+      }
+
+      Alert.alert(
+        isVi ? 'Không tìm thấy mã QR' : 'No QR Detected',
+        isVi
+          ? 'Không nhận diện được mã QR trong ảnh vừa chọn. Vui lòng thử lại với ảnh rõ nét hơn hoặc quét trực tiếp.'
+          : 'Could not detect QR code in image. Please try a clearer image or scan live.'
+      );
+    } catch (err: any) {
+      console.warn('Pick QR error:', err);
     }
   };
 
@@ -421,6 +502,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
               title={isVi ? 'Mở máy ảnh quét mã QR' : 'Open Camera QR Scanner'}
               icon="qr-code-scanner"
               onPress={onJoinWithCode}
+            />
+
+            <View style={{ height: 10 }} />
+
+            <BigButton
+              variant="secondary"
+              title={isVi ? 'Tải ảnh mã QR từ thư viện' : 'Upload QR Image from Gallery'}
+              icon="photo-library"
+              onPress={handlePickQRImage}
             />
           </View>
         )}

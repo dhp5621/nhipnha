@@ -18,24 +18,48 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:wght@100..900&display=swap"
           rel="stylesheet"
         />
         <link
           href="https://fonts.googleapis.com/icon?family=Material+Icons"
           rel="stylesheet"
         />
+        <style dangerouslySetInnerHTML={{ __html: `
+          :root {
+            --bg-color: #FCF6EE;
+            --text-color: #1F1610;
+            color-scheme: light dark;
+          }
+          @media (prefers-color-scheme: dark) {
+            :root {
+              --bg-color: #15100C;
+              --text-color: #F4E5DC;
+            }
+          }
+          html[data-theme='light'] {
+            --bg-color: #FCF6EE;
+            --text-color: #1F1610;
+            color-scheme: light;
+          }
+          html[data-theme='dark'] {
+            --bg-color: #15100C;
+            --text-color: #F4E5DC;
+            color-scheme: dark;
+          }
+          body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Google Sans Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            transition: background-color 0.25s cubic-bezier(0.2, 0, 0, 1), color 0.25s cubic-bezier(0.2, 0, 0, 1);
+          }
+        ` }} />
       </head>
-      <body
-        style={{
-          margin: 0,
-          padding: 0,
-          backgroundColor: '#FDF8F2',
-          color: '#1E1510',
-          fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-          WebkitFontSmoothing: 'antialiased',
-        }}
-      >
+      <body>
         {children}
       </body>
     </html>

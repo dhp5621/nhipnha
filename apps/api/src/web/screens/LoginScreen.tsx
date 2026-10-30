@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
+import jsQR from 'jsqr';
 import type { Role } from '@nhipnha/shared';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -37,6 +38,40 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [alertInfo, setAlertInfo] = useState<{ title: string; message: string } | null>(null);
+
+  const uploadInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleUploadQRImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          const imgData = ctx.getImageData(0, 0, img.width, img.height);
+          const code = jsQR(imgData.data, imgData.width, imgData.height);
+          if (code && code.data) {
+            handleLoginQR(code.data);
+            return;
+          }
+        }
+      } catch {}
+      setAlertInfo({
+        title: isVi ? 'Không nhận diện được mã QR' : 'No QR Code Detected',
+        message: isVi
+          ? 'Không tìm thấy mã QR trong hình ảnh vừa chọn.'
+          : 'Could not detect a QR code from this image.',
+      });
+    };
+    img.src = URL.createObjectURL(file);
+    e.target.value = '';
+  };
 
   const [errors, setErrors] = useState<{
     familyName?: string;
@@ -445,6 +480,22 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onJoinWithCode }) => {
               onClick={onJoinWithCode}
             >
               {isVi ? 'Nhập Mã Mời Gia Đình (8 Ký Tự)' : 'Enter 8-digit Invite Code'}
+            </BigButton>
+
+            <input
+              ref={uploadInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={handleUploadQRImage}
+            />
+
+            <BigButton
+              variant="tonal"
+              iconName="photo_library"
+              onClick={() => uploadInputRef.current?.click()}
+            >
+              {isVi ? 'Tải Ảnh Mã QR Từ Máy' : 'Upload QR Image from Device'}
             </BigButton>
 
             <div>

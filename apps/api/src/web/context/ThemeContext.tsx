@@ -27,35 +27,43 @@ const THEME_STORAGE_KEY = 'nhipnha_theme_mode';
 const TEXT_SCALE_STORAGE_KEY = 'nhipnha_text_scale';
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [themeMode, setThemeModeState] = useState<ThemeMode>('light');
+  // Default to 'system' so web automatically follows device light/dark mode
+  const [themeMode, setThemeModeState] = useState<ThemeMode>('system');
   const [textScale, setTextScaleState] = useState<TextScalePreference>('role_default');
-  const [systemIsDark, setSystemIsDark] = useState<boolean>(false);
+  const [systemIsDark, setSystemIsDark] = useState<boolean>(() => {
+    if (typeof window !== 'undefined' && window.matchMedia) {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    return false;
+  });
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
-        const savedScale = window.localStorage.getItem(TEXT_SCALE_STORAGE_KEY);
-        if (savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'system') {
-          setThemeModeState(savedTheme);
-        }
-        if (
-          savedScale === 'role_default' ||
-          savedScale === 'normal' ||
-          savedScale === 'large' ||
-          savedScale === 'extra_large'
-        ) {
-          setTextScaleState(savedScale);
-        }
-      } catch {}
+    if (typeof window === 'undefined') return;
 
-      if (window.matchMedia) {
-        const mql = window.matchMedia('(prefers-color-scheme: dark)');
-        setSystemIsDark(mql.matches);
-        const listener = (e: MediaQueryListEvent) => setSystemIsDark(e.matches);
-        mql.addEventListener('change', listener);
-        return () => mql.removeEventListener('change', listener);
+    // Load any user override from localStorage
+    try {
+      const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+      const savedScale = window.localStorage.getItem(TEXT_SCALE_STORAGE_KEY);
+      if (savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'system') {
+        setThemeModeState(savedTheme);
       }
+      if (
+        savedScale === 'role_default' ||
+        savedScale === 'normal' ||
+        savedScale === 'large' ||
+        savedScale === 'extra_large'
+      ) {
+        setTextScaleState(savedScale);
+      }
+    } catch {}
+
+    // Listen to OS / Browser light & dark theme changes in real-time
+    if (window.matchMedia) {
+      const mql = window.matchMedia('(prefers-color-scheme: dark)');
+      setSystemIsDark(mql.matches);
+      const listener = (e: MediaQueryListEvent) => setSystemIsDark(e.matches);
+      mql.addEventListener('change', listener);
+      return () => mql.removeEventListener('change', listener);
     }
   }, []);
 
@@ -64,6 +72,16 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const isDark = resolvedTheme === 'dark';
   const colors = isDark ? DARK_COLORS : LIGHT_COLORS;
+
+  // Sync with HTML root attributes and body styles for seamless transitions
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', resolvedTheme);
+      document.documentElement.style.colorScheme = resolvedTheme;
+      document.body.style.backgroundColor = colors.background;
+      document.body.style.color = colors.textDark;
+    }
+  }, [resolvedTheme, colors]);
 
   const setThemeMode = (mode: ThemeMode) => {
     setThemeModeState(mode);
@@ -75,6 +93,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const toggleTheme = () => {
+    // If user is currently on system, toggle to the opposite of resolved, or cycle:
+    // system -> opposite -> light/dark
     const next: ThemeMode = isDark ? 'light' : 'dark';
     setThemeMode(next);
   };
@@ -118,7 +138,7 @@ export const useTheme = () => {
   const context = useContext(ThemeContext);
   if (!context) {
     return {
-      themeMode: 'light' as ThemeMode,
+      themeMode: 'system' as ThemeMode,
       resolvedTheme: 'light' as ResolvedTheme,
       isDark: false,
       colors: LIGHT_COLORS,

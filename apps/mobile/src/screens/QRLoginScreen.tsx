@@ -10,7 +10,7 @@ import {
   Platform,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { CameraView } from 'expo-camera';
+import { CameraView, scanFromURLAsync } from 'expo-camera';
 import jsQR from 'jsqr';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -150,9 +150,24 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess, onBackT
   const handlePickQRImage = async () => {
     try {
       const photo = await mediaCaptureService.pickOrCapturePhoto(false);
-      if (!photo || !photo.dataUrl) return;
+      if (!photo) return;
 
-      if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof document !== 'undefined') {
+      // 1. Native iOS & Android: decode directly via expo-camera scanFromURLAsync
+      if (Platform.OS !== 'web' && typeof scanFromURLAsync === 'function') {
+        try {
+          const fileUri = photo.uri || photo.dataUrl;
+          const results = await scanFromURLAsync(fileUri, ['qr']);
+          if (results && results.length > 0 && results[0]?.data) {
+            handleDecodedQR(results[0].data);
+            return;
+          }
+        } catch (nativeErr) {
+          console.warn('Native scanFromURLAsync error:', nativeErr);
+        }
+      }
+
+      // 2. Web DOM Canvas fallback using jsQR
+      if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         const img = new (window as any).Image();
         img.onload = () => {
           try {
@@ -182,10 +197,10 @@ export const QRLoginScreen: React.FC<QRLoginScreenProps> = ({ onSuccess, onBackT
       }
 
       Alert.alert(
-        isVi ? 'Đã tải ảnh' : 'Photo Loaded',
+        isVi ? 'Không tìm thấy mã QR' : 'No QR Detected',
         isVi
-          ? 'Để kết nối nhanh nhất, vui lòng dùng nút "Mở máy ảnh quét mã QR" quét trực tiếp mã trên máy người thân.'
-          : 'For fastest pairing, use "Open Camera to Scan QR" to scan directly.'
+          ? 'Không nhận diện được mã QR trong ảnh vừa chọn. Vui lòng thử lại với ảnh rõ nét hơn hoặc quét trực tiếp.'
+          : 'Could not detect QR code in image. Please try a clearer image or scan live.'
       );
     } catch (err: any) {
       console.warn('Pick QR error:', err);

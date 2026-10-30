@@ -30,7 +30,7 @@ const TEXT_SCALE_STORAGE_KEY = 'nhipnha_text_scale';
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const systemScheme = useColorScheme();
-  const [themeMode, setThemeModeState] = useState<ThemeMode>('light');
+  const [themeMode, setThemeModeState] = useState<ThemeMode>('system');
   const [textScale, setTextScaleState] = useState<TextScalePreference>('role_default');
 
   useEffect(() => {

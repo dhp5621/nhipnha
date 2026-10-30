@@ -1,6 +1,7 @@
 import React from 'react';
 import { useTheme } from '../context/ThemeContext';
 import { MIcon } from './MIcon';
+import { GoogleLoadingIndicator } from './GoogleLoadingIndicator';
 
 export type BigButtonVariant =
   | 'primary'
@@ -134,7 +135,12 @@ export const BigButton: React.FC<BigButtonProps> = ({
       {...props}
     >
       {loading ? (
-        <MIcon name="refresh" size={22} className="spin-icon" color={disabled ? colors.textMuted : text} />
+        <GoogleLoadingIndicator
+          size={20}
+          strokeWidth={3.5}
+          multiColor={false}
+          color={disabled ? colors.textMuted : text}
+        />
       ) : iconName ? (
         <MIcon name={iconName} size={22} color={disabled ? colors.textMuted : text} />
       ) : null}
