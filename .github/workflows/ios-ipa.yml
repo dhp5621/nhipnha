@@ -19,21 +19,23 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
+      - name: 🟢 Set up Node.js 20
+        uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
 
-      - name: Select Xcode
+      - name: ⚡ Install pnpm
+        run: npm install -g pnpm@12.16.1
+
+      - name: 🛠️ Select Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: "latest-stable"
 
-      # Apple signing commented out - producing unsigned IPA for now
+      # Apple signing commented out as requested - producing unsigned IPA for now
       # - name: Install Apple certificate and provisioning profile
       #   env:
       #     BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
@@ -42,7 +44,7 @@ jobs:
       #   run: |
       #     ...
 
-      - name: Cache CocoaPods
+      - name: 🐘 Cache CocoaPods
         uses: actions/cache@v4
         with:
           path: |
@@ -51,30 +53,33 @@ jobs:
           key: pods-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: pods-${{ runner.os }}-
 
-      - name: Cache Xcode DerivedData
+      - name: 📦 Cache Xcode DerivedData
         uses: actions/cache@v4
         with:
           path: ~/Library/Developer/Xcode/DerivedData
           key: deriveddata-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: deriveddata-${{ runner.os }}-
 
-      - name: Install dependencies
+      - name: 📦 Install Dependencies
         run: |
           pnpm approve-builds --all || true
           pnpm install --frozen-lockfile=false
 
-      - name: Prebuild iOS project
+      - name: 🏗️ Prebuild iOS Project & Install Pods
         working-directory: apps/mobile
         env:
           EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL || 'https://nhipnha.vercel.app/api' }}
           LANG: en_US.UTF-8
           LC_ALL: en_US.UTF-8
-        run: npx expo prebuild --platform ios --clean
+        run: |
+          npx expo prebuild --platform ios --clean --no-install
+          cd ios
+          pod install --repo-update
 
-      - name: Install xcbeautify
+      - name: 🎨 Install xcbeautify
         run: brew install xcbeautify
 
-      - name: Build Unsigned Archive
+      - name: ⚙️ Build Unsigned Archive
         working-directory: apps/mobile/ios
         run: |
           WORKSPACE=$(ls -d *.xcworkspace | head -1)
@@ -97,7 +102,7 @@ jobs:
             EXCLUDED_ARCHS="x86_64 i386" \
             | xcbeautify --quiet --renderer github-actions
 
-      - name: Package Unsigned IPA
+      - name: 📦 Package Unsigned IPA
         run: |
           echo "Packaging unsigned .xcarchive into .ipa payload..."
           mkdir -p "$RUNNER_TEMP/Payload"
@@ -106,7 +111,7 @@ jobs:
           zip -qry "$RUNNER_TEMP/$IPA_NAME" Payload
           ls -la "$RUNNER_TEMP/$IPA_NAME"
 
-      - name: Upload IPA artifact
+      - name: 📤 Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
           name: nhipnha-unsigned-ipa
@@ -133,7 +138,7 @@ jobs:
             ### 📱 Nhịp Nhà (Home Rhythm) — iOS Unsigned IPA
             - **Commit:** `${{ github.sha }}`
             - **Branch:** `${{ github.ref_name }}`
-            - **Build Type:** Unsigned IPA (Ready for Sideloadly / AltStore / TrollStore / Custom Enterprise Signing)
+            - **Build Type:** Unsigned IPA (Tương thích Sideloadly / AltStore / TrollStore / Ký chứng chỉ doanh nghiệp)
           prerelease: true
           make_latest: false
           target_commitish: ${{ github.sha }}
