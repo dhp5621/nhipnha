@@ -5,6 +5,10 @@ on:
     branches:
       - main
       - master
+    paths:
+      - "apps/mobile/**"
+      - "packages/shared/**"
+      - ".github/workflows/build-android.yml"
   workflow_dispatch:
 
 jobs:
@@ -112,5 +116,6 @@ jobs:
           files: |
             apps/mobile/android/app/build/outputs/apk/release/*.apk
           prerelease: true
+          make_latest: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -35,7 +35,7 @@ jobs:
         with:
           xcode-version: "latest-stable"
 
-      # Apple signing commented out as requested - producing unsigned IPA for now
+      # Apple signing commented out - producing unsigned IPA for now
       # - name: Install Apple certificate and provisioning profile
       #   env:
       #     BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
@@ -79,37 +79,49 @@ jobs:
       - name: 🎨 Install xcbeautify
         run: brew install xcbeautify
 
-      - name: ⚙️ Build Unsigned Archive
+      - name: ⚙️ Build Unsigned App
         working-directory: apps/mobile/ios
         run: |
           WORKSPACE=$(ls -d *.xcworkspace | head -1)
-          SCHEME="${WORKSPACE%.xcworkspace}"
-          echo "Building unsigned $WORKSPACE / $SCHEME"
+          SCHEME=$(xcodebuild -list -workspace "$WORKSPACE" -json | node -e '
+            const fs = require("fs");
+            const data = JSON.parse(fs.readFileSync(0, "utf-8"));
+            const schemes = data.workspace.schemes;
+            console.log(schemes.find(s => !s.startsWith("Pods-")) || schemes[0]);
+          ')
+          echo "Building unsigned workspace: $WORKSPACE with scheme: $SCHEME"
           set -o pipefail
 
-          xcodebuild clean archive \
+          xcodebuild clean build \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
             -configuration Release \
             -sdk iphoneos \
             -destination "generic/platform=iOS" \
-            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             AD_HOC_CODE_SIGNING_ALLOWED=YES \
             SUPPORTED_PLATFORMS="iphoneos" \
             EXCLUDED_ARCHS="x86_64 i386" \
-            | xcbeautify --quiet --renderer github-actions
+            | xcbeautify --renderer github-actions
 
       - name: 📦 Package Unsigned IPA
         run: |
-          echo "Packaging unsigned .xcarchive into .ipa payload..."
+          echo "Locating built .app bundle..."
+          APP_PATH=$(find "$RUNNER_TEMP/DerivedData/Build/Products/Release-iphoneos" -name "*.app" -maxdepth 1 | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "::error::Could not find compiled .app bundle"
+            find "$RUNNER_TEMP/DerivedData/Build/Products" -maxdepth 3 || true
+            exit 1
+          fi
+          echo "Found .app at: $APP_PATH"
           mkdir -p "$RUNNER_TEMP/Payload"
-          cp -R "$RUNNER_TEMP/App.xcarchive/Products/Applications/"*.app "$RUNNER_TEMP/Payload/"
+          cp -R "$APP_PATH" "$RUNNER_TEMP/Payload/"
           cd "$RUNNER_TEMP"
           zip -qry "$RUNNER_TEMP/$IPA_NAME" Payload
-          ls -la "$RUNNER_TEMP/$IPA_NAME"
+          ls -lh "$RUNNER_TEMP/$IPA_NAME"
 
       - name: 📤 Upload IPA artifact
         uses: actions/upload-artifact@v4

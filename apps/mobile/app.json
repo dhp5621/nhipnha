@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Nhịp Nhà",
+    "name": "Nhip Nha",
     "slug": "nhip-nha",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -20,6 +20,7 @@
       "bundleIdentifier": "dhp.sunlit.tulip.nhipnha",
       "icon": "./assets/icon.png",
       "infoPlist": {
+        "CFBundleDisplayName": "Nhịp Nhà",
         "NSCameraUsageDescription": "Nhịp Nhà cần quyền máy ảnh để quét mã QR gia đình và chụp ảnh chia sẻ trong Nhật ký 15 giây.",
         "NSMicrophoneUsageDescription": "Nhịp Nhà cần quyền micro để ghi âm lời chào buổi sáng và Nhật ký giọng nói 15 giây gửi cho gia đình.",
         "NSPhotoLibraryUsageDescription": "Nhịp Nhà cần quyền thư viện ảnh để đính kèm hình vẽ hoặc bức ảnh trong ngày."
