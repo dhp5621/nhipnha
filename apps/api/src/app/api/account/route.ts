@@ -14,6 +14,12 @@ function fail(status: number, error: string) {
   return NextResponse.json({ success: false, error }, { status });
 }
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-family-id, x-member-id',
+};
+
 // GET: returns the signed-in member's account status (email, hasPassword, activeSessions)
 export async function GET(request: Request) {
   const familyId = new URL(request.url).searchParams.get('familyId');
@@ -27,19 +33,23 @@ export async function GET(request: Request) {
   const secrets = await dataRepository.getSecrets(auth.member.id);
   const activeSessions = await dataRepository.countSessions(auth.member.id);
 
-  return NextResponse.json({
-    success: true,
-    email: secrets.email,
-    hasPassword: !!secrets.passwordHash,
-    activeSessions,
-  });
+  return NextResponse.json(
+    {
+      success: true,
+      email: secrets.email,
+      hasPassword: !!secrets.passwordHash,
+      activeSessions,
+    },
+    { headers: CORS_HEADERS }
+  );
 }
 
-// PATCH: change the signed-in member's own password (and optionally email if owner)
-export async function PATCH(request: Request) {
+async function handleUpdatePassword(request: Request) {
   try {
-    const body = await request.json();
-    const { familyId, currentPassword, newPassword, email } = body;
+    const body = await request.json().catch(() => ({}));
+    const searchParams = new URL(request.url).searchParams;
+    const familyId = body.familyId || searchParams.get('familyId') || undefined;
+    const { currentPassword, newPassword, email } = body;
     const auth = await authenticate(request, familyId);
     if (!auth.ok) return auth.response;
 
@@ -96,25 +106,32 @@ export async function PATCH(request: Request) {
       await dataRepository.deleteSessions(auth.member.id, auth.tokenHash);
     }
 
-    return NextResponse.json({
-      success: true,
-      email: nextEmail,
-      hasPassword: true,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        email: nextEmail,
+        hasPassword: true,
+      },
+      { headers: CORS_HEADERS }
+    );
   } catch (err: any) {
     return fail(500, err?.message || 'Không thể cập nhật mật khẩu');
   }
 }
 
+// PATCH: change the signed-in member's own password (and optionally email if owner)
+export async function PATCH(request: Request) {
+  return handleUpdatePassword(request);
+}
 
+// POST: compatibility handler for web clients that call POST /api/account
+export async function POST(request: Request) {
+  return handleUpdatePassword(request);
+}
 
 export async function OPTIONS() {
   return new NextResponse(null, {
     status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-family-id, x-member-id',
-    },
+    headers: CORS_HEADERS,
   });
 }

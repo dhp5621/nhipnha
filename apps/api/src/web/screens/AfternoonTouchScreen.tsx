@@ -10,6 +10,7 @@ import { AudioWaveform } from '../components/AudioWaveform';
 import { BigButton } from '../components/BigButton';
 import { AccessibleText } from '../components/AccessibleText';
 import { MIcon } from '../components/MIcon';
+import { GoogleLoadingIndicator } from '../components/GoogleLoadingIndicator';
 
 interface AfternoonTouchScreenProps {
   onBack: () => void;
@@ -31,6 +32,7 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
   const [isRecording, setIsRecording] = useState(false);
   const [durationLeft, setDurationLeft] = useState(15);
   const [liveWaveform, setLiveWaveform] = useState<number[]>([]);
+  const [liveTranscript, setLiveTranscript] = useState<string>('');
   const [recordedVoice, setRecordedVoice] = useState<{
     url: string;
     duration: number;
@@ -284,6 +286,40 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
           onPlayToggle={recordedVoice ? handleTogglePlayRecorded : undefined}
           accentColor={colors.afternoonPrimary}
         />
+
+        {/* Live Vietnamese Speech-to-Text Recognition Indicator */}
+        {isRecording && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              padding: '10px 14px',
+              borderRadius: 16,
+              backgroundColor: '#FEF2F2',
+              border: '1.5px solid #FCA5A5',
+              marginTop: 4,
+            }}
+          >
+            <span
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: '50%',
+                backgroundColor: '#DC2626',
+                display: 'inline-block',
+                boxShadow: '0 0 0 3px rgba(220, 38, 38, 0.25)',
+              }}
+            />
+            <div style={{ flex: 1 }}>
+              <span style={{ fontSize: 13, fontWeight: 800, color: '#991B1B', display: 'block' }}>
+                {liveTranscript
+                  ? (isVi ? `Đang nhận diện giọng bé: "${liveTranscript}"` : `Recognized: "${liveTranscript}"`)
+                  : (isVi ? '🎙️ Đang nghe giọng bé nói... (Bé cứ kể tự nhiên nhé)' : '🎙️ Listening to voice...')}
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Recording Controls */}
         <div style={{ display: 'flex', gap: 10 }}>

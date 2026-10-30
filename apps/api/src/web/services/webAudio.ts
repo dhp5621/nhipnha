@@ -2,6 +2,7 @@ export interface RecordedAudioResult {
   url: string;
   duration: number;
   waveform: number[];
+  transcript?: string;
 }
 
 export interface PickedPhotoResult {
@@ -20,6 +21,8 @@ class WebAudioService {
   private currentAudioElement: HTMLAudioElement | null = null;
   private animationFrameId: number | null = null;
   private recordedWaveform: number[] = [];
+  private speechRecognition: any = null;
+  private recordedTranscript: string = '';
 
   /**
    * Synthesize a warm morning bell chime using Web Audio API oscillators
@@ -54,10 +57,12 @@ class WebAudioService {
   }
 
   /**
-   * Request microphone and start audio recording with live waveform analyser
+   * Request microphone and start audio recording with live waveform analyser & real-time Vietnamese speech recognition
    */
   async startAudioRecording(
-    onWaveformSample?: (waveform: number[]) => void
+    onWaveformSample?: (waveform: number[]) => void,
+    onTranscript?: (transcript: string) => void,
+    lang: string = 'vi-VN'
   ): Promise<boolean> {
     if (typeof window === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
       return false;
@@ -67,6 +72,7 @@ class WebAudioService {
       this.stopCurrentAudio();
       this.audioChunks = [];
       this.recordedWaveform = [];
+      this.recordedTranscript = '';
       this.startTime = Date.now();
 
       this.mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -77,7 +83,7 @@ class WebAudioService {
         },
       });
 
-      // Web Audio Analyser for real-time waveform visualizer
+      // 1. Web Audio Analyser for real-time waveform visualizer
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (AudioCtx) {
         this.audioContext = new AudioCtx();
@@ -110,6 +116,44 @@ class WebAudioService {
         sampleWaveform();
       }
 
+      // 2. Real-time Vietnamese Speech-to-Text Recognition via Web Speech API
+      const SpeechRecognition =
+        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        try {
+          const recognition = new SpeechRecognition();
+          recognition.lang = lang;
+          recognition.continuous = true;
+          recognition.interimResults = true;
+          recognition.maxAlternatives = 1;
+
+          recognition.onresult = (event: any) => {
+            let finalTranscript = '';
+            let interimTranscript = '';
+            for (let i = 0; i < event.results.length; i++) {
+              if (event.results[i].isFinal) {
+                finalTranscript += event.results[i][0].transcript + ' ';
+              } else {
+                interimTranscript += event.results[i][0].transcript;
+              }
+            }
+            const full = (finalTranscript + interimTranscript).trim();
+            this.recordedTranscript = full;
+            onTranscript?.(full);
+          };
+
+          recognition.onerror = () => {
+            // Speech recognition error or silent fallback
+          };
+
+          recognition.start();
+          this.speechRecognition = recognition;
+        } catch {
+          // Web speech not available on this engine
+        }
+      }
+
+      // 3. MediaRecorder for Audio File Capture
       const recorder = new MediaRecorder(this.mediaStream);
       recorder.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) {
@@ -126,7 +170,7 @@ class WebAudioService {
   }
 
   /**
-   * Stop audio recording and return audio data URL and waveform
+   * Stop audio recording and return audio data URL, waveform and transcribed speech
    */
   async stopAudioRecording(fallbackDurationSec: number = 15): Promise<RecordedAudioResult> {
     if (this.animationFrameId) {
@@ -140,6 +184,12 @@ class WebAudioService {
       this.audioContext = null;
       this.analyser = null;
     }
+    if (this.speechRecognition) {
+      try {
+        this.speechRecognition.stop();
+      } catch {}
+      this.speechRecognition = null;
+    }
 
     const elapsedSec = Math.max(
       1,
@@ -151,11 +201,11 @@ class WebAudioService {
     ];
 
     if (!this.mediaRecorder) {
-      // Mock result if recorder not active
       return {
         url: 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=',
         duration: elapsedSec,
         waveform: this.recordedWaveform.length >= 10 ? this.recordedWaveform : fallbackWaveform,
+        transcript: this.recordedTranscript || undefined,
       };
     }
 
@@ -180,6 +230,7 @@ class WebAudioService {
                 this.recordedWaveform.length >= 10
                   ? this.recordedWaveform.slice(-24)
                   : fallbackWaveform,
+              transcript: this.recordedTranscript || undefined,
             });
           };
           reader.readAsDataURL(blob);
@@ -188,6 +239,7 @@ class WebAudioService {
             url: '',
             duration: elapsedSec,
             waveform: fallbackWaveform,
+            transcript: this.recordedTranscript || undefined,
           });
         }
       };
@@ -199,7 +251,7 @@ class WebAudioService {
   }
 
   /**
-   * Play audio URL with HTML5 Audio or Web Speech fallback
+   * Play audio URL with HTML5 Audio, graceful mock URI bypass, or Web Speech fallback
    */
   async playAudioUrl(
     url?: string,
@@ -207,6 +259,12 @@ class WebAudioService {
     onEnd?: () => void
   ): Promise<void> {
     this.stopCurrentAudio();
+
+    // If it's a mock URI (e.g. mock://audio/...), bypass HTML Audio element and speak with TTS
+    if (url && (url.startsWith('mock://') || url.startsWith('file://'))) {
+      this.speakText(synthesizedText, onEnd);
+      return;
+    }
 
     if (url && (url.startsWith('data:audio') || url.startsWith('http') || url.startsWith('blob:'))) {
       try {
@@ -236,6 +294,7 @@ class WebAudioService {
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'vi-VN';
+        utterance.rate = 0.95;
         utterance.onend = () => onEnd?.();
         utterance.onerror = () => onEnd?.();
         window.speechSynthesis.speak(utterance);

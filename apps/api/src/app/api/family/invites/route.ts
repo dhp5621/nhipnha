@@ -97,3 +97,14 @@ export async function DELETE(request: Request) {
   if (!revoked) return fail(404, 'Không tìm thấy lời mời còn hiệu lực để thu hồi.');
   return NextResponse.json({ success: true });
 }
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-family-id, x-member-id',
+    },
+  });
+}

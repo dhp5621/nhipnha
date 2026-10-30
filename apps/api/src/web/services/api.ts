@@ -212,10 +212,10 @@ export const apiClient = {
   },
 
   // Change password
-  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  async changePassword(currentPassword: string, newPassword: string, familyId?: string): Promise<void> {
     await request('/account', {
       method: 'POST',
-      body: JSON.stringify({ action: 'change_password', currentPassword, newPassword }),
+      body: JSON.stringify({ currentPassword, newPassword, familyId }),
     });
   },
 
@@ -235,7 +235,7 @@ export const apiClient = {
       method: 'POST',
       body: JSON.stringify({ familyId, ...input }),
     });
-    return { member: data.data, loginCode: data.loginCode };
+    return { member: data.member || data.data, loginCode: data.loginCode };
   },
 
   async updateFamilyMember(
@@ -245,9 +245,9 @@ export const apiClient = {
   ): Promise<{ member: Member; loginCode?: string }> {
     const data = await request<{ data: Member; loginCode?: string }>(
       `/family/members?familyId=${encodeURIComponent(familyId)}&memberId=${encodeURIComponent(memberId)}`,
-      { method: 'PATCH', body: JSON.stringify(patch) }
+      { method: 'PATCH', body: JSON.stringify({ familyId, memberId, ...patch }) }
     );
-    return { member: data.data, loginCode: data.loginCode };
+    return { member: data.member || data.data, loginCode: data.loginCode };
   },
 
   async deleteFamilyMember(familyId: string, memberId: string): Promise<void> {

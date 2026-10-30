@@ -24,6 +24,10 @@ interface RhythmState {
   eveningMessageId?: string;
   eveningMessageText: string;
   eveningAudioUrl?: string;
+  eveningExtraNote?: string;
+  eveningExtraVoiceUrl?: string;
+  eveningExtraVoiceDuration?: number;
+  eveningExtraTime?: string;
 
   pendingOfflineCount: number;
 }
@@ -39,7 +43,7 @@ interface RhythmContextType {
     note?: string
   ) => Promise<void>;
   markEveningListened: () => Promise<void>;
-  submitEveningExtraReply: () => Promise<void>;
+  submitEveningExtraReply: (voiceData?: { url: string; duration: number; waveform: number[] }, note?: string) => Promise<void>;
   refreshRhythm: () => Promise<void>;
 }
 
@@ -102,6 +106,7 @@ export const RhythmProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const morningCheckIn = checkIns.find((c) => c.rhythmType === 'MORNING');
       const afternoonCheckIn = checkIns.find((c) => c.rhythmType === 'AFTERNOON');
       const eveningMessage = messages.find((m) => m.rhythmType === 'EVENING');
+      const eveningExtraCheckIn = checkIns.find((c) => c.rhythmType === 'EVENING');
 
       setState((prev) => ({
         ...prev,
@@ -130,6 +135,11 @@ export const RhythmProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           eveningMessage?.aiSummary ||
           'Con yêu ngủ ngon nhé, bố mẹ thương con nhiều!',
         eveningAudioUrl: eveningMessage?.audioUrl,
+        eveningExtraReplied: !!eveningExtraCheckIn,
+        eveningExtraNote: eveningExtraCheckIn?.note,
+        eveningExtraVoiceUrl: eveningExtraCheckIn?.voiceUrl,
+        eveningExtraVoiceDuration: eveningExtraCheckIn?.voiceDurationSec,
+        eveningExtraTime: formatTimeHHMM(eveningExtraCheckIn?.createdAt),
       }));
     } catch (err) {
       console.warn('Error refreshing rhythm state:', err);
@@ -216,9 +226,21 @@ export const RhythmProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
-  const submitEveningExtraReply = async () => {
+  const submitEveningExtraReply = async (
+    voiceData?: { url: string; duration: number; waveform: number[] },
+    note?: string
+  ) => {
     if (!family?.id || !member?.id) return;
-    setState((prev) => ({ ...prev, eveningExtraReplied: true }));
+    const nowTime = formatTimeHHMM(new Date().toISOString());
+    const finalNote = note || 'Con chúc bố mẹ ngủ ngon ạ, con yêu bố mẹ!';
+    setState((prev) => ({
+      ...prev,
+      eveningExtraReplied: true,
+      eveningExtraNote: finalNote,
+      eveningExtraVoiceUrl: voiceData?.url,
+      eveningExtraVoiceDuration: voiceData?.duration,
+      eveningExtraTime: nowTime,
+    }));
 
     try {
       await apiClient.submitCheckIn({
@@ -226,8 +248,10 @@ export const RhythmProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         memberId: member.id,
         memberName: member.name,
         rhythmType: 'EVENING',
-        note: 'Con chúc bố mẹ ngủ ngon ạ, con yêu bố mẹ!',
-        voiceDurationSec: 5,
+        note: finalNote,
+        voiceDurationSec: voiceData?.duration || 5,
+        voiceUrl: voiceData?.url,
+        waveform: voiceData?.waveform,
       });
       await refreshRhythm();
     } catch (err) {

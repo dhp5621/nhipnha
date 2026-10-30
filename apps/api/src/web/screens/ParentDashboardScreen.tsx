@@ -38,6 +38,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
   } | null>(null);
 
   const [isPlayingChildVoice, setIsPlayingChildVoice] = useState(false);
+  const [isPlayingChildEveningVoice, setIsPlayingChildEveningVoice] = useState(false);
   const [isPlayingParentVoice, setIsPlayingParentVoice] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
   const [sendSuccess, setSendSuccess] = useState(false);
@@ -127,6 +128,23 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
       webAudioService.playAudioUrl(state.afternoonVoiceUrl, 'Giọng nói chiều của con', () => {
         setIsPlayingChildVoice(false);
       });
+    }
+  };
+
+  const handleTogglePlayChildEveningVoice = () => {
+    if (!state.eveningExtraVoiceUrl) return;
+    if (isPlayingChildEveningVoice) {
+      webAudioService.stopAudioPlayback();
+      setIsPlayingChildEveningVoice(false);
+    } else {
+      setIsPlayingChildEveningVoice(true);
+      webAudioService.playAudioUrl(
+        state.eveningExtraVoiceUrl,
+        state.eveningExtraNote || 'Lời chúc ngủ ngon của con',
+        () => {
+          setIsPlayingChildEveningVoice(false);
+        }
+      );
     }
   };
 

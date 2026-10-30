@@ -8,6 +8,7 @@ import { BigButton } from '../components/BigButton';
 import { AccessibleText } from '../components/AccessibleText';
 import { SecurityQRCard } from '../components/SecurityQRCard';
 import { MIcon } from '../components/MIcon';
+import { GoogleLoadingIndicator } from '../components/GoogleLoadingIndicator';
 
 interface RoleSwitchScreenProps {
   onBack: () => void;
@@ -43,6 +44,7 @@ export const RoleSwitchScreen: React.FC<RoleSwitchScreenProps> = ({
   const [newPassword, setNewPassword] = useState('');
   const [passwordMsg, setPasswordMsg] = useState<{ text: string; isError: boolean } | null>(null);
   const [changingPass, setChangingPass] = useState(false);
+  const [switchingRoleId, setSwitchingRoleId] = useState<Role | null>(null);
   const [showPersonalQR, setShowPersonalQR] = useState(false);
 
   const isVi = activeLanguage === 'vi';
@@ -87,7 +89,7 @@ export const RoleSwitchScreen: React.FC<RoleSwitchScreenProps> = ({
     setChangingPass(true);
     setPasswordMsg(null);
     try {
-      await apiClient.changePassword(currentPassword, newPassword);
+      await apiClient.changePassword(currentPassword, newPassword, family?.id);
       setPasswordMsg({ text: isVi ? 'Đổi mật khẩu thành công!' : 'Password changed successfully!', isError: false });
       setCurrentPassword('');
       setNewPassword('');
@@ -95,6 +97,17 @@ export const RoleSwitchScreen: React.FC<RoleSwitchScreenProps> = ({
       setPasswordMsg({ text: err?.message || (isVi ? 'Đổi mật khẩu thất bại' : 'Failed to change password'), isError: true });
     } finally {
       setChangingPass(false);
+    }
+  };
+
+  const handleSelectRole = async (targetRole: Role) => {
+    if (member?.role === targetRole || switchingRoleId !== null) return;
+    setSwitchingRoleId(targetRole);
+    try {
+      await new Promise((r) => setTimeout(r, 450));
+      await switchRole(targetRole);
+    } finally {
+      setSwitchingRoleId(null);
     }
   };
 
@@ -205,7 +218,7 @@ export const RoleSwitchScreen: React.FC<RoleSwitchScreenProps> = ({
               <button
                 key={opt.id}
                 type="button"
-                onClick={() => switchRole(opt.id)}
+                onClick={() => handleSelectRole(opt.id)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',

@@ -34,6 +34,17 @@ function NavigationRoot() {
   const { colors, isDark, toggleTheme, textScale } = useTheme();
   const [currentScreen, setCurrentScreen] = useState<ScreenName | null>(null);
   const [showFamilyCode, setShowFamilyCode] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
+
+  const navigateTo = (target: ScreenName | null) => {
+    if (target === currentScreen) return;
+    setIsNavigating(true);
+    setTimeout(() => {
+      setCurrentScreen(target);
+      setIsNavigating(false);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 140);
+  };
 
   const isVi = activeLanguage === 'vi';
 
@@ -86,19 +97,19 @@ function NavigationRoot() {
 
   const renderMainContent = () => {
     if (currentScreen === 'MORNING_TOUCH') {
-      return <MorningTouchScreen onBack={() => setCurrentScreen(null)} />;
+      return <MorningTouchScreen onBack={() => navigateTo(null)} />;
     }
 
     if (currentScreen === 'AFTERNOON_TOUCH') {
-      return <AfternoonTouchScreen onBack={() => setCurrentScreen(null)} />;
+      return <AfternoonTouchScreen onBack={() => navigateTo(null)} />;
     }
 
     if (currentScreen === 'EVENING_TOUCH') {
-      return <EveningTouchScreen onBack={() => setCurrentScreen(null)} />;
+      return <EveningTouchScreen onBack={() => navigateTo(null)} />;
     }
 
     if (currentScreen === 'OWNER_CONSOLE') {
-      return <OwnerManagementScreen onBack={() => setCurrentScreen('ROLE_SWITCH')} />;
+      return <OwnerManagementScreen onBack={() => navigateTo('ROLE_SWITCH')} />;
     }
 
     if (currentScreen === 'ROLE_SWITCH') {
@@ -117,7 +128,7 @@ function NavigationRoot() {
     if (member?.role === 'PARENT') {
       return (
         <ParentDashboardScreen
-          onNavigateToSwitch={() => setCurrentScreen('ROLE_SWITCH')}
+          onNavigateToSwitch={() => navigateTo('ROLE_SWITCH')}
         />
       );
     }
@@ -177,7 +188,7 @@ function NavigationRoot() {
           {/* Navigation Items */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
             <button
-              onClick={() => setCurrentScreen(null)}
+              onClick={() => navigateTo(null)}
               type="button"
               className="desktop-nav-item"
               style={{
@@ -202,7 +213,7 @@ function NavigationRoot() {
             </button>
 
             <button
-              onClick={() => setCurrentScreen('ROLE_SWITCH')}
+              onClick={() => navigateTo('ROLE_SWITCH')}
               type="button"
               className="desktop-nav-item"
               style={{
@@ -222,7 +233,7 @@ function NavigationRoot() {
 
             {member?.isOwner && (
               <button
-                onClick={() => setCurrentScreen('OWNER_CONSOLE')}
+                onClick={() => navigateTo('OWNER_CONSOLE')}
                 type="button"
                 className="desktop-nav-item"
                 style={{
@@ -310,7 +321,7 @@ function NavigationRoot() {
           }}
         >
           <button
-            onClick={() => setCurrentScreen(null)}
+            onClick={() => navigateTo(null)}
             type="button"
             className="mobile-dock-item"
             style={{
@@ -343,7 +354,7 @@ function NavigationRoot() {
           </button>
 
           <button
-            onClick={() => setCurrentScreen('ROLE_SWITCH')}
+            onClick={() => navigateTo('ROLE_SWITCH')}
             type="button"
             className="mobile-dock-item"
             style={{
@@ -382,6 +393,47 @@ function NavigationRoot() {
         button, input, select, textarea, span, p, a, label {
           font-family: inherit;
           font-synthesis: none;
+        }
+
+        /* Top Material 3 Navigation Progress Bar */
+        .m3-nav-loader {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 4px;
+          background: rgba(0, 0, 0, 0.08);
+          overflow: hidden;
+          z-index: 99999;
+        }
+
+        .m3-nav-loader-bar {
+          position: absolute;
+          top: 0;
+          bottom: 0;
+          background: linear-gradient(90deg, #4285F4, #EA4335, #FBBC05, #34A853);
+          animation: m3TopLoader 0.9s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+        }
+
+        @keyframes m3TopLoader {
+          0% { left: -30%; width: 30%; }
+          50% { left: 25%; width: 50%; }
+          100% { left: 100%; width: 30%; }
+        }
+
+        .m3-screen-fade {
+          animation: m3ScreenFadeIn 0.24s cubic-bezier(0.1, 0.9, 0.2, 1) forwards;
+        }
+
+        @keyframes m3ScreenFadeIn {
+          from {
+            opacity: 0.15;
+            transform: translateY(10px) scale(0.995);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
         }
 
         /* Smooth page and card entrance animations */

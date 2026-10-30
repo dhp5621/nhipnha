@@ -7,6 +7,7 @@ import { AudioWaveform } from '../components/AudioWaveform';
 import { BigButton } from '../components/BigButton';
 import { AccessibleText } from '../components/AccessibleText';
 import { MIcon } from '../components/MIcon';
+import { GoogleLoadingIndicator } from '../components/GoogleLoadingIndicator';
 
 interface EveningTouchScreenProps {
   onBack: () => void;
@@ -20,6 +21,12 @@ export const EveningTouchScreen: React.FC<EveningTouchScreenProps> = ({ onBack }
   const [isPlaying, setIsPlaying] = useState(false);
   const [sendingExtra, setSendingExtra] = useState(false);
   const [extraSentSuccess, setExtraSentSuccess] = useState(false);
+  const [isRecordingReply, setIsRecordingReply] = useState(false);
+  const [replyDuration, setReplyDuration] = useState(10);
+  const [replyWaveform, setReplyWaveform] = useState<number[]>([]);
+  const [replyVoice, setReplyVoice] = useState<{ url: string; duration: number; waveform: number[]; transcript?: string } | null>(null);
+  const [isPlayingReply, setIsPlayingReply] = useState(false);
+  const replyTimerRef = React.useRef<number | null>(null);
 
   const isVi = activeLanguage === 'vi';
 
@@ -39,6 +46,65 @@ export const EveningTouchScreen: React.FC<EveningTouchScreenProps> = ({ onBack }
     } else {
       webAudioService.stopAudioPlayback();
       setIsPlaying(false);
+    }
+  };
+
+  const handleStartRecordingReply = async () => {
+    const started = await webAudioService.startAudioRecording((waveform) => {
+      setReplyWaveform(waveform);
+    });
+    if (!started) {
+      alert(isVi ? 'Không thể truy cập microphone' : 'Microphone access denied');
+      return;
+    }
+    setReplyDuration(10);
+    setIsRecordingReply(true);
+    setReplyVoice(null);
+
+    replyTimerRef.current = window.setInterval(() => {
+      setReplyDuration((prev) => {
+        if (prev <= 1) {
+          handleStopRecordingReply();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const handleStopRecordingReply = async () => {
+    if (replyTimerRef.current) clearInterval(replyTimerRef.current);
+    setIsRecordingReply(false);
+    const result = await webAudioService.stopAudioRecording(10 - replyDuration || 8);
+    setReplyVoice(result);
+  };
+
+  const handleTogglePlayReply = () => {
+    if (!replyVoice?.url) return;
+    if (isPlayingReply) {
+      webAudioService.stopAudioPlayback();
+      setIsPlayingReply(false);
+    } else {
+      setIsPlayingReply(true);
+      webAudioService.playAudioUrl(replyVoice.url, 'Lời chúc ngủ ngon của con', () => {
+        setIsPlayingReply(false);
+      });
+    }
+  };
+
+  const handleSendVoiceReply = async () => {
+    if (!replyVoice) return;
+    setSendingExtra(true);
+    try {
+      await submitEveningExtraReply(
+        replyVoice,
+        replyVoice.transcript || (isVi ? 'Con chúc bố mẹ ngủ ngon ạ, con thương bố mẹ nhiều!' : 'Good night Mom & Dad, love you!')
+      );
+      setExtraSentSuccess(true);
+      setReplyVoice(null);
+      setTimeout(() => setExtraSentSuccess(false), 4000);
+    } finally {
+      setSendingExtra(false);
     }
   };
 

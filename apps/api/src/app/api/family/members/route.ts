@@ -130,8 +130,10 @@ export async function POST(request: Request) {
 //  - own password and email: use /api/account (needs the current password)
 export async function PATCH(request: Request) {
   try {
-    const body = await request.json();
-    const { familyId, memberId } = body;
+    const body = await request.json().catch(() => ({}));
+    const searchParams = new URL(request.url).searchParams;
+    const familyId = body.familyId || searchParams.get('familyId');
+    const memberId = body.memberId || searchParams.get('memberId');
     const auth = await authenticate(request, familyId);
     if (!auth.ok) return auth.response;
 
@@ -249,4 +251,15 @@ export async function DELETE(request: Request) {
   } catch (err: any) {
     return fail(500, err?.message || 'Không thể xóa thành viên');
   }
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-family-id, x-member-id',
+    },
+  });
 }
