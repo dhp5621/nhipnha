@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 const DEFAULT_AI_BASE_URL = 'https://chat-api.chuyenbienhoa.com';
-const DEFAULT_AI_MODEL = 'gemini-3.8-flash';
+const DEFAULT_AI_MODEL = 'gemini-flash-lite';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
