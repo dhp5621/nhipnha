@@ -19,6 +19,9 @@ class WebAudioService {
   private analyser: AnalyserNode | null = null;
   private startTime: number = 0;
   private currentAudioElement: HTMLAudioElement | null = null;
+  private currentBufferSource: AudioBufferSourceNode | null = null;
+  private currentPlaybackContext: AudioContext | null = null;
+  private currentChimeTimeout: any = null;
   private animationFrameId: number | null = null;
   private recordedWaveform: number[] = [];
   private speechRecognition: any = null;
@@ -28,14 +31,16 @@ class WebAudioService {
    * Synthesize a warm morning bell chime using Web Audio API oscillators
    */
   playMorningBellChime(onEnd?: () => void): void {
+    this.stopCurrentAudio();
     if (typeof window === 'undefined') {
-      setTimeout(() => onEnd?.(), 1000);
+      setTimeout(() => onEnd?.(), 1600);
       return;
     }
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (AudioCtx) {
         const ctx = new AudioCtx();
+        this.currentPlaybackContext = ctx;
         const frequencies = [523.25, 659.25, 783.99, 1046.5]; // C5, E5, G5, C6
         frequencies.forEach((freq, idx) => {
           const osc = ctx.createOscillator();
@@ -53,13 +58,17 @@ class WebAudioService {
     } catch (e) {
       console.warn('Web Audio chime error:', e);
     }
-    setTimeout(() => onEnd?.(), 1000);
+    this.currentChimeTimeout = setTimeout(() => {
+      this.currentChimeTimeout = null;
+      onEnd?.();
+    }, 1600);
   }
 
   /**
    * Play gentle acoustic chime melody for mock URIs (no creepy robotic TTS narrator)
    */
   playMockAcousticChime(durationSec: number = 4, onEnd?: () => void): void {
+    this.stopCurrentAudio();
     if (typeof window === 'undefined') {
       setTimeout(() => onEnd?.(), 1000);
       return;
@@ -68,6 +77,7 @@ class WebAudioService {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (AudioCtx) {
         const ctx = new AudioCtx();
+        this.currentPlaybackContext = ctx;
         const notes = [
           { freq: 523.25, time: 0.0, dur: 0.7 }, // C5
           { freq: 659.25, time: 0.5, dur: 0.7 }, // E5
@@ -92,7 +102,10 @@ class WebAudioService {
     } catch (e) {
       console.warn('Web Audio chime error:', e);
     }
-    setTimeout(() => onEnd?.(), Math.max(1, durationSec) * 1000);
+    this.currentChimeTimeout = setTimeout(() => {
+      this.currentChimeTimeout = null;
+      onEnd?.();
+    }, Math.max(1, durationSec) * 1000);
   }
 
   /**
@@ -305,7 +318,7 @@ class WebAudioService {
   }
 
   /**
-   * Play audio URL directly via HTML5 Audio element.
+   * Play audio URL directly via Web Audio API with HTML5 Audio fallback.
    * STRICTLY ONLY plays actual audio — NEVER uses robotic TTS narrator.
    */
   async playAudioUrl(
@@ -326,50 +339,59 @@ class WebAudioService {
       return;
     }
 
-    if (url.startsWith('data:audio') || url.startsWith('http') || url.startsWith('blob:')) {
+    // 1. Primary engine: Web Audio decodeAudioData for data:audio URLs
+    // Perfectly parses in-memory audio buffers, eliminates Chrome WebM duration & blob error bugs
+    if (url.startsWith('data:audio')) {
       try {
-        let playSrc = url;
-        let objectUrlToRevoke: string | null = null;
+        const commaIdx = url.indexOf(',');
+        if (commaIdx !== -1) {
+          const base64 = url.slice(commaIdx + 1).trim();
+          const binary = atob(base64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) {
+            bytes[i] = binary.charCodeAt(i);
+          }
 
-        // Convert base64 data:audio/... to Blob ObjectURL for reliable cross-browser HTML5 Audio playback
-        if (url.startsWith('data:audio')) {
-          try {
-            const commaIdx = url.indexOf(',');
-            if (commaIdx !== -1) {
-              const header = url.slice(0, commaIdx);
-              const base64 = url.slice(commaIdx + 1).trim();
-              const mimeMatch = header.match(/^data:([^;]+)/);
-              const mimeType = mimeMatch ? mimeMatch[1].trim() : 'audio/webm';
-              const binary = atob(base64);
-              const bytes = new Uint8Array(binary.length);
-              for (let i = 0; i < binary.length; i++) {
-                bytes[i] = binary.charCodeAt(i);
+          const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+          if (AudioCtx) {
+            const ctx = new AudioCtx();
+            this.currentPlaybackContext = ctx;
+
+            const audioBuffer = await ctx.decodeAudioData(bytes.buffer.slice(0));
+            const source = ctx.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(ctx.destination);
+            this.currentBufferSource = source;
+
+            source.onended = () => {
+              if (this.currentBufferSource === source) {
+                this.currentBufferSource = null;
               }
-              const blob = new Blob([bytes], { type: mimeType });
-              if (blob.size > 50) {
-                objectUrlToRevoke = URL.createObjectURL(blob);
-                playSrc = objectUrlToRevoke;
-              }
-            }
-          } catch (blobErr) {
-            console.warn('Data URL to Blob conversion warning:', blobErr);
+              onEnd?.();
+            };
+
+            source.start(0);
+            return;
           }
         }
+      } catch (decodeErr) {
+        console.warn('Web Audio decodeAudioData fallback to HTMLAudio:', decodeErr);
+        // Fall through to HTMLAudioElement below
+      }
+    }
 
+    // 2. Secondary fallback: HTML5 Audio element (for http/https/blob or when decodeAudioData cannot parse)
+    if (url.startsWith('data:audio') || url.startsWith('http') || url.startsWith('blob:')) {
+      try {
         const audio = new Audio();
         audio.preload = 'auto';
-        audio.src = playSrc;
+        audio.src = url;
         this.currentAudioElement = audio;
 
         let finished = false;
         const finishPlayback = () => {
           if (finished) return;
           finished = true;
-          if (objectUrlToRevoke) {
-            try {
-              URL.revokeObjectURL(objectUrlToRevoke);
-            } catch {}
-          }
           if (this.currentAudioElement === audio) {
             this.currentAudioElement = null;
           }
@@ -378,6 +400,8 @@ class WebAudioService {
 
         audio.onended = finishPlayback;
         audio.onerror = (e) => {
+          // If audio is actively playing, don't kill playback on benign metadata warnings
+          if (audio.currentTime > 0 || !audio.paused) return;
           console.warn('Audio playback error on source:', e);
           finishPlayback();
         };
@@ -395,11 +419,29 @@ class WebAudioService {
   }
 
   stopCurrentAudio(): void {
+    if (this.currentChimeTimeout) {
+      clearTimeout(this.currentChimeTimeout);
+      this.currentChimeTimeout = null;
+    }
+    if (this.currentBufferSource) {
+      try {
+        this.currentBufferSource.stop();
+        this.currentBufferSource.disconnect();
+      } catch {}
+      this.currentBufferSource = null;
+    }
+    if (this.currentPlaybackContext) {
+      try {
+        this.currentPlaybackContext.close();
+      } catch {}
+      this.currentPlaybackContext = null;
+    }
     if (this.currentAudioElement) {
       try {
         this.currentAudioElement.pause();
-        this.currentAudioElement = null;
+        this.currentAudioElement.src = '';
       } catch {}
+      this.currentAudioElement = null;
     }
     // Cancel any accidental speech synthesis immediately
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
