@@ -24,7 +24,7 @@ function newId() {
 function buildCheckIn(
   item: any,
   familyId: string,
-  author: { id: string; name: string } | null,
+  author: { id: string; name: string; role?: string } | null,
   keepClientTime: boolean
 ): CheckIn | null {
   const rhythmType: RhythmType = RHYTHMS.includes(item.rhythmType) ? item.rhythmType : 'MORNING';
@@ -43,11 +43,19 @@ function buildCheckIn(
       ? new Date(item.createdAt).toISOString()
       : new Date().toISOString();
 
+  const isMorningHelper =
+    rhythmType === 'MORNING' &&
+    (author?.role === 'PARENT' || author?.role === 'GRANDPARENT');
+  const targetMemberId =
+    isMorningHelper && item.memberId ? item.memberId : author?.id || item.memberId || `mem_${Date.now()}`;
+  const targetMemberName =
+    isMorningHelper && item.memberName ? item.memberName : author?.name || item.memberName || 'Thành viên';
+
   return {
     id: typeof item.id === 'string' && item.id ? item.id.slice(0, 64) : newId(),
     familyId,
-    memberId: author?.id || item.memberId || `mem_${Date.now()}`,
-    memberName: author?.name || item.memberName || 'Thành viên',
+    memberId: targetMemberId,
+    memberName: targetMemberName,
     rhythmType,
     mood,
     note: typeof item.note === 'string' ? item.note.slice(0, 2000) : undefined,
@@ -71,12 +79,17 @@ export async function POST(request: Request) {
       const auth = await authenticate(request, familyId);
       if (!auth.ok) return auth.response;
 
-      const author = auth.member ? { id: auth.member.id, name: auth.member.name } : null;
+      const author = auth.member
+        ? { id: auth.member.id, name: auth.member.name, role: auth.member.role }
+        : null;
       const savedItems: CheckIn[] = [];
       for (const item of body.batch) {
         if (item.familyId !== familyId) continue;
-        // A real member can only sync their own check-ins
-        if (!auth.isDemo && item.memberId && item.memberId !== auth.member!.id) continue;
+        const isMorningHelper =
+          item.rhythmType === 'MORNING' &&
+          (auth.member?.role === 'PARENT' || auth.member?.role === 'GRANDPARENT');
+        // A real member can only sync their own check-ins (unless recording morning wake-up helper for child)
+        if (!auth.isDemo && item.memberId && item.memberId !== auth.member!.id && !isMorningHelper) continue;
         const checkIn = buildCheckIn(item, familyId, author, true);
         if (!checkIn) continue;
         await dataRepository.addCheckIn(checkIn);
@@ -94,12 +107,18 @@ export async function POST(request: Request) {
     const auth = await authenticate(request, body.familyId);
     if (!auth.ok) return auth.response;
 
-    if (!auth.isDemo && body.memberId && body.memberId !== auth.member!.id) {
+    const isMorningHelper =
+      body.rhythmType === 'MORNING' &&
+      (auth.member?.role === 'PARENT' || auth.member?.role === 'GRANDPARENT');
+
+    if (!auth.isDemo && body.memberId && body.memberId !== auth.member!.id && !isMorningHelper) {
       return fail(403, 'Bạn không thể ghi nhịp kết nối thay cho thành viên khác.');
     }
 
-    const author = auth.member ? { id: auth.member.id, name: auth.member.name } : null;
-    const checkIn = buildCheckIn(body, body.familyId, author, false);
+    const author = auth.member
+      ? { id: auth.member.id, name: auth.member.name, role: auth.member.role }
+      : null;
+    const checkIn = buildCheckIn(body, body.familyId, author, true);
     if (!checkIn) return fail(413, 'Tệp ghi âm hoặc ảnh quá lớn, vui lòng chọn tệp nhỏ hơn.');
 
     await dataRepository.addCheckIn(checkIn);

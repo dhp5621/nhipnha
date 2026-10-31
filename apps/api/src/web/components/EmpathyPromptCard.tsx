@@ -1,5 +1,5 @@
 import React from 'react';
-import type { EmpathyAssistantResponse } from '@nhipnha/shared';
+import type { EmpathyAssistantResponse, Role } from '@nhipnha/shared';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import { MIcon } from './MIcon';
@@ -9,16 +9,19 @@ interface EmpathyPromptCardProps {
   data: EmpathyAssistantResponse;
   selectedPrompt?: string;
   onSelectPrompt: (prompt: string) => void;
+  role?: Role;
 }
 
 export const EmpathyPromptCard: React.FC<EmpathyPromptCardProps> = ({
   data,
   selectedPrompt,
   onSelectPrompt,
+  role = 'PARENT',
 }) => {
   const { activeLanguage } = useLanguage();
   const { colors, isDark } = useTheme();
   const isVi = activeLanguage === 'vi';
+  const isGrandparent = role === 'GRANDPARENT';
 
   return (
     <div
@@ -53,7 +56,13 @@ export const EmpathyPromptCard: React.FC<EmpathyPromptCardProps> = ({
               {isVi ? 'Trợ Lý Thấu Cảm AI' : 'AI Empathy Assistant'}
             </AccessibleText>
             <AccessibleText variant="caption" color={colors.textSecondary}>
-              {isVi ? 'Gợi ý câu hỏi mở • Tránh hỏi điểm số' : 'Open prompts • Non-evaluative'}
+              {isVi
+                ? isGrandparent
+                  ? 'Gợi ý trò chuyện cùng cháu • Ấm áp yêu thương'
+                  : 'Gợi ý câu hỏi mở • Tránh hỏi điểm số'
+                : isGrandparent
+                ? 'Loving prompts • Grandparent care'
+                : 'Open prompts • Non-evaluative'}
             </AccessibleText>
           </div>
         </div>
@@ -108,7 +117,11 @@ export const EmpathyPromptCard: React.FC<EmpathyPromptCardProps> = ({
           style={{ marginBottom: 8, display: 'block' }}
         >
           {isVi
-            ? 'Chạm chọn 1 câu để đọc gửi cho con:'
+            ? isGrandparent
+              ? 'Chạm chọn 1 câu để đọc gửi cho cháu:'
+              : 'Chạm chọn 1 câu để đọc gửi cho con:'
+            : isGrandparent
+            ? 'Tap one prompt to record for your grandchild:'
             : 'Tap one prompt to record for your child:'}
         </AccessibleText>
 

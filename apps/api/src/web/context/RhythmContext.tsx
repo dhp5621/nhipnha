@@ -260,11 +260,15 @@ export const RhythmProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       date: todayDateStr,
     });
 
+    const childMember = state.members.find((m) => m.role === 'CHILD');
+    const authorMemberId = childMember?.id || member.id;
+    const authorMemberName = childMember?.name || member.name;
+
     const localCheckIn: CheckIn = {
       id: `chk_morning_${Date.now()}`,
       familyId: family.id,
-      memberId: member.id,
-      memberName: member.name,
+      memberId: authorMemberId,
+      memberName: authorMemberName,
       rhythmType: 'MORNING',
       note: 'Con chuẩn bị đi học đây ạ!',
       syncStatus: 'SYNCED',

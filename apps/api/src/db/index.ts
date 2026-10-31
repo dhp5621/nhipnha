@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
 import { neon } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
 import { eq, desc, sql, and, isNull } from 'drizzle-orm';
@@ -182,6 +185,8 @@ const DEMO_MESSAGES: Message[] = [
   },
 ];
 
+const MEMORY_SNAPSHOT_FILE = path.join(os.tmpdir(), 'nhipnha_memory_repo.json');
+
 /**
  * In-memory fallback repository when DATABASE_URL is not configured.
  */
@@ -196,6 +201,7 @@ class MemoryRepository {
 
   constructor() {
     this.seedDefaults();
+    this.loadSnapshot();
   }
 
   private seedDefaults() {
@@ -205,6 +211,60 @@ class MemoryRepository {
     }
     this.checkIns = [...DEMO_CHECKINS];
     this.messages = [...DEMO_MESSAGES];
+  }
+
+  private saveSnapshot() {
+    try {
+      const payload = {
+        families: Array.from(this.families.entries()),
+        members: Array.from(this.members.entries()),
+        checkIns: this.checkIns,
+        messages: this.messages,
+        invites: Array.from(this.invites.entries()),
+        secrets: Array.from(this.secrets.entries()),
+        sessions: this.sessions,
+      };
+      fs.writeFileSync(MEMORY_SNAPSHOT_FILE, JSON.stringify(payload), 'utf8');
+    } catch {
+      // Ignore write errors in ephemeral read-only sandboxes
+    }
+  }
+
+  private loadSnapshot() {
+    try {
+      if (!fs.existsSync(MEMORY_SNAPSHOT_FILE)) return;
+      const raw = fs.readFileSync(MEMORY_SNAPSHOT_FILE, 'utf8');
+      const data = JSON.parse(raw);
+      if (Array.isArray(data.families)) {
+        for (const [k, v] of data.families) this.families.set(k, v);
+      }
+      if (Array.isArray(data.members)) {
+        for (const [k, v] of data.members) this.members.set(k, v);
+      }
+      if (Array.isArray(data.checkIns)) {
+        const map = new Map<string, CheckIn>();
+        for (const c of this.checkIns) map.set(c.id, c);
+        for (const c of data.checkIns) map.set(c.id, c);
+        this.checkIns = Array.from(map.values());
+      }
+      if (Array.isArray(data.messages)) {
+        const map = new Map<string, Message>();
+        for (const m of this.messages) map.set(m.id, m);
+        for (const m of data.messages) map.set(m.id, m);
+        this.messages = Array.from(map.values());
+      }
+      if (Array.isArray(data.invites)) {
+        for (const [k, v] of data.invites) this.invites.set(k, v);
+      }
+      if (Array.isArray(data.secrets)) {
+        for (const [k, v] of data.secrets) this.secrets.set(k, v);
+      }
+      if (Array.isArray(data.sessions)) {
+        this.sessions = data.sessions;
+      }
+    } catch {
+      // Ignore read errors
+    }
   }
 
   getFamily(id: string): Family | undefined {
@@ -220,6 +280,7 @@ class MemoryRepository {
 
   saveFamily(family: Family): Family {
     this.families.set(family.id, family);
+    this.saveSnapshot();
     return family;
   }
 
@@ -233,6 +294,7 @@ class MemoryRepository {
 
   saveMember(member: Member): Member {
     this.members.set(member.id, member);
+    this.saveSnapshot();
     return member;
   }
 
@@ -242,6 +304,7 @@ class MemoryRepository {
 
   setSecrets(memberId: string, patch: Partial<MemberSecrets>): void {
     this.secrets.set(memberId, { ...this.getSecrets(memberId), ...patch });
+    this.saveSnapshot();
   }
 
   findMemberIdByEmail(email: string): string | undefined {
@@ -258,6 +321,7 @@ class MemoryRepository {
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     const evict = new Set(mine.slice(MAX_SESSIONS_PER_MEMBER).map((s) => s.id));
     if (evict.size > 0) this.sessions = this.sessions.filter((s) => !evict.has(s.id));
+    this.saveSnapshot();
   }
 
   hasSession(memberId: string, tokenHash: string): boolean {
@@ -268,6 +332,7 @@ class MemoryRepository {
     this.sessions = this.sessions.filter(
       (s) => s.memberId !== memberId || (exceptTokenHash !== undefined && s.tokenHash === exceptTokenHash)
     );
+    this.saveSnapshot();
   }
 
   countSessions(memberId: string): number {
@@ -283,6 +348,7 @@ class MemoryRepository {
       role: patch.role ?? current.role,
     };
     this.members.set(memberId, next);
+    this.saveSnapshot();
     return next;
   }
 
@@ -292,10 +358,12 @@ class MemoryRepository {
     this.sessions = this.sessions.filter((s) => s.memberId !== memberId);
     this.checkIns = this.checkIns.filter((c) => c.memberId !== memberId);
     this.messages = this.messages.filter((m) => m.senderId !== memberId);
+    this.saveSnapshot();
   }
 
   saveInvite(invite: FamilyInvite): FamilyInvite {
     this.invites.set(invite.id, invite);
+    this.saveSnapshot();
     return invite;
   }
 
@@ -318,6 +386,7 @@ class MemoryRepository {
     if (!inv || inv.usedAt || inv.revokedAt) return false;
     inv.usedAt = new Date().toISOString();
     inv.usedByName = usedByName;
+    this.saveSnapshot();
     return true;
   }
 
@@ -325,6 +394,7 @@ class MemoryRepository {
     const inv = this.invites.get(inviteId);
     if (!inv || inv.familyId !== familyId || inv.usedAt || inv.revokedAt) return false;
     inv.revokedAt = new Date().toISOString();
+    this.saveSnapshot();
     return true;
   }
 
@@ -333,7 +403,13 @@ class MemoryRepository {
   }
 
   addCheckIn(checkIn: CheckIn): CheckIn {
-    this.checkIns.unshift(checkIn);
+    const existingIdx = this.checkIns.findIndex((c) => c.id === checkIn.id);
+    if (existingIdx >= 0) {
+      this.checkIns[existingIdx] = checkIn;
+    } else {
+      this.checkIns.unshift(checkIn);
+    }
+    this.saveSnapshot();
     return checkIn;
   }
 
@@ -342,7 +418,13 @@ class MemoryRepository {
   }
 
   addMessage(msg: Message): Message {
-    this.messages.unshift(msg);
+    const existingIdx = this.messages.findIndex((m) => m.id === msg.id);
+    if (existingIdx >= 0) {
+      this.messages[existingIdx] = msg;
+    } else {
+      this.messages.unshift(msg);
+    }
+    this.saveSnapshot();
     return msg;
   }
 
@@ -350,6 +432,7 @@ class MemoryRepository {
     const target = this.messages.find((m) => m.id === messageId);
     if (target) {
       target.listenedAt = new Date().toISOString();
+      this.saveSnapshot();
     }
   }
 }
@@ -1020,8 +1103,20 @@ export const dataRepository = {
             waveform: checkIn.waveform,
             attachment: checkIn.attachment,
             syncStatus: 'SYNCED',
+            createdAt: checkIn.createdAt ? new Date(checkIn.createdAt) : new Date(),
           })
-          .onConflictDoNothing();
+          .onConflictDoUpdate({
+            target: schema.checkIns.id,
+            set: {
+              note: checkIn.note,
+              mood: checkIn.mood,
+              voiceDurationSec: checkIn.voiceDurationSec || 0,
+              voiceUrl: checkIn.voiceUrl,
+              waveform: checkIn.waveform,
+              attachment: checkIn.attachment,
+              syncStatus: 'SYNCED',
+            },
+          });
       } catch (e) {
         console.warn('addCheckIn pg error:', e);
       }
@@ -1088,6 +1183,7 @@ export const dataRepository = {
             durationSec: msg.durationSec,
             aiSummary: msg.aiSummary,
             aiSuggestedPrompts: msg.aiSuggestedPrompts,
+            createdAt: msg.createdAt ? new Date(msg.createdAt) : new Date(),
           })
           .onConflictDoNothing();
       } catch (e) {

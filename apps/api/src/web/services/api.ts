@@ -406,9 +406,11 @@ export const apiClient = {
     attachmentTitle?: string,
     language: 'vi' | 'en' = 'vi',
     childName?: string,
-    isDemo: boolean = false
+    isDemo: boolean = false,
+    role?: Role
   ): Promise<EmpathyAssistantResponse | null> {
-    const cacheKey = `empathy:${mood}:${childMessage || ''}:${attachmentTitle || ''}:${language}:${childName || ''}:${isDemo}`;
+    const roleKey = role || 'PARENT';
+    const cacheKey = `empathy:${mood}:${childMessage || ''}:${attachmentTitle || ''}:${language}:${childName || ''}:${isDemo}:${roleKey}`;
     if (empathyMemoryCache.has(cacheKey)) {
       return empathyMemoryCache.get(cacheKey)!;
     }
@@ -429,6 +431,7 @@ export const apiClient = {
           attachmentTitle,
           language,
           isDemo,
+          role: roleKey,
         }),
       });
       const data = await res.json();
@@ -502,11 +505,13 @@ export const apiClient = {
       createdAt?: string;
     }>;
     isDemo?: boolean;
+    role?: Role;
   }): Promise<{
     weeklyOverview: string;
     narrativeHighlights: Array<{ emoji: string; title: string; detail: string }>;
     weekendSuggestions: string[];
   } | null> {
+    const roleKey = params.role || 'PARENT';
     const checkInsDigest = (params.checkIns || [])
       .slice(0, 10)
       .map(
@@ -514,7 +519,7 @@ export const apiClient = {
           `${c.rhythmType || ''}_${c.mood || ''}_${c.createdAt || ''}_${(c.note || '').slice(0, 15)}`
       )
       .join('|');
-    const cacheKey = `weekly:${params.childName}:${params.language}:${params.isDemo ? 'demo' : 'prod'}:${checkInsDigest}`;
+    const cacheKey = `weekly:${params.childName}:${params.language}:${params.isDemo ? 'demo' : 'prod'}:${roleKey}:${checkInsDigest}`;
 
     if (weeklyRecapMemoryCache.has(cacheKey)) {
       return weeklyRecapMemoryCache.get(cacheKey)!;

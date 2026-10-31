@@ -148,7 +148,8 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
           attachTitle,
           activeLanguage,
           childName,
-          isDemoAccount
+          isDemoAccount,
+          member?.role
         );
         if (insights) {
           setAiData(insights);
@@ -170,6 +171,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
     isVi,
     childName,
     isDemoAccount,
+    member?.role,
   ]);
 
   // Compute 7-day analytics from real checkIns (or demo stats when isDemoAccount is true)
@@ -349,6 +351,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
             createdAt: c.createdAt,
           })),
           isDemo: isDemoAccount,
+          role: member?.role,
         });
         if (recap) {
           setWeeklyRecapAi(recap);
@@ -358,7 +361,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
       }
     }
     loadWeeklyAi();
-  }, [dashboardTab, childName, activeLanguage, state.checkIns, isDemoAccount, isVi]);
+  }, [dashboardTab, childName, activeLanguage, state.checkIns, isDemoAccount, isVi, member?.role]);
 
   // 30s Recording countdown
   useEffect(() => {
@@ -513,7 +516,13 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
           messageNote.trim() ||
           parentVoice?.transcript ||
           selectedPrompt ||
-          (isVi ? `Chúc ${childName} ngủ ngon nhé, bố mẹ thương con nhiều!` : `Good night ${childName}, Mom & Dad love you so much!`),
+          (isVi
+            ? isGrandparent
+              ? `Chúc ${childName} ngủ ngon nhé, ông bà thương cháu nhiều!`
+              : `Chúc ${childName} ngủ ngon nhé, bố mẹ thương con nhiều!`
+            : isGrandparent
+            ? `Good night ${childName}, Grandma & Grandpa love you so much!`
+            : `Good night ${childName}, Mom & Dad love you so much!`),
         durationSec: parentVoice?.duration || 28,
         aiSummary: aiData?.summary,
         aiSuggestedPrompts: aiData?.suggestedPrompts,
@@ -2003,6 +2012,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                   <EmpathyPromptCard
                     data={aiData}
                     selectedPrompt={selectedPrompt}
+                    role={member?.role}
                     onSelectPrompt={(p) => {
                       setSelectedPrompt(p);
                       // Switch smoothly to bedtime with prompt pre-filled
