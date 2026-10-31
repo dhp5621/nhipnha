@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 const DEFAULT_GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com';
 const DEFAULT_GEMINI_AUDIO_MODEL = 'gemini-1.5-flash';
+const DEFAULT_CYO_BASE_URL = 'https://chat-api.chuyenbienhoa.com';
+const DEFAULT_CYO_MODEL = 'gemini-flash-lite';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -28,6 +31,9 @@ export async function GET() {
       hasGeminiAudioKey: Boolean(
         process.env.GEMINI_AUDIO_API_KEY || process.env.GEMINI_API_KEY
       ),
+      hasCyoAiKey: Boolean(
+        process.env.AI_API_KEY || process.env.TEXT_AI_API_KEY || true
+      ),
     },
     { headers: CORS_HEADERS }
   );
@@ -36,190 +42,216 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
-    const { audioUrl, language = 'vi' } = body;
+    const {
+      audioUrl,
+      language = 'vi',
+      localTranscript = '',
+      isDemo = false,
+      speakerRole = 'CHILD',
+    } = body;
 
     if (!audioUrl) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Thiếu dữ liệu audioUrl để nhận diện',
+          error: 'Missing audioUrl for transcription',
         },
         { status: 400, headers: CORS_HEADERS }
       );
     }
 
-    // Dedicated API key & endpoint for Gemini Audio processing
-    const apiKey =
+    const demoFallbackText =
+      speakerRole === 'PARENT'
+        ? language === 'en'
+          ? 'My sweet child, how was your day at home with grandma? Parents just finished our factory shift, we miss you so much. Sleep tight and sweet dreams!'
+          : 'An yêu của mẹ ơi, hôm nay con ở quê có ngoan không? Bố mẹ vừa tan ca làm xong, nhớ con nhiều lắm. Con chúc bà ngủ sớm rồi đi ngủ ngoan nhé!'
+        : language === 'en'
+        ? 'I had so much fun at school today. I drew a lotus flower for Mom and had delicious dinner with grandma.'
+        : 'Chiều nay con đi học về vui lắm, con vẽ bông hoa sen tặng mẹ và ăn canh chua bà nấu.';
+
+    const finalFallback =
+      (typeof localTranscript === 'string' && localTranscript.trim()) ||
+      (isDemo ? demoFallbackText : '');
+
+    let mimeType = 'audio/webm';
+    let base64Data = '';
+
+    if (audioUrl.startsWith('data:')) {
+      const matches = audioUrl.match(/^data:([^;]+);base64,(.+)$/);
+      if (matches) {
+        mimeType = matches[1].split(';')[0] || 'audio/webm';
+        base64Data = matches[2];
+      }
+    }
+
+    const promptText =
+      'You are an accurate bilingual speech-to-text recognition assistant supporting both Vietnamese (Tiếng Việt) and English. Listen to the audio and transcribe verbatim what the speaker says in the exact language they spoke (Vietnamese, English, or mixed). Output ONLY the raw spoken text without commentary, translation, quotes, or markdown. If the audio is silent or contains no speech, output NOTHING.';
+
+    // 1. Primary: Dedicated Google Native Generative Language API (if GEMINI_AUDIO_API_KEY or GEMINI_API_KEY is configured)
+    const geminiApiKey =
       process.env.GEMINI_AUDIO_API_KEY || process.env.GEMINI_API_KEY;
-    const baseUrl = (
+    const geminiBaseUrl = (
       process.env.GEMINI_AUDIO_BASE_URL ||
       process.env.GEMINI_BASE_URL ||
       DEFAULT_GEMINI_BASE_URL
     ).replace(/\/+$/, '');
-    const model =
+    const geminiModel =
       process.env.GEMINI_AUDIO_MODEL ||
       process.env.GEMINI_MODEL ||
       DEFAULT_GEMINI_AUDIO_MODEL;
 
-    const defaultFallbackText =
-      language === 'en'
-        ? 'I had so much fun at school today. I drew a lotus flower for Mom and had delicious dinner with grandma.'
-        : 'Chiều nay con đi học về vui lắm, con vẽ bông hoa sen tặng mẹ và ăn canh chua bà nấu.';
+    if (geminiApiKey && base64Data) {
+      try {
+        if (geminiBaseUrl.includes('googleapis.com') || geminiApiKey.startsWith('AIza')) {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 20000);
 
-    if (!apiKey) {
-      return NextResponse.json(
-        {
-          success: true,
-          source: 'waiting-gemini-audio-key',
-          transcript: defaultFallbackText,
-          transcription: defaultFallbackText,
-          note: 'Chờ cấu hình GEMINI_AUDIO_API_KEY hoặc GEMINI_API_KEY trên Vercel cho endpoint audio.',
-        },
-        { headers: CORS_HEADERS }
-      );
+          const geminiRes = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [
+                  {
+                    role: 'user',
+                    parts: [
+                      { text: promptText },
+                      {
+                        inlineData: {
+                          mimeType,
+                          data: base64Data,
+                        },
+                      },
+                    ],
+                  },
+                ],
+                generationConfig: { temperature: 0.1 },
+              }),
+              signal: controller.signal,
+            }
+          ).finally(() => clearTimeout(timer));
+
+          if (geminiRes.ok) {
+            const geminiJson = await geminiRes.json();
+            const recognized =
+              geminiJson?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+            if (recognized) {
+              return NextResponse.json(
+                {
+                  success: true,
+                  transcript: recognized,
+                  transcription: recognized,
+                  source: 'gemini-native-audio',
+                  model: geminiModel,
+                },
+                { headers: CORS_HEADERS }
+              );
+            }
+          }
+        }
+      } catch {
+        // Proceed to CYO AI gateway or local fallback
+      }
     }
 
-    // 1. Google Native Generative Language API (Gemini multimodal)
-    if (baseUrl.includes('googleapis.com') || apiKey.startsWith('AIza')) {
-      let mimeType = 'audio/webm';
-      let base64Data = '';
+    // 2. Secondary AI Provider: Preexisting CYO AI Tool (gemini-flash-lite)
+    const cyoApiKey =
+      process.env.AI_API_KEY ||
+      process.env.TEXT_AI_API_KEY ||
+      'sk-ilovecyo';
+    const cyoBaseUrl = (
+      process.env.AI_BASE_URL ||
+      process.env.TEXT_AI_BASE_URL ||
+      DEFAULT_CYO_BASE_URL
+    ).replace(/\/+$/, '');
+    const cyoModel =
+      process.env.AI_MODEL ||
+      process.env.TEXT_AI_MODEL ||
+      DEFAULT_CYO_MODEL;
 
-      if (audioUrl.startsWith('data:')) {
-        const matches = audioUrl.match(/^data:([^;]+);base64,(.+)$/);
-        if (matches) {
-          mimeType = matches[1];
-          base64Data = matches[2];
-        }
-      }
+    if (cyoApiKey && base64Data) {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 30000);
 
-      const promptText =
-        language === 'en'
-          ? 'You are a speech-to-text recognition assistant for children. Listen to the audio and transcribe verbatim what the child says. Output ONLY the raw transcription without commentary or markdown.'
-          : 'Bạn là bộ nhận diện âm thanh giọng nói tiếng Việt dành cho trẻ em. Hãy nghe và trích xuất nguyên văn lời bé nói trong đoạn ghi âm này. Chỉ trả về duy nhất văn bản lời nói của bé, không kèm thêm lời giải thích hay định dạng markdown.';
-
-      const parts: any[] = [{ text: promptText }];
-      if (base64Data) {
-        parts.push({
-          inlineData: {
-            mimeType,
-            data: base64Data,
-          },
-        });
-      } else {
-        parts.push({ text: `Audio source reference: ${audioUrl.slice(0, 100)}` });
-      }
-
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 9500);
-
-      const geminiRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ role: 'user', parts }],
-            generationConfig: { temperature: 0.1 },
-          }),
-          signal: controller.signal,
-        }
-      ).finally(() => clearTimeout(timer));
-
-      if (geminiRes.ok) {
-        const geminiJson = await geminiRes.json();
-        const recognized =
-          geminiJson?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-        if (recognized) {
-          return NextResponse.json(
-            {
-              success: true,
-              transcript: recognized,
-              transcription: recognized,
-              source: 'gemini-native-audio',
-              model,
-            },
-            { headers: CORS_HEADERS }
-          );
-        }
-      }
-    } else {
-      // 2. Custom OpenAI-compatible / Gemini Gateway endpoint
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 9000);
-
-      const systemPrompt =
-        language === 'en'
-          ? 'You are a speech-to-text recognition assistant for rural children. Listen to the audio and transcribe verbatim what the child says. Output ONLY the raw transcription without commentary.'
-          : 'Bạn là bộ nhận diện âm thanh giọng nói tiếng Việt dành cho trẻ em. Hãy nghe và trích xuất nguyên văn lời bé nói trong đoạn ghi âm 15 giây. Chỉ trả về duy nhất văn bản lời nói của bé, không kèm thêm lời giải thích hay markdown.';
-
-      let userContent: any = `Đoạn ghi âm 15 giây của bé: ${audioUrl.slice(0, 80)}... Hãy giải mã nội dung lời nói của bé.`;
-
-      if (audioUrl.startsWith('data:audio/')) {
-        userContent = [
+        const userContent: any[] = [
           {
             type: 'text',
-            text: 'Giải mã lời nói của bé trong đoạn ghi âm 15 giây này sang tiếng Việt chuẩn xác:',
+            text:
+              localTranscript && localTranscript.trim()
+                ? `${promptText}\n(Gợi ý nhận diện thô từ trình duyệt để đối chiếu: "${localTranscript.trim()}")`
+                : promptText,
           },
           {
             type: 'image_url',
             image_url: { url: audioUrl },
           },
         ];
-      }
 
-      const aiRes = await fetch(`${baseUrl}/v1/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userContent },
-          ],
-          temperature: 0.2,
-        }),
-        signal: controller.signal,
-      }).finally(() => clearTimeout(timer));
+        const aiRes = await fetch(`${cyoBaseUrl}/v1/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${cyoApiKey}`,
+          },
+          body: JSON.stringify({
+            model: cyoModel,
+            messages: [
+              { role: 'system', content: promptText },
+              { role: 'user', content: userContent },
+            ],
+            temperature: 0.1,
+          }),
+          signal: controller.signal,
+        }).finally(() => clearTimeout(timer));
 
-      if (aiRes.ok) {
-        const data = await aiRes.json();
-        const text = data?.choices?.[0]?.message?.content?.trim() || '';
-        if (text) {
-          return NextResponse.json(
-            {
-              success: true,
-              transcript: text,
-              transcription: text,
-              source: 'gemini-gateway-stt',
-              model,
-            },
-            { headers: CORS_HEADERS }
-          );
+        if (aiRes.ok) {
+          const data = await aiRes.json();
+          const text = (data?.choices?.[0]?.message?.content || '').trim();
+          // Ensure the model didn't return an error/refusal about not seeing audio
+          const isRefusal =
+            /cannot|unable|không thể|không nhận được|no audio|provide the audio/i.test(
+              text
+            ) && text.length > 60;
+          if (text && !isRefusal) {
+            return NextResponse.json(
+              {
+                success: true,
+                transcript: text.replace(/^["“]|["”]$/g, '').trim(),
+                transcription: text.replace(/^["“]|["”]$/g, '').trim(),
+                source: 'cyo-gemini-stt',
+                model: cyoModel,
+              },
+              { headers: CORS_HEADERS }
+            );
+          }
         }
+      } catch {
+        // Proceed to local speech recognition fallback
       }
     }
 
-    // Graceful fallback if processing fails
+    // 3. Fallback to Local Browser Speech Recognition (or Demo text only if isDemo === true)
     return NextResponse.json(
       {
         success: true,
-        transcript: defaultFallbackText,
-        transcription: defaultFallbackText,
-        source: 'fallback-after-attempt',
+        transcript: finalFallback,
+        transcription: finalFallback,
+        source: localTranscript?.trim()
+          ? 'local-speech-fallback'
+          : isDemo
+          ? 'demo-fallback'
+          : 'no-speech-detected',
       },
       { headers: CORS_HEADERS }
     );
   } catch {
-    const defaultFallbackText =
-      'Chiều nay con ở nhà ngoan lắm, bố mẹ yên tâm đi làm nhé!';
     return NextResponse.json(
       {
         success: true,
-        transcript: defaultFallbackText,
-        transcription: defaultFallbackText,
+        transcript: '',
+        transcription: '',
         source: 'fallback-exception',
       },
       { headers: CORS_HEADERS }

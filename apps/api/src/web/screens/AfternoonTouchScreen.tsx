@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { MoodType, CreativeAttachment } from '@nhipnha/shared';
 import { CREATIVE_ATTACHMENTS } from '@nhipnha/shared';
+import { useAuth } from '../context/AuthContext';
 import { useRhythm } from '../context/RhythmContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
+import { apiClient } from '../services/api';
 import { webAudioService } from '../services/webAudio';
 import { EmotionSelector } from '../components/EmotionSelector';
 import { AudioWaveform } from '../components/AudioWaveform';
@@ -17,19 +19,21 @@ interface AfternoonTouchScreenProps {
 }
 
 export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBack }) => {
+  const { isDemoAccount } = useAuth();
   const { state, submitAfternoonTouch } = useRhythm();
   const { activeLanguage } = useLanguage();
   const { colors, isDark } = useTheme();
 
   const [selectedMood, setSelectedMood] = useState<MoodType>(state.afternoonMood || 'JOYFUL');
-  const [selectedAttachment, setSelectedAttachment] = useState<CreativeAttachment>(
-    state.afternoonAttachment || CREATIVE_ATTACHMENTS[0]
+  const [selectedAttachment, setSelectedAttachment] = useState<CreativeAttachment | null>(
+    state.afternoonAttachment || (isDemoAccount ? CREATIVE_ATTACHMENTS[0] : null)
   );
   const [noteText, setNoteText] = useState<string>(state.afternoonNote || '');
   const [customPhotoUrl, setCustomPhotoUrl] = useState<string>('');
   const [customPhotoName, setCustomPhotoName] = useState<string>('');
 
   const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribingAi, setIsTranscribingAi] = useState(false);
   const [durationLeft, setDurationLeft] = useState(15);
   const [liveWaveform, setLiveWaveform] = useState<number[]>([]);
   const [liveTranscript, setLiveTranscript] = useState<string>('');
@@ -75,13 +79,13 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
   }, [isRecording, durationLeft]);
 
   const handleStartRecording = async () => {
+    setLiveTranscript('');
     const started = await webAudioService.startAudioRecording(
       (waveform) => {
         setLiveWaveform(waveform);
       },
       (transcript) => {
         setLiveTranscript(transcript);
-        setNoteText(transcript);
       },
       isVi ? 'vi-VN' : 'en-US'
     );
@@ -103,16 +107,37 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
     setIsRecording(false);
     const result = await webAudioService.stopAudioRecording(15 - durationLeft || 14);
     setRecordedVoice(result);
-    if (result.transcript) {
-      setLiveTranscript(result.transcript);
-      setNoteText(result.transcript);
-    } else if (!noteText) {
-      // Natural child voice transcript default matching the child's action
-      const fallbackVoiceText = isVi
+
+    const localCaptured = (result.transcript || liveTranscript || '').trim();
+
+    // Always prioritize AI transcription (supports both Vietnamese & English), fallback to local speech recognition
+    if (result.url && result.url.startsWith('data:audio')) {
+      setIsTranscribingAi(true);
+      try {
+        const aiStt = await apiClient.transcribeAudio({
+          audioUrl: result.url,
+          language: activeLanguage,
+          localTranscript: localCaptured,
+          isDemo: isDemoAccount,
+          speakerRole: 'CHILD',
+        });
+        const finalTranscript = aiStt.transcript || localCaptured;
+        if (finalTranscript) {
+          setLiveTranscript(finalTranscript);
+          setNoteText(finalTranscript);
+        }
+      } finally {
+        setIsTranscribingAi(false);
+      }
+    } else if (localCaptured) {
+      setLiveTranscript(localCaptured);
+      setNoteText(localCaptured);
+    } else if (isDemoAccount && !noteText) {
+      const demoVoiceText = isVi
         ? 'Chiều nay con đi học về vui lắm, con ăn canh chua bà nấu và chụp ảnh khoe bố mẹ nè!'
         : 'School was so fun today, I took a photo of dinner with Grandma to show you!';
-      setLiveTranscript(fallbackVoiceText);
-      setNoteText(fallbackVoiceText);
+      setLiveTranscript(demoVoiceText);
+      setNoteText(demoVoiceText);
     }
   };
 
@@ -123,12 +148,7 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
       setIsPlayingRecorded(false);
     } else {
       setIsPlayingRecorded(true);
-      const childSpeech =
-        liveTranscript ||
-        noteText ||
-        (isVi
-          ? 'Chiều nay con đi học về vui lắm, con ăn canh chua bà nấu và chụp ảnh khoe bố mẹ nè!'
-          : 'School was so fun today, I took a photo of dinner with Grandma to show you!');
+      const childSpeech = liveTranscript || noteText || '';
       webAudioService.playAudioUrl(recordedVoice.url, childSpeech, () => {
         setIsPlayingRecorded(false);
       });
@@ -150,7 +170,7 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
   const handleSubmit = async () => {
     setSaving(true);
     try {
-      const finalAttachment: CreativeAttachment = customPhotoUrl
+      const finalAttachment: CreativeAttachment | undefined = customPhotoUrl
         ? {
             id: `photo_${Date.now()}`,
             type: 'PHOTO',
@@ -162,14 +182,16 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
             cvSignalVi: 'Ảnh chụp sinh hoạt buổi chiều của trẻ ở quê.',
             cvSignalEn: "Child's afternoon photo from home.",
           }
-        : selectedAttachment;
+        : selectedAttachment || undefined;
 
       const finalSpokenNote =
         noteText.trim() ||
         liveTranscript.trim() ||
-        (isVi
-          ? 'Chiều nay con đi học về vui lắm, con ăn canh chua bà nấu và chụp ảnh khoe bố mẹ nè!'
-          : 'School was so fun today, I took a photo of dinner with Grandma to show you!');
+        (isDemoAccount
+          ? isVi
+            ? 'Chiều nay con đi học về vui lắm, con ăn canh chua bà nấu và chụp ảnh khoe bố mẹ nè!'
+            : 'School was so fun today, I took a photo of dinner with Grandma to show you!'
+          : undefined);
 
       await submitAfternoonTouch(
         selectedMood,
@@ -303,7 +325,7 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
               borderRadius: 999,
             }}
           >
-            {isRecording ? `00:${durationLeft.toString().padStart(2, '0')}` : 'Tối đa 15s'}
+            {isRecording ? `00:${durationLeft.toString().padStart(2, '0')}` : isVi ? 'Tối đa 15s' : 'Max 15s'}
           </span>
         </div>
 
@@ -318,8 +340,8 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
           accentColor={colors.afternoonPrimary}
         />
 
-        {/* Live Vietnamese Speech-to-Text Recognition Indicator */}
-        {isRecording && (
+        {/* Live Speech Recognition or AI Transcription Indicator */}
+        {(isRecording || isTranscribingAi) && (
           <div
             style={{
               display: 'flex',
@@ -327,26 +349,38 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
               gap: 10,
               padding: '10px 14px',
               borderRadius: 16,
-              backgroundColor: '#FEF2F2',
+              backgroundColor: isDark ? 'rgba(220, 38, 38, 0.16)' : '#FEF2F2',
               border: '1.5px solid #FCA5A5',
               marginTop: 4,
             }}
           >
-            <span
-              style={{
-                width: 10,
-                height: 10,
-                borderRadius: '50%',
-                backgroundColor: '#DC2626',
-                display: 'inline-block',
-                boxShadow: '0 0 0 3px rgba(220, 38, 38, 0.25)',
-              }}
-            />
+            {isTranscribingAi ? (
+              <GoogleLoadingIndicator size={18} strokeWidth={2.5} multiColor={true} />
+            ) : (
+              <span
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: '50%',
+                  backgroundColor: '#DC2626',
+                  display: 'inline-block',
+                  boxShadow: '0 0 0 3px rgba(220, 38, 38, 0.25)',
+                }}
+              />
+            )}
             <div style={{ flex: 1 }}>
-              <span style={{ fontSize: 13, fontWeight: 800, color: '#991B1B', display: 'block' }}>
-                {liveTranscript
-                  ? (isVi ? `Đang nhận diện giọng bé: "${liveTranscript}"` : `Recognized: "${liveTranscript}"`)
-                  : (isVi ? '🎙️ Đang nghe giọng bé nói... (Bé cứ kể tự nhiên nhé)' : '🎙️ Listening to voice...')}
+              <span style={{ fontSize: 13, fontWeight: 800, color: isDark ? '#FCA5A5' : '#991B1B', display: 'block' }}>
+                {isTranscribingAi
+                  ? isVi
+                    ? '✨ AI đang nhận diện giọng nói (Việt / Anh)...'
+                    : '✨ AI is transcribing your voice (VI / EN)...'
+                  : liveTranscript
+                  ? isVi
+                    ? `Đang nghe: "${liveTranscript}"`
+                    : `Listening: "${liveTranscript}"`
+                  : isVi
+                  ? '🎙️ Đang nghe giọng nói (hỗ trợ Tiếng Việt & Tiếng Anh)...'
+                  : '🎙️ Listening to your voice (Vietnamese & English supported)...'}
               </span>
             </div>
           </div>
@@ -359,6 +393,7 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
               variant="afternoon"
               iconName={recordedVoice ? 'replay' : 'mic'}
               onClick={handleStartRecording}
+              loading={isTranscribingAi}
             >
               {recordedVoice
                 ? isVi
@@ -444,14 +479,14 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
         {/* 4 Folk Doodle Cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
           {CREATIVE_ATTACHMENTS.map((att) => {
-            const isSelected = !customPhotoUrl && selectedAttachment.id === att.id;
+            const isSelected = !customPhotoUrl && selectedAttachment?.id === att.id;
             return (
               <button
                 key={att.id}
                 type="button"
                 onClick={() => {
                   setCustomPhotoUrl('');
-                  setSelectedAttachment(att);
+                  setSelectedAttachment(isSelected && !isDemoAccount ? null : att);
                 }}
                 style={{
                   padding: 12,
@@ -515,7 +550,7 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
               />
               <div>
                 <span style={{ fontSize: 13, fontWeight: 800, color: colors.textDark, display: 'block' }}>
-                  {customPhotoName || 'Ảnh chụp từ máy'}
+                  {customPhotoName || (isVi ? 'Ảnh chụp từ máy' : 'Uploaded photo')}
                 </span>
                 <span style={{ fontSize: 11, color: colors.secondary, fontWeight: 700 }}>
                   {isVi ? 'Đã đính kèm ảnh thực tế' : 'Attached real photo'}
@@ -538,15 +573,21 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
           </div>
         )}
 
-        {/* Optional text note */}
+        {/* Voice transcript / text note */}
         <div>
           <label style={{ fontSize: 12, fontWeight: 700, color: colors.textSecondary, display: 'block', marginBottom: 6 }}>
-            {isVi ? 'Lời nhắn gửi thêm cho bố mẹ (tùy chọn):' : 'Additional note for parents (optional):'}
+            {isVi
+              ? 'Văn bản lời nói AI nhận diện / Ghi chú thêm cho bố mẹ:'
+              : 'AI Voice Transcript / Note for parents:'}
           </label>
           <input
             value={noteText}
             onChange={(e) => setNoteText(e.target.value)}
-            placeholder={isVi ? 'Ví dụ: Chiều nay bà nấu canh chua bông điên điển ngon lắm...' : 'e.g. Had delicious dinner with Grandma today...'}
+            placeholder={
+              isVi
+                ? 'Nội dung giọng nói sẽ tự động hiện ở đây hoặc con có thể gõ thêm...'
+                : 'Your transcribed voice note will appear here or type a message...'
+            }
             style={{
               width: '100%',
               padding: '12px 16px',
@@ -588,7 +629,7 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
         variant="afternoon"
         iconName="send"
         onClick={handleSubmit}
-        loading={saving}
+        loading={saving || isTranscribingAi}
         minHeight={66}
       >
         {isVi ? 'GỬI NHẬT KÝ CHIỀU VỀ CHO BỐ MẸ' : 'SEND AFTERNOON DIARY TO PARENTS'}

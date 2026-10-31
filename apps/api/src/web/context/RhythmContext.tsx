@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import type { CheckIn, CreativeAttachment, MoodType } from '@nhipnha/shared';
+import type { CheckIn, CreativeAttachment, Member, Message, MoodType } from '@nhipnha/shared';
 import { apiClient } from '../services/api';
 import { webStorage } from '../services/webStorage';
 import { useAuth } from './AuthContext';
@@ -30,6 +30,10 @@ interface RhythmState {
   eveningExtraTime?: string;
 
   pendingOfflineCount: number;
+  members: Member[];
+  checkIns: CheckIn[];
+  messages: Message[];
+  rhythmScore: number;
 }
 
 interface RhythmContextType {
@@ -43,7 +47,10 @@ interface RhythmContextType {
     note?: string
   ) => Promise<void>;
   markEveningListened: () => Promise<void>;
-  submitEveningExtraReply: (voiceData?: { url: string; duration: number; waveform: number[] }, note?: string) => Promise<void>;
+  submitEveningExtraReply: (
+    voiceData?: { url: string; duration: number; waveform: number[] },
+    note?: string
+  ) => Promise<void>;
   refreshRhythm: () => Promise<void>;
 }
 
@@ -64,6 +71,10 @@ const EMPTY_RHYTHM_STATE: RhythmState = {
   eveningMessageId: undefined,
   eveningMessageText: '',
   pendingOfflineCount: 0,
+  members: [],
+  checkIns: [],
+  messages: [],
+  rhythmScore: 0,
 };
 
 function formatTimeHHMM(isoString?: string): string | undefined {
@@ -80,7 +91,7 @@ function formatTimeHHMM(isoString?: string): string | undefined {
 }
 
 export const RhythmProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { family, member } = useAuth();
+  const { family, member, isDemoAccount } = useAuth();
   const [state, setState] = useState<RhythmState>(EMPTY_RHYTHM_STATE);
 
   const refreshRhythm = useCallback(async () => {
@@ -94,23 +105,44 @@ export const RhythmProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       await apiClient.syncOfflineQueue();
       const offlineQueue = await webStorage.getOfflineQueue();
 
-      // 2. Fetch full timeline
+      // 2. Fetch full timeline (7-day checkIns, messages, members)
       const timelineData = await apiClient.getFamilyTimeline(family.id);
       if (!timelineData || !timelineData.checkIns) {
         return;
       }
 
-      const { checkIns, messages } = timelineData;
+      const { checkIns, messages, members = [], rhythmScore = 0 } = timelineData;
 
-      // Extract today's rhythms
-      const morningCheckIn = checkIns.find((c) => c.rhythmType === 'MORNING');
-      const afternoonCheckIn = checkIns.find((c) => c.rhythmType === 'AFTERNOON');
-      const eveningMessage = messages.find((m) => m.rhythmType === 'EVENING');
-      const eveningExtraCheckIn = checkIns.find((c) => c.rhythmType === 'EVENING');
+      // For real production accounts, filter today's check-ins for the daily status cards
+      // while preserving the full 7-day checkIns array for Weekly Recap.
+      // For the demo account, show the latest seeded check-in so judges always see active state.
+      const todayDateStr = new Date().toISOString().slice(0, 10);
+      const isToday = (iso?: string) => {
+        if (isDemoAccount) return true;
+        if (!iso) return false;
+        return iso.slice(0, 10) === todayDateStr;
+      };
+
+      const morningCheckIn = checkIns.find(
+        (c) => c.rhythmType === 'MORNING' && isToday(c.createdAt)
+      );
+      const afternoonCheckIn = checkIns.find(
+        (c) => c.rhythmType === 'AFTERNOON' && isToday(c.createdAt)
+      );
+      const eveningMessage = messages.find(
+        (m) => m.rhythmType === 'EVENING' && isToday(m.createdAt)
+      );
+      const eveningExtraCheckIn = checkIns.find(
+        (c) => c.rhythmType === 'EVENING' && isToday(c.createdAt)
+      );
 
       setState((prev) => ({
         ...prev,
         pendingOfflineCount: offlineQueue.length,
+        members,
+        checkIns,
+        messages,
+        rhythmScore,
 
         // Morning
         morningCompleted: !!morningCheckIn,
@@ -133,7 +165,7 @@ export const RhythmProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         eveningMessageText:
           eveningMessage?.transcription ||
           eveningMessage?.aiSummary ||
-          'Con yêu ngủ ngon nhé, bố mẹ thương con nhiều!',
+          '',
         eveningAudioUrl: eveningMessage?.audioUrl,
         eveningExtraReplied: !!eveningExtraCheckIn,
         eveningExtraNote: eveningExtraCheckIn?.note,
@@ -146,7 +178,7 @@ export const RhythmProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const offlineQueue = await webStorage.getOfflineQueue();
       setState((prev) => ({ ...prev, pendingOfflineCount: offlineQueue.length }));
     }
-  }, [family?.id]);
+  }, [family?.id, isDemoAccount]);
 
   useEffect(() => {
     refreshRhythm();
@@ -188,12 +220,18 @@ export const RhythmProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   ) => {
     if (!family?.id || !member?.id) return;
 
+    const cleanNote =
+      note?.trim() ||
+      (isDemoAccount
+        ? 'Chiều nay con đi học về vui lắm, con ăn canh chua bà nấu và chụp ảnh khoe bố mẹ nè!'
+        : undefined);
+
     const optimisticTime = formatTimeHHMM(new Date().toISOString());
     setState((prev) => ({
       ...prev,
       afternoonCompleted: true,
       afternoonMood: mood,
-      afternoonNote: note,
+      afternoonNote: cleanNote,
       afternoonVoiceDuration: voiceData?.duration,
       afternoonVoiceUrl: voiceData?.url,
       afternoonAttachment: attachment,
@@ -207,9 +245,7 @@ export const RhythmProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         memberName: member.name,
         rhythmType: 'AFTERNOON',
         mood,
-        note:
-          note ||
-          'Chiều nay con đi học về vui lắm, con ăn canh chua bà nấu và chụp ảnh khoe bố mẹ nè!',
+        note: cleanNote,
         voiceDurationSec: voiceData?.duration,
         voiceUrl: voiceData?.url,
         waveform: voiceData?.waveform,
@@ -234,7 +270,7 @@ export const RhythmProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   ) => {
     if (!family?.id || !member?.id) return;
     const nowTime = formatTimeHHMM(new Date().toISOString());
-    const finalNote = note || 'Con chúc bố mẹ ngủ ngon ạ, con yêu bố mẹ!';
+    const finalNote = note?.trim() || 'Con chúc bố mẹ ngủ ngon ạ, con yêu bố mẹ!';
     setState((prev) => ({
       ...prev,
       eveningExtraReplied: true,

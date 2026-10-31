@@ -186,106 +186,180 @@ export const RoleSwitchScreen: React.FC<RoleSwitchScreenProps> = ({
         )}
       </div>
 
-      {/* Persona Role Switcher */}
-      <div
-        style={{
-          backgroundColor: colors.surfaceContainerLow,
-          borderRadius: 30,
-          padding: 22,
-          border: `1px solid ${colors.outlineVariant}`,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 14,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <MIcon name="switch_account" size={22} color={colors.primary} />
-          <AccessibleText variant="h2" weight="900" color={colors.textDark}>
-            {isVi ? 'Chuyển Đổi Vai Trò Trực Tiếp' : 'Switch Active Role'}
+      {/* Persona Role Switcher (Demo Account Only) or Active Role Badge (Production Accounts) */}
+      {isDemoAccount ? (
+        <div
+          style={{
+            backgroundColor: colors.surfaceContainerLow,
+            borderRadius: 30,
+            padding: 22,
+            border: `1px solid ${colors.outlineVariant}`,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 14,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <MIcon name="switch_account" size={22} color={colors.primary} />
+            <AccessibleText variant="h2" weight="900" color={colors.textDark}>
+              {isVi ? 'Chuyển Đổi Vai Trò Trực Tiếp (Demo)' : 'Switch Active Role (Demo)'}
+            </AccessibleText>
+          </div>
+
+          <AccessibleText variant="caption" color={colors.textSecondary}>
+            {isVi
+              ? 'Cho phép trải nghiệm mượt mà góc nhìn của Trẻ em ở quê, Phụ huynh làm việc xa hoặc Ông bà già yếu.'
+              : 'Instantly experience the perspective of the Child, Parent, or Grandparent.'}
           </AccessibleText>
-        </div>
 
-        <AccessibleText variant="caption" color={colors.textSecondary}>
-          {isVi
-            ? 'Cho phép trải nghiệm mượt mà góc nhìn của Trẻ em ở quê, Phụ huynh làm việc xa hoặc Ông bà già yếu.'
-            : 'Instantly experience the perspective of the Child, Parent, or Grandparent.'}
-        </AccessibleText>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {roleOptions.map((opt) => {
-            const isCurrent = member?.role === opt.id;
-            return (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => handleSelectRole(opt.id)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 14,
-                  padding: '14px 18px',
-                  borderRadius: 22,
-                  backgroundColor: isCurrent ? colors.primaryContainer : colors.surfaceContainer,
-                  border: isCurrent ? `2px solid ${colors.primary}` : `1px solid ${colors.outlineVariant}`,
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <div
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {roleOptions.map((opt) => {
+              const isCurrent = member?.role === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => handleSelectRole(opt.id)}
                   style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: '50%',
-                    backgroundColor: isCurrent ? colors.primary : colors.surfaceContainerHighest,
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
+                    gap: 14,
+                    padding: '14px 18px',
+                    borderRadius: 22,
+                    backgroundColor: isCurrent ? colors.primaryContainer : colors.surfaceContainer,
+                    border: isCurrent ? `2px solid ${colors.primary}` : `1px solid ${colors.outlineVariant}`,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.15s ease',
                   }}
                 >
-                  <MIcon
-                    name={opt.icon}
-                    size={24}
-                    color={isCurrent ? colors.onPrimary : colors.textSecondary}
-                  />
-                </div>
-
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 15, fontWeight: 900, color: isCurrent ? colors.onPrimaryContainer : colors.textDark }}>
-                      {isVi ? opt.labelVi : opt.labelEn}
-                    </span>
-                    {isCurrent ? (
-                      <span
-                        style={{
-                          backgroundColor: colors.primary,
-                          color: colors.onPrimary,
-                          fontSize: 10,
-                          fontWeight: 900,
-                          padding: '2px 8px',
-                          borderRadius: 999,
-                        }}
-                      >
-                        {isVi ? 'Hiện Tại' : 'Active'}
-                      </span>
-                    ) : null}
+                  <div
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: '50%',
+                      backgroundColor: isCurrent ? colors.primary : colors.surfaceContainerHighest,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <MIcon
+                      name={opt.icon}
+                      size={24}
+                      color={isCurrent ? colors.onPrimary : colors.textSecondary}
+                    />
                   </div>
-                  <span style={{ fontSize: 12, color: isCurrent ? colors.onPrimaryContainer : colors.textSecondary, fontWeight: 600 }}>
-                    {isVi ? opt.descVi : opt.descEn}
-                  </span>
-                </div>
 
-                <MIcon
-                  name={isCurrent ? 'radio_button_checked' : 'radio_button_unchecked'}
-                  size={20}
-                  color={isCurrent ? colors.primary : colors.textMuted}
-                />
-              </button>
-            );
-          })}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 15, fontWeight: 900, color: isCurrent ? colors.onPrimaryContainer : colors.textDark }}>
+                        {isVi ? opt.labelVi : opt.labelEn}
+                      </span>
+                      {isCurrent ? (
+                        <span
+                          style={{
+                            backgroundColor: colors.primary,
+                            color: colors.onPrimary,
+                            fontSize: 10,
+                            fontWeight: 900,
+                            padding: '2px 8px',
+                            borderRadius: 999,
+                          }}
+                        >
+                          {isVi ? 'Hiện Tại' : 'Active'}
+                        </span>
+                      ) : null}
+                    </div>
+                    <span style={{ fontSize: 12, color: isCurrent ? colors.onPrimaryContainer : colors.textSecondary, fontWeight: 600 }}>
+                      {isVi ? opt.descVi : opt.descEn}
+                    </span>
+                  </div>
+
+                  <MIcon
+                    name={isCurrent ? 'radio_button_checked' : 'radio_button_unchecked'}
+                    size={20}
+                    color={isCurrent ? colors.primary : colors.textMuted}
+                  />
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div
+          style={{
+            backgroundColor: colors.surfaceContainerLow,
+            borderRadius: 30,
+            padding: 22,
+            border: `1px solid ${colors.outlineVariant}`,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+          }}
+        >
+          <div
+            style={{
+              width: 50,
+              height: 50,
+              borderRadius: '50%',
+              backgroundColor: colors.primary,
+              color: colors.onPrimary,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <MIcon
+              name={
+                member?.role === 'CHILD'
+                  ? 'child_care'
+                  : member?.role === 'GRANDPARENT'
+                  ? 'elderly'
+                  : 'supervisor_account'
+              }
+              size={26}
+              color={colors.onPrimary}
+            />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <AccessibleText variant="h2" weight="900" color={colors.textDark}>
+                {member?.name}
+              </AccessibleText>
+              <span
+                style={{
+                  backgroundColor: colors.primaryContainer,
+                  color: colors.onPrimaryContainer,
+                  fontSize: 11,
+                  fontWeight: 900,
+                  padding: '3px 10px',
+                  borderRadius: 999,
+                }}
+              >
+                {member?.role === 'CHILD'
+                  ? isVi
+                    ? 'Con ở quê'
+                    : 'Child'
+                  : member?.role === 'GRANDPARENT'
+                  ? isVi
+                    ? 'Ông / Bà'
+                    : 'Grandparent'
+                  : isVi
+                  ? 'Phụ huynh'
+                  : 'Parent'}
+              </span>
+            </div>
+            <AccessibleText variant="caption" color={colors.textSecondary}>
+              {isVi
+                ? `Thành viên chính thức của gia đình ${family?.name || ''} (${family?.code || ''})`
+                : `Verified member of ${family?.name || ''} (${family?.code || ''})`}
+            </AccessibleText>
+          </div>
+        </div>
+      )}
 
       {/* Personal Login QR Credential Card */}
       <div

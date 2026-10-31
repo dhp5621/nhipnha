@@ -30,7 +30,7 @@ type ScreenName =
   | 'OWNER_CONSOLE';
 
 function NavigationRoot() {
-  const { isPaired, isLoading, member, family, switchRole } = useAuth();
+  const { isPaired, isLoading, member, family, isDemoAccount, switchRole } = useAuth();
   const { activeLanguage } = useLanguage();
   const { colors, isDark, toggleTheme, textScale } = useTheme();
   const [currentScreen, setCurrentScreen] = useState<ScreenName | null>(null);
@@ -316,7 +316,7 @@ function NavigationRoot() {
           }}
         >
           {/* Interactive Demo Perspective Switcher Bar (Judge & Presentation Ready) */}
-          {family?.code === 'DEMO-FAMILY-2026' && (
+          {isDemoAccount && (
             <div
               style={{
                 width: '100%',

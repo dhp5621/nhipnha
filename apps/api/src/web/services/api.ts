@@ -370,7 +370,8 @@ export const apiClient = {
     childMessage?: string,
     attachmentTitle?: string,
     language: 'vi' | 'en' = 'vi',
-    childName?: string
+    childName?: string,
+    isDemo: boolean = false
   ): Promise<EmpathyAssistantResponse | null> {
     try {
       const res = await fetch(`${API_BASE}/ai/empathy-assistant`, {
@@ -382,6 +383,7 @@ export const apiClient = {
           childName,
           attachmentTitle,
           language,
+          isDemo,
         }),
       });
       const data = await res.json();
@@ -390,6 +392,72 @@ export const apiClient = {
       }
     } catch (e) {
       console.warn('Empathy AI fetch error:', e);
+    }
+    return null;
+  },
+
+  // AI Audio Transcription: Always prioritize AI speech-to-text (supports Vietnamese & English), fallback to local speech recognition
+  async transcribeAudio(params: {
+    audioUrl: string;
+    language?: 'vi' | 'en';
+    localTranscript?: string;
+    isDemo?: boolean;
+    speakerRole?: 'CHILD' | 'PARENT';
+  }): Promise<{ transcript: string; source: string }> {
+    try {
+      const res = await fetch(`${API_BASE}/ai/transcribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+      });
+      const data = await res.json();
+      if (data.success && typeof data.transcript === 'string') {
+        return {
+          transcript: data.transcript.trim(),
+          source: data.source || 'ai',
+        };
+      }
+    } catch (e) {
+      console.warn('AI transcribe error, falling back to local:', e);
+    }
+    return {
+      transcript: (params.localTranscript || '').trim(),
+      source: 'local-fallback',
+    };
+  },
+
+  // AI 7-Day Weekly Bonding Recap (NLP Level 2)
+  async getWeeklyRecap(params: {
+    childName: string;
+    language: 'vi' | 'en';
+    checkIns: Array<{
+      rhythmType?: string;
+      mood?: string;
+      note?: string;
+      attachmentTitle?: string;
+      createdAt?: string;
+    }>;
+    isDemo?: boolean;
+  }): Promise<{
+    weeklyOverview: string;
+    narrativeHighlights: Array<{ emoji: string; title: string; detail: string }>;
+    weekendSuggestions: string[];
+  } | null> {
+    try {
+      const res = await fetch(`${API_BASE}/ai/empathy-assistant`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: 'weekly_recap',
+          ...params,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.data) {
+        return data.data;
+      }
+    } catch (e) {
+      console.warn('Weekly recap AI fetch error:', e);
     }
     return null;
   },

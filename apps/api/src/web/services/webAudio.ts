@@ -276,16 +276,26 @@ class WebAudioService {
         };
         audio.onerror = () => {
           this.currentAudioElement = null;
-          this.speakText(synthesizedText, onEnd);
+          if (synthesizedText && synthesizedText.trim()) {
+            this.speakText(synthesizedText, onEnd);
+          } else {
+            onEnd?.();
+          }
         };
         await audio.play();
         return;
       } catch (err) {
         console.warn('HTMLAudio play error:', err);
+        onEnd?.();
+        return;
       }
     }
 
-    this.speakText(synthesizedText, onEnd);
+    if (synthesizedText && synthesizedText.trim()) {
+      this.speakText(synthesizedText, onEnd);
+    } else {
+      onEnd?.();
+    }
   }
 
   private speakText(text?: string, onEnd?: () => void) {

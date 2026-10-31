@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
 import { useRhythm } from '../context/RhythmContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
+import { apiClient } from '../services/api';
 import { webAudioService } from '../services/webAudio';
 import { AudioWaveform } from '../components/AudioWaveform';
 import { BigButton } from '../components/BigButton';
@@ -14,6 +16,7 @@ interface EveningTouchScreenProps {
 }
 
 export const EveningTouchScreen: React.FC<EveningTouchScreenProps> = ({ onBack }) => {
+  const { isDemoAccount } = useAuth();
   const { state, markEveningListened, submitEveningExtraReply } = useRhythm();
   const { activeLanguage } = useLanguage();
   const { colors, isDark } = useTheme();
@@ -22,21 +25,38 @@ export const EveningTouchScreen: React.FC<EveningTouchScreenProps> = ({ onBack }
   const [sendingExtra, setSendingExtra] = useState(false);
   const [extraSentSuccess, setExtraSentSuccess] = useState(false);
   const [isRecordingReply, setIsRecordingReply] = useState(false);
+  const [isTranscribingReply, setIsTranscribingReply] = useState(false);
   const [replyDuration, setReplyDuration] = useState(10);
   const [replyWaveform, setReplyWaveform] = useState<number[]>([]);
-  const [replyVoice, setReplyVoice] = useState<{ url: string; duration: number; waveform: number[]; transcript?: string } | null>(null);
+  const [replyVoice, setReplyVoice] = useState<{
+    url: string;
+    duration: number;
+    waveform: number[];
+    transcript?: string;
+  } | null>(null);
   const [isPlayingReply, setIsPlayingReply] = useState(false);
   const replyTimerRef = React.useRef<number | null>(null);
 
   const isVi = activeLanguage === 'vi';
 
-  const defaultBedtimeMessage = isVi
+  const demoBedtimeMessage = isVi
     ? 'An yêu của mẹ ơi, hôm nay con ở quê có ngoan không? Bố mẹ vừa tan ca làm xong, nhớ con nhiều lắm. Con chúc bà ngủ sớm rồi đi ngủ ngoan nhé, mai bố mẹ lại gọi cho con!'
     : 'My sweet child, how was your day at home with grandma? Parents just finished our factory shift, we miss you so much. Sleep tight and sweet dreams!';
 
-  const messageText = state.eveningMessageText || defaultBedtimeMessage;
+  const hasParentEveningMessage = Boolean(
+    state.eveningCompleted || state.eveningMessageText || state.eveningAudioUrl || isDemoAccount
+  );
+
+  const messageText =
+    state.eveningMessageText ||
+    (isDemoAccount
+      ? demoBedtimeMessage
+      : isVi
+      ? 'Bố mẹ chưa gửi lời nhắn thoại tối nay. Khi bố mẹ tan ca và gửi lời dặn dò, con sẽ nghe được ngay tại đây nhé!'
+      : "Parents haven't sent tonight's bedtime voice message yet. Once they send it after work, you can listen right here!");
 
   const togglePlayback = () => {
+    if (!hasParentEveningMessage) return;
     if (!isPlaying) {
       setIsPlaying(true);
       markEveningListened();
@@ -50,9 +70,13 @@ export const EveningTouchScreen: React.FC<EveningTouchScreenProps> = ({ onBack }
   };
 
   const handleStartRecordingReply = async () => {
-    const started = await webAudioService.startAudioRecording((waveform) => {
-      setReplyWaveform(waveform);
-    });
+    const started = await webAudioService.startAudioRecording(
+      (waveform) => {
+        setReplyWaveform(waveform);
+      },
+      undefined,
+      isVi ? 'vi-VN' : 'en-US'
+    );
     if (!started) {
       alert(isVi ? 'Không thể truy cập microphone' : 'Microphone access denied');
       return;
@@ -76,7 +100,30 @@ export const EveningTouchScreen: React.FC<EveningTouchScreenProps> = ({ onBack }
     if (replyTimerRef.current) clearInterval(replyTimerRef.current);
     setIsRecordingReply(false);
     const result = await webAudioService.stopAudioRecording(10 - replyDuration || 8);
-    setReplyVoice(result);
+
+    let finalTranscript = (result.transcript || '').trim();
+    if (result.url && result.url.startsWith('data:audio')) {
+      setIsTranscribingReply(true);
+      try {
+        const aiStt = await apiClient.transcribeAudio({
+          audioUrl: result.url,
+          language: activeLanguage,
+          localTranscript: finalTranscript,
+          isDemo: isDemoAccount,
+          speakerRole: 'CHILD',
+        });
+        if (aiStt.transcript) {
+          finalTranscript = aiStt.transcript;
+        }
+      } finally {
+        setIsTranscribingReply(false);
+      }
+    }
+
+    setReplyVoice({
+      ...result,
+      transcript: finalTranscript || undefined,
+    });
   };
 
   const handleTogglePlayReply = () => {
@@ -86,7 +133,7 @@ export const EveningTouchScreen: React.FC<EveningTouchScreenProps> = ({ onBack }
       setIsPlayingReply(false);
     } else {
       setIsPlayingReply(true);
-      webAudioService.playAudioUrl(replyVoice.url, 'Lời chúc ngủ ngon của con', () => {
+      webAudioService.playAudioUrl(replyVoice.url, replyVoice.transcript || '', () => {
         setIsPlayingReply(false);
       });
     }
@@ -111,7 +158,10 @@ export const EveningTouchScreen: React.FC<EveningTouchScreenProps> = ({ onBack }
   const handleExtraReply = async () => {
     setSendingExtra(true);
     try {
-      await submitEveningExtraReply();
+      await submitEveningExtraReply(
+        undefined,
+        isVi ? 'Con chúc bố mẹ ngủ ngon ạ, con yêu bố mẹ!' : 'Good night Mom & Dad, I love you!'
+      );
       setExtraSentSuccess(true);
       setTimeout(() => setExtraSentSuccess(false), 3000);
     } finally {
@@ -201,23 +251,29 @@ export const EveningTouchScreen: React.FC<EveningTouchScreenProps> = ({ onBack }
           </AccessibleText>
           <div style={{ marginTop: 6 }}>
             <AccessibleText variant="caption" color={isDark ? '#B3B0F5' : '#453EB5'} weight="700">
-              {isVi
-                ? 'Gửi từ Bố Mẹ (sau giờ tan ca ở khu công nghiệp)'
-                : 'From Parents after evening factory shift'}
+              {hasParentEveningMessage
+                ? isVi
+                  ? 'Gửi từ Bố Mẹ'
+                  : 'Sent from Mom & Dad'
+                : isVi
+                ? 'Đang chờ lời nhắn tối nay từ Bố Mẹ'
+                : 'Waiting for tonight’s voice note from Parents'}
             </AccessibleText>
           </div>
         </div>
 
-        {/* Audio Waveform Player */}
-        <div style={{ width: '100%', maxWidth: 440 }}>
-          <AudioWaveform
-            isPlaying={isPlaying}
-            onPlayToggle={togglePlayback}
-            waveform={[0.3, 0.7, 0.85, 0.6, 0.95, 0.7, 0.4, 0.8, 0.6, 0.3, 0.75, 0.5]}
-            durationSec={30}
-            accentColor={colors.eveningPrimary}
-          />
-        </div>
+        {/* Audio Waveform Player (only active when a real message or demo exists) */}
+        {hasParentEveningMessage && (
+          <div style={{ width: '100%', maxWidth: 440 }}>
+            <AudioWaveform
+              isPlaying={isPlaying}
+              onPlayToggle={togglePlayback}
+              waveform={[0.3, 0.7, 0.85, 0.6, 0.95, 0.7, 0.4, 0.8, 0.6, 0.3, 0.75, 0.5]}
+              durationSec={30}
+              accentColor={colors.eveningPrimary}
+            />
+          </div>
+        )}
 
         {/* Transcription text */}
         <div
@@ -231,19 +287,25 @@ export const EveningTouchScreen: React.FC<EveningTouchScreenProps> = ({ onBack }
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-            <MIcon name="format_quote" size={18} color={colors.eveningPrimary} />
+            <MIcon name={hasParentEveningMessage ? 'format_quote' : 'schedule'} size={18} color={colors.eveningPrimary} />
             <AccessibleText variant="label" weight="800" color={isDark ? '#E1E0FF' : '#2A2096'}>
-              {isVi ? 'Nội dung dặn dò của Bố Mẹ:' : 'Message Transcript:'}
+              {hasParentEveningMessage
+                ? isVi
+                  ? 'Nội dung dặn dò của Bố Mẹ:'
+                  : 'Message Transcript:'
+                : isVi
+                ? 'Trạng thái hộp thư tối:'
+                : 'Bedtime Mailbox Status:'}
             </AccessibleText>
           </div>
 
           <AccessibleText variant="bodyLarge" weight="600" color={isDark ? '#F1F0FF' : '#1E1510'}>
-            “{messageText}”
+            {hasParentEveningMessage ? `“${messageText}”` : messageText}
           </AccessibleText>
         </div>
       </div>
 
-      {/* Extra 1-touch reply back to parents */}
+      {/* Extra 1-touch or Voice reply back to parents */}
       <div
         style={{
           backgroundColor: colors.surfaceContainerLow,
@@ -262,10 +324,85 @@ export const EveningTouchScreen: React.FC<EveningTouchScreenProps> = ({ onBack }
           <div style={{ marginTop: 4 }}>
             <AccessibleText variant="caption" color={colors.textSecondary}>
               {isVi
-                ? 'Chỉ cần chạm 1 lần để gửi lời nhắn “Con chúc bố mẹ ngủ ngon!” về điện thoại của bố mẹ.'
-                : 'One-tap to send "Good night parents!" back to their phone.'}
+                ? 'Chạm 1 lần hoặc thu âm giọng nói để gửi lời chúc ngủ ngon về điện thoại của bố mẹ.'
+                : 'One-tap or record a quick voice note to send "Good night!" back to your parents.'}
             </AccessibleText>
           </div>
+        </div>
+
+        {/* Optional Voice Reply Recorder */}
+        {(isRecordingReply || isTranscribingReply || replyVoice) && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <AudioWaveform
+              isRecording={isRecordingReply}
+              remainingSec={replyDuration}
+              durationSec={replyVoice?.duration}
+              waveform={isRecordingReply ? replyWaveform : replyVoice?.waveform}
+              isPlaying={isPlayingReply}
+              onPlayToggle={replyVoice ? handleTogglePlayReply : undefined}
+              accentColor={colors.eveningPrimary}
+            />
+            {isTranscribingReply && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <GoogleLoadingIndicator size={16} strokeWidth={2.5} multiColor={true} />
+                <span style={{ fontSize: 12, fontWeight: 700, color: colors.textSecondary }}>
+                  {isVi ? 'AI đang nhận diện giọng nói...' : 'AI transcribing voice...'}
+                </span>
+              </div>
+            )}
+            {replyVoice?.transcript && (
+              <div
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: 12,
+                  backgroundColor: colors.surfaceContainer,
+                  fontSize: 13,
+                  fontStyle: 'italic',
+                  color: colors.textDark,
+                }}
+              >
+                “{replyVoice.transcript}”
+              </div>
+            )}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {!isRecordingReply ? (
+            <BigButton
+              variant="tonal"
+              iconName="mic"
+              onClick={handleStartRecordingReply}
+              loading={isTranscribingReply}
+            >
+              {replyVoice
+                ? isVi
+                  ? 'Thu Âm Lại (10s)'
+                  : 'Re-record Voice (10s)'
+                : isVi
+                ? 'Thu Âm Chúc Ngủ Ngon (10s)'
+                : 'Record Voice Wish (10s)'}
+            </BigButton>
+          ) : (
+            <BigButton
+              variant="danger"
+              iconName="stop"
+              onClick={handleStopRecordingReply}
+            >
+              {isVi ? 'Dừng Thu Âm' : 'Stop Recording'}
+            </BigButton>
+          )}
+
+          {replyVoice && !isRecordingReply && (
+            <BigButton
+              variant="evening"
+              iconName="send"
+              onClick={handleSendVoiceReply}
+              loading={sendingExtra || isTranscribingReply}
+            >
+              {isVi ? 'Gửi Giọng Nói Chúc Ngủ Ngon' : 'Send Voice Reply'}
+            </BigButton>
+          )}
         </div>
 
         {extraSentSuccess ? (
