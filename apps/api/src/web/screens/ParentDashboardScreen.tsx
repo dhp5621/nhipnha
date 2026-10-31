@@ -22,14 +22,16 @@ interface ParentDashboardScreenProps {
 
 export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
   onNavigateToSwitch,
-  onNavigateToMorning,
-  onNavigateToAfternoon,
-  onNavigateToEvening,
 }) => {
   const { family, member, isDemoAccount } = useAuth();
-  const { state, refreshRhythm } = useRhythm();
+  const { state, refreshRhythm, markMorningBellListened, submitMorningTouch } = useRhythm();
   const { activeLanguage } = useLanguage();
   const { colors, isDark, toggleTheme } = useTheme();
+
+  const [selectedRhythm, setSelectedRhythm] = useState<'MORNING' | 'AFTERNOON' | 'EVENING' | null>(null);
+  const [isPlayingMorningBell, setIsPlayingMorningBell] = useState(false);
+  const [simulatingMorningTouch, setSimulatingMorningTouch] = useState(false);
+  const detailPanelRef = useRef<HTMLDivElement | null>(null);
 
   const [aiData, setAiData] = useState<EmpathyAssistantResponse | null>(null);
   const [loadingAi, setLoadingAi] = useState(false);
@@ -58,13 +60,43 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
   const [highlightBedtime, setHighlightBedtime] = useState(false);
   const bedtimeSectionRef = useRef<HTMLDivElement | null>(null);
 
+  const handleSelectRhythm = (rhythm: 'MORNING' | 'AFTERNOON' | 'EVENING') => {
+    setSelectedRhythm((prev) => (prev === rhythm ? null : rhythm));
+    setTimeout(() => {
+      if (window.innerWidth < 768 && detailPanelRef.current) {
+        detailPanelRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
+  };
+
+  const handlePlayMorningBell = () => {
+    if (!isPlayingMorningBell) {
+      setIsPlayingMorningBell(true);
+      markMorningBellListened?.();
+      webAudioService.playMorningBellChime(() => {
+        setIsPlayingMorningBell(false);
+      });
+    } else {
+      webAudioService.stopAudioPlayback();
+      setIsPlayingMorningBell(false);
+    }
+  };
+
+  const handleSimulateMorningGreeting = async () => {
+    setSimulatingMorningTouch(true);
+    try {
+      await submitMorningTouch();
+    } finally {
+      setSimulatingMorningTouch(false);
+    }
+  };
+
   const handleOpenBedtimeSection = () => {
+    setSelectedRhythm('EVENING');
     if (bedtimeSectionRef.current) {
       bedtimeSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
       setHighlightBedtime(true);
       setTimeout(() => setHighlightBedtime(false), 2400);
-    } else if (onNavigateToEvening) {
-      onNavigateToEvening();
     }
   };
 
@@ -1089,25 +1121,31 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
               <div
                 role="button"
                 tabIndex={0}
-                onClick={() => onNavigateToMorning?.()}
+                onClick={() => handleSelectRhythm('MORNING')}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    onNavigateToMorning?.();
+                    handleSelectRhythm('MORNING');
                   }
                 }}
                 className="timeline-touch-card"
                 style={{
-                  backgroundColor: colors.surfaceContainer,
+                  backgroundColor: selectedRhythm === 'MORNING'
+                    ? (isDark ? 'rgba(245, 158, 11, 0.16)' : '#FFF8EB')
+                    : colors.surfaceContainer,
                   padding: '14px 18px',
                   borderRadius: 20,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   cursor: 'pointer',
-                  border: `1px solid ${colors.outlineVariant}`,
+                  border: selectedRhythm === 'MORNING'
+                    ? '2px solid #E59400'
+                    : `1px solid ${colors.outlineVariant}`,
+                  boxShadow: selectedRhythm === 'MORNING' ? '0 0 0 3px rgba(229, 148, 0, 0.2)' : undefined,
+                  transition: 'all 0.18s cubic-bezier(0.2, 0, 0, 1)',
                 }}
-                title={isVi ? 'Bấm để mở màn hình Chạm Sáng' : 'Click to open Morning Touch'}
+                title={isVi ? 'Bấm để mở bảng giám sát Nhịp Sáng bên phải' : 'Click to monitor Morning Wake-Up on the right'}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div
@@ -1132,11 +1170,11 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                       <AccessibleText variant="caption" color={colors.textSecondary}>
                         {state.morningCompleted
                           ? isVi
-                            ? `Con đã gửi lúc ${state.morningTime || 'sáng nay'} • Bấm để nghe chuông & xem lại`
-                            : `Sent at ${state.morningTime || 'this morning'} • Tap to review & hear chime`
+                            ? `Con đã gửi lúc ${state.morningTime || 'sáng nay'} • Bấm xem giám sát`
+                            : `Sent at ${state.morningTime || 'this morning'} • Tap to monitor`
                           : isVi
-                          ? 'Chưa nhận được lời chào • Bấm để mở Chạm Sáng'
-                          : 'Pending • Tap to open Morning Touch'}
+                          ? 'Chưa nhận được lời chào • Bấm xem giám sát'
+                          : 'Pending • Tap to monitor'}
                       </AccessibleText>
                     </div>
                   </div>
@@ -1160,431 +1198,933 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                       width: 28,
                       height: 28,
                       borderRadius: '50%',
-                      backgroundColor: colors.surfaceContainerHigh,
+                      backgroundColor: selectedRhythm === 'MORNING' ? '#FFDEA8' : colors.surfaceContainerHigh,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                     }}
                   >
-                    <MIcon name="chevron_right" size={18} color={colors.textSecondary} />
+                    <MIcon
+                      name={selectedRhythm === 'MORNING' ? 'radio_button_checked' : 'chevron_right'}
+                      size={18}
+                      color={selectedRhythm === 'MORNING' ? '#8C4F00' : colors.textSecondary}
+                    />
                   </div>
                 </div>
               </div>
 
               {/* Rhythm 2: Afternoon Diary (Mood, Voice, Doodle/Photo) */}
               <div
-                role={!state.afternoonCompleted ? 'button' : undefined}
-                tabIndex={!state.afternoonCompleted ? 0 : undefined}
-                onClick={!state.afternoonCompleted ? () => onNavigateToAfternoon?.() : undefined}
-                onKeyDown={!state.afternoonCompleted ? (e) => {
+                role="button"
+                tabIndex={0}
+                onClick={() => handleSelectRhythm('AFTERNOON')}
+                onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    onNavigateToAfternoon?.();
+                    handleSelectRhythm('AFTERNOON');
                   }
-                } : undefined}
-                className={!state.afternoonCompleted ? 'timeline-touch-card' : undefined}
+                }}
+                className="timeline-touch-card"
                 style={{
-                  backgroundColor: colors.surfaceContainer,
+                  backgroundColor: selectedRhythm === 'AFTERNOON'
+                    ? (isDark ? 'rgba(217, 77, 26, 0.16)' : '#FFF2EC')
+                    : colors.surfaceContainer,
                   padding: '16px 18px',
                   borderRadius: 22,
                   display: 'flex',
-                  flexDirection: 'column',
-                  gap: 12,
-                  cursor: !state.afternoonCompleted ? 'pointer' : 'default',
-                  border: `1px solid ${colors.outlineVariant}`,
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  cursor: 'pointer',
+                  border: selectedRhythm === 'AFTERNOON'
+                    ? '2px solid #D94D1A'
+                    : `1px solid ${colors.outlineVariant}`,
+                  boxShadow: selectedRhythm === 'AFTERNOON' ? '0 0 0 3px rgba(217, 77, 26, 0.2)' : undefined,
+                  transition: 'all 0.18s cubic-bezier(0.2, 0, 0, 1)',
                 }}
-                title={!state.afternoonCompleted ? (isVi ? 'Bấm để mở màn hình Chạm Chiều' : 'Click to open Afternoon Touch') : undefined}
+                title={isVi ? 'Bấm để mở bảng giám sát Nhật Ký Chiều & AI bên phải' : 'Click to monitor Afternoon Diary & AI on the right'}
               >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div
-                      style={{
-                        width: 38,
-                        height: 38,
-                        borderRadius: 12,
-                        backgroundColor: '#FFDBCE',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                      }}
-                    >
-                      <MIcon name="palette" size={22} color="#9E3306" />
-                    </div>
-                    <div>
-                      <AccessibleText variant="bodyLarge" weight="800" color={colors.textDark}>
-                        🎒 {isVi ? 'Nhật Ký Chiều 15s' : 'Afternoon 15s Diary'}
-                      </AccessibleText>
-                      <div>
-                        <AccessibleText variant="caption" color={colors.textSecondary}>
-                          {state.afternoonCompleted
-                            ? isVi
-                              ? `Gửi lúc ${state.afternoonTime || 'chiều nay'}`
-                              : `Sent at ${state.afternoonTime || 'afternoon'}`
-                            : isVi
-                            ? 'Đang chờ con tan học về gửi • Bấm để mở Nhật Ký Chiều'
-                            : 'Waiting for child • Tap to open Afternoon Diary'}
-                        </AccessibleText>
-                      </div>
-                    </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 12,
+                      backgroundColor: '#FFDBCE',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <MIcon name="palette" size={22} color="#9E3306" />
                   </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                    <span
-                      style={{
-                        backgroundColor: moodBadge.bg,
-                        color: moodBadge.color,
-                        fontSize: 12,
-                        fontWeight: 900,
-                        padding: '4px 10px',
-                        borderRadius: 999,
-                      }}
-                    >
-                      {moodBadge.label}
-                    </span>
-                    {!state.afternoonCompleted ? (
-                      <div
-                        style={{
-                          width: 28,
-                          height: 28,
-                          borderRadius: '50%',
-                          backgroundColor: colors.surfaceContainerHigh,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        <MIcon name="chevron_right" size={18} color={colors.textSecondary} />
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onNavigateToAfternoon?.();
-                        }}
-                        style={{
-                          border: 'none',
-                          backgroundColor: colors.surfaceContainerHigh,
-                          color: colors.textDark,
-                          fontSize: 11,
-                          fontWeight: 800,
-                          padding: '4px 8px',
-                          borderRadius: 999,
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 4,
-                        }}
-                        title={isVi ? 'Mở màn hình Chạm Chiều' : 'Open Afternoon Screen'}
-                      >
-                        <span>{isVi ? 'Mở' : 'Open'}</span>
-                        <MIcon name="chevron_right" size={14} color={colors.textSecondary} />
-                      </button>
-                    )}
+                  <div>
+                    <AccessibleText variant="bodyLarge" weight="800" color={colors.textDark}>
+                      🎒 {isVi ? 'Nhật Ký Chiều 15s' : 'Afternoon 15s Diary'}
+                    </AccessibleText>
+                    <div>
+                      <AccessibleText variant="caption" color={colors.textSecondary}>
+                        {state.afternoonCompleted
+                          ? isVi
+                            ? `Gửi lúc ${state.afternoonTime || 'chiều nay'} • Bấm xem giọng nói & AI`
+                            : `Sent at ${state.afternoonTime || 'afternoon'} • Tap to view voice & AI`
+                          : isVi
+                          ? 'Đang chờ con tan học về gửi • Bấm xem giám sát'
+                          : 'Waiting for child • Tap to monitor'}
+                      </AccessibleText>
+                    </div>
                   </div>
                 </div>
 
-                {state.afternoonCompleted ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}>
-                    {/* Voice recording from child */}
-                    {state.afternoonVoiceUrl ? (
-                      <div>
-                        <AccessibleText variant="caption" weight="800" color={colors.textSecondary} style={{ marginBottom: 4, display: 'block' }}>
-                          {isVi ? 'Giọng nói con gửi về (15s):' : "Child's Voice Note:"}
-                        </AccessibleText>
-                        <AudioWaveform
-                          isPlaying={isPlayingChildVoice}
-                          onPlayToggle={handleTogglePlayChildVoice}
-                          waveform={state.afternoonWaveform}
-                          durationSec={state.afternoonVoiceDuration || 15}
-                          accentColor={colors.afternoonPrimary}
-                        />
-
-                        {/* Transcribed speech text directly below the voice player */}
-                        <div
-                          style={{
-                            marginTop: 8,
-                            padding: '10px 14px',
-                            borderRadius: 14,
-                            backgroundColor: colors.surfaceContainerHighest,
-                            borderLeft: `4px solid ${colors.afternoonPrimary}`,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 4,
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <MIcon name="record_voice_over" size={16} color={colors.afternoonPrimary} />
-                              <span style={{ fontSize: 11, fontWeight: 900, color: colors.afternoonPrimary, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                                {isVi ? 'Văn bản lời con nói (AI Nhận diện):' : 'Child Voice Transcript (AI):'}
-                              </span>
-                            </div>
-                            {!childVoiceTranscript && !isTranscribingChildVoice && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (!state.afternoonVoiceUrl) return;
-                                  setIsTranscribingChildVoice(true);
-                                  apiClient
-                                    .transcribeAudio({
-                                      audioUrl: state.afternoonVoiceUrl,
-                                      language: activeLanguage,
-                                      isDemo: isDemoAccount,
-                                      speakerRole: 'CHILD',
-                                    })
-                                    .then((res) => {
-                                      if (res.transcript) {
-                                        setAutoTranscribedChildVoice(res.transcript);
-                                      }
-                                    })
-                                    .finally(() => {
-                                      setIsTranscribingChildVoice(false);
-                                    });
-                                }}
-                                style={{
-                                  border: 'none',
-                                  backgroundColor: colors.primaryContainer,
-                                  color: colors.onPrimaryContainer,
-                                  fontSize: 11,
-                                  fontWeight: 800,
-                                  padding: '3px 8px',
-                                  borderRadius: 999,
-                                  cursor: 'pointer',
-                                }}
-                              >
-                                {isVi ? '✨ Dịch giọng nói AI' : '✨ AI Transcribe'}
-                              </button>
-                            )}
-                          </div>
-                          {isTranscribingChildVoice ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0' }}>
-                              <GoogleLoadingIndicator size={15} strokeWidth={2.5} multiColor={true} />
-                              <span style={{ fontSize: 12, fontWeight: 700, color: colors.textSecondary }}>
-                                {isVi ? 'AI đang giải mã giọng nói của con...' : 'AI is transcribing child voice note...'}
-                              </span>
-                            </div>
-                          ) : childVoiceTranscript ? (
-                            <div style={{ fontSize: 13, fontWeight: 700, color: colors.textDark, fontStyle: 'italic', lineHeight: 1.45 }}>
-                              “{childVoiceTranscript}”
-                            </div>
-                          ) : (
-                            <div style={{ fontSize: 12, fontWeight: 600, color: colors.textSecondary, fontStyle: 'italic' }}>
-                              {isVi
-                                ? 'Bản ghi âm chưa có phụ đề (bấm Phát hoặc "Dịch giọng nói AI" để nhận diện).'
-                                : 'No speech transcript detected in this recording (press Play or "AI Transcribe").'}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {/* Attachment (doodle or photo) */}
-                    {activeAttachment ? (
-                      <div
-                        style={{
-                          padding: 12,
-                          borderRadius: 18,
-                          backgroundColor: colors.surfaceContainerHighest,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 12,
-                        }}
-                      >
-                        {activeAttachment.imageUrl ? (
-                          <img
-                            src={activeAttachment.imageUrl}
-                            alt="Child attachment"
-                            style={{ width: 56, height: 56, borderRadius: 14, objectFit: 'cover' }}
-                          />
-                        ) : (
-                          <div
-                            style={{
-                              width: 50,
-                              height: 50,
-                              borderRadius: 14,
-                              backgroundColor: '#FFDBCE',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                            }}
-                          >
-                            <MIcon name={activeAttachment.emoji} size={28} color={activeAttachment.dominantColor} />
-                          </div>
-                        )}
-
-                        <div style={{ flex: 1 }}>
-                          <span style={{ fontSize: 13, fontWeight: 800, color: colors.textDark, display: 'block' }}>
-                            {isVi ? activeAttachment.titleVi : activeAttachment.titleEn}
-                          </span>
-                          <span style={{ fontSize: 11, fontWeight: 600, color: colors.textSecondary }}>
-                            {isVi ? activeAttachment.cvSignalVi : activeAttachment.cvSignalEn}
-                          </span>
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {/* Additional note (only if distinct from voice transcript and attachment) */}
-                    {state.afternoonNote &&
-                    !state.afternoonNote.startsWith('Ảnh chụp:') &&
-                    !state.afternoonNote.startsWith('Nét vẽ:') &&
-                    !state.afternoonVoiceUrl ? (
-                      <div
-                        style={{
-                          padding: '10px 14px',
-                          borderRadius: 14,
-                          backgroundColor: colors.surfaceContainerHighest,
-                          fontStyle: 'italic',
-                          fontSize: 13,
-                          color: colors.textDark,
-                        }}
-                      >
-                        “{state.afternoonNote}”
-                      </div>
-                    ) : null}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                  <span
+                    style={{
+                      backgroundColor: moodBadge.bg,
+                      color: moodBadge.color,
+                      fontSize: 12,
+                      fontWeight: 900,
+                      padding: '4px 10px',
+                      borderRadius: 999,
+                    }}
+                  >
+                    {moodBadge.label}
+                  </span>
+                  <div
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: '50%',
+                      backgroundColor: selectedRhythm === 'AFTERNOON' ? '#FFDBCE' : colors.surfaceContainerHigh,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <MIcon
+                      name={selectedRhythm === 'AFTERNOON' ? 'radio_button_checked' : 'chevron_right'}
+                      size={18}
+                      color={selectedRhythm === 'AFTERNOON' ? '#9E3306' : colors.textSecondary}
+                    />
                   </div>
-                ) : null}
+                </div>
               </div>
 
               {/* Rhythm 3: Evening status */}
               <div
                 role="button"
                 tabIndex={0}
-                onClick={handleOpenBedtimeSection}
+                onClick={() => handleSelectRhythm('EVENING')}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    handleOpenBedtimeSection();
+                    handleSelectRhythm('EVENING');
                   }
                 }}
                 className="timeline-touch-card"
                 style={{
-                  backgroundColor: colors.surfaceContainer,
+                  backgroundColor: selectedRhythm === 'EVENING'
+                    ? (isDark ? 'rgba(99, 102, 241, 0.16)' : '#F5F5FF')
+                    : colors.surfaceContainer,
                   padding: '14px 18px',
                   borderRadius: 20,
                   display: 'flex',
-                  flexDirection: 'column',
-                  gap: 10,
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
                   cursor: 'pointer',
-                  border: `1px solid ${colors.outlineVariant}`,
+                  border: selectedRhythm === 'EVENING'
+                    ? '2px solid #6366F1'
+                    : `1px solid ${colors.outlineVariant}`,
+                  boxShadow: selectedRhythm === 'EVENING' ? '0 0 0 3px rgba(99, 102, 241, 0.2)' : undefined,
+                  transition: 'all 0.18s cubic-bezier(0.2, 0, 0, 1)',
                 }}
-                title={isVi ? 'Bấm để ghi âm lời dặn tối' : 'Click to go to bedtime voice recorder'}
+                title={isVi ? 'Bấm để mở phòng ghi âm Lời Dặn Buổi Tối bên phải' : 'Click to open Bedtime Guidance studio on the right'}
               >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 12,
+                      backgroundColor: '#E1E0FF',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <MIcon name="nights_stay" size={22} color="#3D32B8" />
+                  </div>
+                  <div>
+                    <AccessibleText variant="bodyLarge" weight="800" color={colors.textDark}>
+                      🌙 {isVi ? 'Hộp Thư Thoại Tối' : 'Bedtime Guidance'}
+                    </AccessibleText>
+                    <div>
+                      <AccessibleText variant="caption" color={colors.textSecondary}>
+                        {state.eveningListened
+                          ? isVi
+                            ? 'Bé đã nghe thông điệp của bạn • Bấm xem & gửi thêm'
+                            : 'Child listened to your message • Tap to view & record more'
+                          : state.eveningCompleted
+                          ? isVi
+                            ? 'Đã gửi lời nhắn tối nay (chờ bé nghe) • Bấm xem'
+                            : 'Sent tonight (waiting for child) • Tap to view'
+                          : isVi
+                          ? 'Chưa gửi lời nhắn tối nay • Bấm để ghi âm 30s'
+                          : 'Not sent yet tonight • Tap to record 30s'}
+                      </AccessibleText>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                  <span
+                    style={{
+                      backgroundColor: state.eveningListened ? '#DCFCE7' : colors.surfaceContainerHighest,
+                      color: state.eveningListened ? '#15803D' : colors.textMuted,
+                      fontSize: 11,
+                      fontWeight: 800,
+                      padding: '4px 10px',
+                      borderRadius: 999,
+                    }}
+                  >
+                    {state.eveningListened
+                      ? isVi
+                        ? 'Bé Đã Nghe'
+                        : 'Listened'
+                      : state.eveningCompleted
+                      ? isVi
+                        ? 'Đã Gửi'
+                        : 'Sent'
+                      : isVi
+                      ? 'Chưa gửi'
+                      : 'Pending'}
+                  </span>
+                  <div
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: '50%',
+                      backgroundColor: selectedRhythm === 'EVENING' ? '#E1E0FF' : colors.surfaceContainerHigh,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <MIcon
+                      name={selectedRhythm === 'EVENING' ? 'radio_button_checked' : 'chevron_right'}
+                      size={18}
+                      color={selectedRhythm === 'EVENING' ? '#3D32B8' : colors.textSecondary}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column: Dynamic Master-Detail Monitor Hub */}
+          <div ref={detailPanelRef} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {selectedRhythm === null ? (
+              /* EMPTY STATE: Clean invitation to select a rhythm from the timeline */
+              <div
+                style={{
+                  backgroundColor: colors.surfaceContainerLow,
+                  borderRadius: 30,
+                  padding: '44px 24px',
+                  border: `1.5px dashed ${colors.outlineVariant}`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  textAlign: 'center',
+                  gap: 16,
+                  minHeight: 440,
+                }}
+              >
+                <div
+                  style={{
+                    width: 72,
+                    height: 72,
+                    borderRadius: '50%',
+                    backgroundColor: colors.surfaceContainerHigh,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
+                  }}
+                >
+                  <MIcon name="touch_app" size={36} color={colors.primary} />
+                </div>
+                <div>
+                  <AccessibleText variant="h2" weight="900" color={colors.textDark}>
+                    {isVi ? 'Bảng Giám Sát Nhịp Sống Của Con' : 'Child Rhythm Monitor Hub'}
+                  </AccessibleText>
+                  <div style={{ marginTop: 8, maxWidth: 380, margin: '8px auto 0' }}>
+                    <AccessibleText variant="bodyLarge" color={colors.textSecondary}>
+                      {isVi
+                        ? 'Chưa chọn nhịp nào. Hãy bấm vào một nhịp trong Dòng Thời Gian bên trái để giám sát tình trạng thức dậy, nghe nhật ký 15s hoặc ghi âm dặn dò tối cho con.'
+                        : 'Nothing selected yet. Click an option in the timeline on the left to monitor morning wake-up, listen to 15s voice diary, or record bedtime guidance.'}
+                    </AccessibleText>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', marginTop: 12 }}>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectRhythm('MORNING')}
+                    style={{
+                      border: 'none',
+                      backgroundColor: isDark ? 'rgba(255, 185, 69, 0.18)' : '#FFDEA8',
+                      color: isDark ? '#FFDF9E' : '#8C4F00',
+                      padding: '10px 18px',
+                      borderRadius: 999,
+                      fontWeight: 800,
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                    }}
+                  >
+                    <span>☀️ {isVi ? 'Giám Sát Nhịp Sáng' : 'Morning Wake-Up'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectRhythm('AFTERNOON')}
+                    style={{
+                      border: 'none',
+                      backgroundColor: isDark ? 'rgba(255, 181, 155, 0.18)' : '#FFDBCE',
+                      color: isDark ? '#FFDBCF' : '#9E3306',
+                      padding: '10px 18px',
+                      borderRadius: 999,
+                      fontWeight: 800,
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                    }}
+                  >
+                    <span>🎒 {isVi ? 'Giám Sát Nhật Ký Chiều' : 'Afternoon Diary & AI'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectRhythm('EVENING')}
+                    style={{
+                      border: 'none',
+                      backgroundColor: isDark ? 'rgba(129, 140, 248, 0.18)' : '#E1E0FF',
+                      color: isDark ? '#C7D2FE' : '#3D32B8',
+                      padding: '10px 18px',
+                      borderRadius: 999,
+                      fontWeight: 800,
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                    }}
+                  >
+                    <span>🌙 {isVi ? 'Ghi Âm Dặn Dò Tối (30s)' : 'Bedtime Guidance (30s)'}</span>
+                  </button>
+                </div>
+              </div>
+            ) : selectedRhythm === 'MORNING' ? (
+              /* MORNING MONITOR PANEL */
+              <div
+                style={{
+                  backgroundColor: colors.surfaceContainerLow,
+                  borderRadius: 30,
+                  padding: 24,
+                  border: `1.5px solid ${colors.outlineVariant}`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 18,
+                }}
+              >
+                {/* Header with Close button */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div
                       style={{
-                        width: 38,
-                        height: 38,
-                        borderRadius: 12,
-                        backgroundColor: '#E1E0FF',
+                        width: 42,
+                        height: 42,
+                        borderRadius: 14,
+                        backgroundColor: '#FFDEA8',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        flexShrink: 0,
                       }}
                     >
-                      <MIcon name="nights_stay" size={22} color="#3D32B8" />
+                      <MIcon name="wb_sunny" size={24} color="#8C4F00" />
                     </div>
                     <div>
-                      <AccessibleText variant="bodyLarge" weight="800" color={colors.textDark}>
-                        🌙 {isVi ? 'Hộp Thư Thoại Tối' : 'Bedtime Guidance'}
+                      <AccessibleText variant="h2" weight="900" color={colors.textDark}>
+                        ☀️ {isVi ? 'Giám Sát Nhịp Sáng Đi Học' : 'Morning School Wake-Up Monitor'}
                       </AccessibleText>
                       <div>
                         <AccessibleText variant="caption" color={colors.textSecondary}>
-                          {state.eveningListened
-                            ? isVi
-                              ? 'Bé đã nghe thông điệp của bạn • Bấm để ghi âm thêm'
-                              : 'Child listened to your message • Tap to record more'
-                            : state.eveningCompleted
-                            ? isVi
-                              ? 'Đã gửi lời nhắn tối nay (chờ bé nghe) • Bấm để xem'
-                              : 'Sent tonight (waiting for child) • Tap to review'
-                            : isVi
-                            ? 'Chưa gửi lời nhắn tối nay • Bấm để ghi âm 30s gửi con'
-                            : 'Not sent yet tonight • Tap to record 30s voice note'}
+                          {isVi ? 'Khung giờ: 06:30 – 07:15 sáng • Đồng bộ an toàn' : 'Time window: 06:30 – 07:15 AM • Live Reassurance'}
                         </AccessibleText>
                       </div>
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                    <span
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRhythm(null)}
+                    style={{
+                      border: 'none',
+                      backgroundColor: colors.surfaceContainerHigh,
+                      width: 36,
+                      height: 36,
+                      borderRadius: '50%',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                    title={isVi ? 'Đóng bảng chi tiết' : 'Close panel'}
+                  >
+                    <MIcon name="close" size={20} color={colors.textDark} />
+                  </button>
+                </div>
+
+                {/* Status card */}
+                <div
+                  style={{
+                    backgroundColor: state.morningCompleted
+                      ? (isDark ? 'rgba(34, 197, 94, 0.16)' : '#DCFCE7')
+                      : (isDark ? 'rgba(245, 158, 11, 0.16)' : '#FEF3C7'),
+                    border: `1px solid ${state.morningCompleted ? '#22C55E' : '#F59E0B'}`,
+                    borderRadius: 22,
+                    padding: '16px 20px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <MIcon
+                      name={state.morningCompleted ? 'verified' : 'schedule'}
+                      size={24}
+                      color={state.morningCompleted ? '#15803D' : '#B45309'}
+                    />
+                    <AccessibleText variant="bodyLarge" weight="900" color={state.morningCompleted ? '#15803D' : '#92400E'}>
+                      {state.morningCompleted
+                        ? isVi
+                          ? `✅ ${childName} Đã Thức Dậy & Chào Đi Học An Toàn!`
+                          : `✅ ${childName} Woke Up & Greeted Safely!`
+                        : isVi
+                        ? `⏳ Đang Chờ Tín Hiệu Thức Dậy Từ ${childName}`
+                        : `⏳ Waiting for ${childName}'s Wake-Up Signal`}
+                    </AccessibleText>
+                  </div>
+                  <div style={{ fontSize: 13, color: state.morningCompleted ? (isDark ? '#86EFAC' : '#166534') : (isDark ? '#FDE68A' : '#78350F'), lineHeight: 1.5 }}>
+                    {state.morningCompleted
+                      ? isVi
+                        ? `Con đã gửi lời chào lúc ${state.morningTime || '06:45 sáng nay'}. Tín hiệu đã được xác thực an toàn trên máy chủ gia đình. Ba mẹ an tâm hoàn toàn khi bắt đầu ca sản xuất tại xưởng!`
+                        : `Child sent greeting at ${state.morningTime || '06:45 AM'}. Status safely synced on family server. Parents can have full peace of mind during work shift!`
+                      : isVi
+                      ? `Tiếng chuông báo thức hẹn giờ tự động reo lúc 06:30 tại nhà. Ngay khi ${childName} thức dậy và bấm 1 chạm, bảng giám sát này sẽ cập nhật ngay lập tức.`
+                      : `The automated chime bell rings at 06:30 AM at home. As soon as ${childName} taps the morning greeting, this monitor updates live.`}
+                  </div>
+
+                  {!state.morningCompleted && isDemoAccount && (
+                    <button
+                      type="button"
+                      onClick={handleSimulateMorningGreeting}
+                      disabled={simulatingMorningTouch}
                       style={{
-                        backgroundColor: state.eveningListened ? '#DCFCE7' : colors.surfaceContainerHighest,
-                        color: state.eveningListened ? '#15803D' : colors.textMuted,
-                        fontSize: 11,
+                        marginTop: 6,
+                        border: 'none',
+                        backgroundColor: '#F59E0B',
+                        color: '#FFFFFF',
+                        fontSize: 12,
                         fontWeight: 800,
-                        padding: '4px 10px',
+                        padding: '8px 16px',
                         borderRadius: 999,
+                        cursor: 'pointer',
+                        alignSelf: 'flex-start',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
                       }}
                     >
-                      {state.eveningListened
-                        ? isVi
-                          ? 'Bé Đã Nghe'
-                          : 'Listened'
-                        : state.eveningCompleted
-                        ? isVi
-                          ? 'Đã Gửi'
-                          : 'Sent'
-                        : isVi
-                        ? 'Chưa gửi'
-                        : 'Pending'}
-                    </span>
+                      <MIcon name="touch_app" size={16} color="#FFFFFF" />
+                      <span>{simulatingMorningTouch ? (isVi ? 'Đang gửi...' : 'Sending...') : isVi ? 'Giả lập bé gửi lời chào (Chế độ Demo)' : 'Simulate Child Check-In (Demo)'}</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Morning Chime Bell Monitor */}
+                <div
+                  style={{
+                    backgroundColor: colors.surfaceContainer,
+                    borderRadius: 22,
+                    padding: '18px 20px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 12,
+                    border: `1px solid ${colors.outlineVariant}`,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div
+                        style={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: 12,
+                          backgroundColor: '#FFDEA8',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <MIcon name="notifications_active" size={20} color="#8C4F00" />
+                      </div>
+                      <div>
+                        <AccessibleText variant="bodyLarge" weight="800" color={colors.textDark}>
+                          {isVi ? 'Tiếng Chuông Báo Thức Tại Nhà (06:30)' : 'Home Morning Chime Bell (06:30 AM)'}
+                        </AccessibleText>
+                        <AccessibleText variant="caption" color={colors.textSecondary}>
+                          {isVi ? 'Chuông âm học kích hoạt phản xạ tự nhiên' : 'Acoustic chime for gentle natural wake-up'}
+                        </AccessibleText>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handlePlayMorningBell}
+                      style={{
+                        border: 'none',
+                        backgroundColor: isPlayingMorningBell ? colors.error : colors.morningPrimary,
+                        color: '#FFFFFF',
+                        padding: '8px 16px',
+                        borderRadius: 999,
+                        fontSize: 12,
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+                      }}
+                    >
+                      <MIcon name={isPlayingMorningBell ? 'stop' : 'volume_up'} size={18} color="#FFFFFF" />
+                      <span>{isPlayingMorningBell ? (isVi ? 'Dừng phát' : 'Stop') : isVi ? 'Nghe thử chuông' : 'Preview Chime'}</span>
+                    </button>
+                  </div>
+
+                  <div style={{ fontSize: 13, color: colors.textSecondary, fontStyle: 'italic', lineHeight: 1.45 }}>
+                    {isVi
+                      ? '“Con yêu ơi dậy đi học nhé! Bố mẹ vào ca sáng rồi, chúc con ở lớp thật vui nha!”'
+                      : '“Wake up sweet child! Parents are starting our shift, have a joyful day at school!”'}
+                  </div>
+                </div>
+
+                {/* Parent Shift Reassurance Memo */}
+                <div
+                  style={{
+                    backgroundColor: colors.surfaceContainerHighest,
+                    borderRadius: 20,
+                    padding: '14px 18px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                  }}
+                >
+                  <MIcon name="factory" size={24} color={colors.primary} />
+                  <div style={{ flex: 1, fontSize: 13, fontWeight: 700, color: colors.textDark }}>
+                    {isVi
+                      ? 'Lời dặn ca sáng của ba mẹ: Bố mẹ an tâm bắt đầu ca làm. Chiều tan trường con nhớ gửi Nhật Ký Chiều 15s kể cho bố mẹ nghe nhé!'
+                      : "Parents' shift memo: Parents starting factory shift reassured. Remember to send 15s voice diary after school!"}
+                  </div>
+                </div>
+              </div>
+            ) : selectedRhythm === 'AFTERNOON' ? (
+              /* AFTERNOON MONITOR PANEL */
+              <div
+                style={{
+                  backgroundColor: colors.surfaceContainerLow,
+                  borderRadius: 30,
+                  padding: 24,
+                  border: `1.5px solid ${colors.outlineVariant}`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 18,
+                }}
+              >
+                {/* Header with Close button */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div
                       style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: '50%',
-                        backgroundColor: colors.surfaceContainerHigh,
+                        width: 42,
+                        height: 42,
+                        borderRadius: 14,
+                        backgroundColor: '#FFDBCE',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                       }}
                     >
-                      <MIcon name="arrow_downward" size={18} color={colors.textSecondary} />
+                      <MIcon name="palette" size={24} color="#9E3306" />
+                    </div>
+                    <div>
+                      <AccessibleText variant="h2" weight="900" color={colors.textDark}>
+                        🎒 {isVi ? 'Giám Sát Nhật Ký Chiều 15s' : 'Afternoon 15s Diary Monitor'}
+                      </AccessibleText>
+                      <div>
+                        <AccessibleText variant="caption" color={colors.textSecondary}>
+                          {isVi ? 'Khung giờ: 17:00 – 18:30 chiều • Giọng nói, cảm xúc & AI' : 'Time window: 05:00 – 06:30 PM • Voice, emotion & AI'}
+                        </AccessibleText>
+                      </div>
                     </div>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRhythm(null)}
+                    style={{
+                      border: 'none',
+                      backgroundColor: colors.surfaceContainerHigh,
+                      width: 36,
+                      height: 36,
+                      borderRadius: '50%',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                    title={isVi ? 'Đóng bảng chi tiết' : 'Close panel'}
+                  >
+                    <MIcon name="close" size={20} color={colors.textDark} />
+                  </button>
                 </div>
 
-                {onNavigateToEvening && (
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 2 }}>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onNavigateToEvening();
-                      }}
+                {/* Child check-in status */}
+                <div
+                  style={{
+                    backgroundColor: state.afternoonCompleted
+                      ? (isDark ? 'rgba(34, 197, 94, 0.16)' : '#DCFCE7')
+                      : (isDark ? 'rgba(217, 77, 26, 0.16)' : '#FFF0EA'),
+                    border: `1px solid ${state.afternoonCompleted ? '#22C55E' : '#D94D1A'}`,
+                    borderRadius: 22,
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <MIcon
+                      name={state.afternoonCompleted ? 'verified' : 'hourglass_top'}
+                      size={24}
+                      color={state.afternoonCompleted ? '#15803D' : '#9E3306'}
+                    />
+                    <div>
+                      <AccessibleText variant="bodyLarge" weight="900" color={state.afternoonCompleted ? '#15803D' : '#9E3306'}>
+                        {state.afternoonCompleted
+                          ? isVi
+                            ? `✅ ${childName} Đã Gửi Nhật Ký Lúc ${state.afternoonTime || 'chiều nay'}`
+                            : `✅ ${childName} Sent Diary at ${state.afternoonTime || 'afternoon'}`
+                          : isVi
+                          ? `⏳ Đang Chờ ${childName} Tan Trường Về Gửi Nhật Ký`
+                          : `⏳ Waiting for ${childName} to Send Afternoon Diary`}
+                      </AccessibleText>
+                      <div style={{ fontSize: 12, color: colors.textSecondary }}>
+                        {isVi ? 'Nhịp gắn kết quan trọng sau giờ học' : 'Primary bonding rhythm after school'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <span
+                    style={{
+                      backgroundColor: moodBadge.bg,
+                      color: moodBadge.color,
+                      fontSize: 12,
+                      fontWeight: 900,
+                      padding: '4px 12px',
+                      borderRadius: 999,
+                    }}
+                  >
+                    {moodBadge.label}
+                  </span>
+                </div>
+
+                {/* Voice note and transcribed text */}
+                {state.afternoonCompleted && state.afternoonVoiceUrl ? (
+                  <div
+                    style={{
+                      backgroundColor: colors.surfaceContainer,
+                      borderRadius: 22,
+                      padding: 18,
+                      border: `1px solid ${colors.outlineVariant}`,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 12,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <AccessibleText variant="caption" weight="800" color={colors.textSecondary}>
+                        {isVi ? 'Giọng nói con gửi về (15s):' : "Child's Voice Note (15s):"}
+                      </AccessibleText>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: colors.afternoonPrimary }}>
+                        {state.afternoonVoiceDuration || 15}s
+                      </span>
+                    </div>
+
+                    <AudioWaveform
+                      isPlaying={isPlayingChildVoice}
+                      onPlayToggle={handleTogglePlayChildVoice}
+                      waveform={state.afternoonWaveform}
+                      durationSec={state.afternoonVoiceDuration || 15}
+                      accentColor={colors.afternoonPrimary}
+                    />
+
+                    {/* Transcribed speech text */}
+                    <div
                       style={{
-                        border: 'none',
-                        background: 'none',
-                        color: colors.eveningPrimary,
-                        fontSize: 11,
-                        fontWeight: 800,
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 4,
-                        padding: '2px 4px',
+                        padding: '12px 14px',
+                        borderRadius: 14,
+                        backgroundColor: colors.surfaceContainerHighest,
+                        borderLeft: `4px solid ${colors.afternoonPrimary}`,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 6,
                       }}
                     >
-                      <span>{isVi ? 'Xem giao diện Chạm Tối của bé' : "View Child's Bedtime Screen"}</span>
-                      <MIcon name="open_in_new" size={13} color={colors.eveningPrimary} />
-                    </button>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <MIcon name="record_voice_over" size={16} color={colors.afternoonPrimary} />
+                          <span style={{ fontSize: 11, fontWeight: 900, color: colors.afternoonPrimary, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                            {isVi ? 'Văn bản lời con nói (AI Nhận diện):' : 'Child Voice Transcript (AI):'}
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: colors.textDark, fontStyle: 'italic', lineHeight: 1.45 }}>
+                        “{childVoiceTranscript || (isVi ? 'Hôm nay con đi học vui lắm bố mẹ ơi!' : 'School was so joyful today mom and dad!')}”
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* Attachment: Drawing / Photo */}
+                {activeAttachment && (
+                  <div
+                    style={{
+                      padding: 14,
+                      borderRadius: 20,
+                      backgroundColor: colors.surfaceContainer,
+                      border: `1px solid ${colors.outlineVariant}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 14,
+                    }}
+                  >
+                    {activeAttachment.imageUrl ? (
+                      <img
+                        src={activeAttachment.imageUrl}
+                        alt="Child attachment"
+                        style={{ width: 64, height: 64, borderRadius: 16, objectFit: 'cover' }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: 56,
+                          height: 56,
+                          borderRadius: 16,
+                          backgroundColor: '#FFDBCE',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <MIcon name={activeAttachment.emoji} size={30} color={activeAttachment.dominantColor} />
+                      </div>
+                    )}
+
+                    <div style={{ flex: 1 }}>
+                      <span style={{ fontSize: 14, fontWeight: 800, color: colors.textDark, display: 'block' }}>
+                        {isVi ? activeAttachment.titleVi : activeAttachment.titleEn}
+                      </span>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: colors.textSecondary }}>
+                        {isVi ? activeAttachment.cvSignalVi : activeAttachment.cvSignalEn}
+                      </span>
+                    </div>
                   </div>
                 )}
 
-                {/* Child's Evening Reply back to Parents */}
+                {/* AI Empathy Assistant */}
+                {loadingAi ? (
+                  <div
+                    style={{
+                      backgroundColor: colors.surfaceContainer,
+                      borderRadius: 24,
+                      padding: 24,
+                      border: `1px solid ${colors.outlineVariant}`,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 12,
+                      textAlign: 'center',
+                    }}
+                  >
+                    <GoogleLoadingIndicator size={36} strokeWidth={3.5} multiColor={true} />
+                    <AccessibleText variant="bodyLarge" weight="800" color={colors.textDark}>
+                      {isVi
+                        ? `AI đang phân tích Nhật Ký Chiều của ${childName}...`
+                        : `AI is analyzing ${childName}'s Afternoon Diary...`}
+                    </AccessibleText>
+                  </div>
+                ) : aiData ? (
+                  <EmpathyPromptCard
+                    data={aiData}
+                    selectedPrompt={selectedPrompt}
+                    onSelectPrompt={(p) => {
+                      setSelectedPrompt(p);
+                      // Switch smoothly to bedtime with prompt pre-filled
+                      setSelectedRhythm('EVENING');
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      backgroundColor: colors.surfaceContainer,
+                      borderRadius: 24,
+                      padding: 22,
+                      border: `1px solid ${colors.outlineVariant}`,
+                      textAlign: 'center',
+                    }}
+                  >
+                    <MIcon name="auto_awesome" size={32} color="#9C4400" />
+                    <div style={{ marginTop: 8 }}>
+                      <AccessibleText variant="h2" weight="900" color={colors.textDark}>
+                        {isVi ? 'Trợ Lý Thấu Cảm Sẵn Sàng' : 'AI Empathy Assistant Ready'}
+                      </AccessibleText>
+                    </div>
+                    <div style={{ marginTop: 4 }}>
+                      <AccessibleText variant="caption" color={colors.textSecondary}>
+                        {isVi
+                          ? `Ngay khi ${childName} gửi Nhật Ký Chiều, AI sẽ phân tích cảm xúc và gợi ý câu hỏi mở giúp ba mẹ phản hồi ấm áp.`
+                          : `When ${childName} submits afternoon diary, AI generates open-ended empathy prompts based on their real check-in.`}
+                      </AccessibleText>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* EVENING BEDTIME STUDIO */
+              <div
+                style={{
+                  backgroundColor: colors.surfaceContainerLow,
+                  borderRadius: 30,
+                  padding: 24,
+                  border: `1.5px solid ${colors.outlineVariant}`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 18,
+                }}
+              >
+                {/* Header with Close button */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div
+                      style={{
+                        width: 42,
+                        height: 42,
+                        borderRadius: 14,
+                        backgroundColor: '#E1E0FF',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <MIcon name="nights_stay" size={24} color="#3D32B8" />
+                    </div>
+                    <div>
+                      <AccessibleText variant="h2" weight="900" color={colors.textDark}>
+                        🌙 {isVi ? 'Phòng Ghi Âm Lời Dặn Tối (30s)' : 'Bedtime Guidance & Voice Studio (30s)'}
+                      </AccessibleText>
+                      <div>
+                        <AccessibleText variant="caption" color={colors.textSecondary}>
+                          {isVi ? 'Khung giờ: 20:30 – 21:00 tối • Gửi gắm tình yêu trước giờ ngủ' : 'Time window: 08:30 – 09:00 PM • Bedtime love before sleep'}
+                        </AccessibleText>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRhythm(null)}
+                    style={{
+                      border: 'none',
+                      backgroundColor: colors.surfaceContainerHigh,
+                      width: 36,
+                      height: 36,
+                      borderRadius: '50%',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                    title={isVi ? 'Đóng bảng chi tiết' : 'Close panel'}
+                  >
+                    <MIcon name="close" size={20} color={colors.textDark} />
+                  </button>
+                </div>
+
+                {/* Child Listened / Sent status */}
+                <div
+                  style={{
+                    backgroundColor: state.eveningListened
+                      ? (isDark ? 'rgba(34, 197, 94, 0.16)' : '#DCFCE7')
+                      : state.eveningCompleted
+                      ? (isDark ? 'rgba(99, 102, 241, 0.16)' : '#EEF2FF')
+                      : (isDark ? 'rgba(107, 114, 128, 0.16)' : '#F3F4F6'),
+                    border: `1px solid ${state.eveningListened ? '#22C55E' : state.eveningCompleted ? '#6366F1' : colors.outlineVariant}`,
+                    borderRadius: 20,
+                    padding: '14px 18px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                  }}
+                >
+                  <MIcon
+                    name={state.eveningListened ? 'headset' : state.eveningCompleted ? 'mark_email_read' : 'nightlight'}
+                    size={22}
+                    color={state.eveningListened ? '#15803D' : state.eveningCompleted ? '#6366F1' : colors.textSecondary}
+                  />
+                  <div style={{ flex: 1, fontSize: 13, fontWeight: 700, color: colors.textDark }}>
+                    {state.eveningListened
+                      ? isVi
+                        ? `✅ ${childName} đã mở nghe lời dặn của bạn trước khi đi ngủ!`
+                        : `✅ ${childName} listened to your bedtime message before sleep!`
+                      : state.eveningCompleted
+                      ? isVi
+                        ? 'Đã gửi lời dặn tối thành công (chờ con mở máy nghe)'
+                        : 'Bedtime guidance sent successfully (waiting for child to listen)'
+                      : isVi
+                      ? 'Chưa gửi lời dặn tối nay. Hãy ghi âm 30s để con an giấc nhé!'
+                      : 'Not sent yet tonight. Record 30s voice note so your child sleeps tight!'}
+                  </div>
+                </div>
+
+                {/* Child evening voice reply if any */}
                 {state.eveningExtraReplied && (
                   <div
                     style={{
-                      padding: '10px 14px',
-                      borderRadius: 14,
-                      backgroundColor: colors.surfaceContainerHighest,
+                      padding: '14px 18px',
+                      borderRadius: 18,
+                      backgroundColor: colors.surfaceContainer,
+                      border: `1px solid ${colors.outlineVariant}`,
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: 8,
+                      gap: 10,
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -1610,226 +2150,179 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                     )}
                   </div>
                 )}
-              </div>
-            </div>
-          </div>
 
-          {/* Right Column: AI Empathy Assistant & Bedtime 30s Voice Recorder */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {/* AI Empathy Assistant Card */}
-            {loadingAi ? (
-              <div
-                style={{
-                  backgroundColor: colors.surfaceContainerLow,
-                  borderRadius: 28,
-                  padding: 24,
-                  border: `1px solid ${colors.outlineVariant}`,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 12,
-                  textAlign: 'center',
-                }}
-              >
-                <GoogleLoadingIndicator size={36} strokeWidth={3.5} multiColor={true} />
-                <AccessibleText variant="bodyLarge" weight="800" color={colors.textDark}>
-                  {isVi
-                    ? `AI đang phân tích Nhật Ký Chiều của ${childName}...`
-                    : `AI is analyzing ${childName}'s Afternoon Diary...`}
-                </AccessibleText>
-              </div>
-            ) : aiData ? (
-              <EmpathyPromptCard
-                data={aiData}
-                selectedPrompt={selectedPrompt}
-                onSelectPrompt={setSelectedPrompt}
-              />
-            ) : (
-              <div
-                style={{
-                  backgroundColor: colors.surfaceContainerLow,
-                  borderRadius: 28,
-                  padding: 22,
-                  border: `1px solid ${colors.outlineVariant}`,
-                  textAlign: 'center',
-                }}
-              >
-                <MIcon name="auto_awesome" size={32} color="#9C4400" />
-                <div style={{ marginTop: 8 }}>
-                  <AccessibleText variant="h2" weight="900" color={colors.textDark}>
-                    {isVi ? 'Trợ Lý Thấu Cảm Sẵn Sàng' : 'AI Empathy Assistant Ready'}
-                  </AccessibleText>
-                </div>
-                <div style={{ marginTop: 4 }}>
-                  <AccessibleText variant="caption" color={colors.textSecondary}>
-                    {isVi
-                      ? `Ngay khi ${childName} gửi Nhật Ký Chiều (cảm xúc, giọng nói & hình ảnh), AI sẽ phân tích và gợi ý câu hỏi mở giúp ba mẹ phản hồi ấm áp.`
-                      : `When ${childName} submits their afternoon diary, AI will generate open-ended empathy prompts based on their real check-in.`}
-                  </AccessibleText>
+                {/* 30-Second Bedtime Voice Note Recorder */}
+                <div
+                  ref={bedtimeSectionRef}
+                  id="parent-bedtime-composer"
+                  style={{
+                    backgroundColor: colors.surfaceContainer,
+                    borderRadius: 24,
+                    padding: 20,
+                    border: highlightBedtime
+                      ? `2px solid ${colors.eveningPrimary}`
+                      : `1px solid ${colors.outlineVariant}`,
+                    boxShadow: highlightBedtime
+                      ? '0 0 0 4px rgba(99, 102, 241, 0.28), 0 8px 30px rgba(99, 102, 241, 0.2)'
+                      : undefined,
+                    transition: 'all 0.3s ease',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 14,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <MIcon name="mic" size={22} color={colors.eveningPrimary} />
+                      <AccessibleText variant="h2" weight="900" color={colors.textDark}>
+                        {isVi ? 'Ghi Âm Dặn Dò (30s)' : 'Record Bedtime Voice (30s)'}
+                      </AccessibleText>
+                    </div>
+
+                    <span
+                      style={{
+                        backgroundColor: isRecording30s ? colors.errorBg : colors.surfaceContainerHighest,
+                        color: isRecording30s ? colors.error : colors.textSecondary,
+                        fontSize: 12,
+                        fontWeight: 800,
+                        padding: '4px 10px',
+                        borderRadius: 999,
+                      }}
+                    >
+                      {isRecording30s ? `00:${durationLeft.toString().padStart(2, '0')}` : isVi ? 'Tối đa 30s' : 'Max 30s'}
+                    </span>
+                  </div>
+
+                  {selectedPrompt ? (
+                    <div
+                      style={{
+                        backgroundColor: colors.surfaceContainerHighest,
+                        padding: '10px 14px',
+                        borderRadius: 16,
+                        borderLeft: `4px solid ${colors.eveningPrimary}`,
+                        fontSize: 13,
+                        fontWeight: 700,
+                        color: colors.textDark,
+                      }}
+                    >
+                      <span style={{ fontSize: 11, color: colors.textSecondary, display: 'block', marginBottom: 2 }}>
+                        {isVi ? 'Gợi ý đọc khi thu âm (từ AI Thấu Cảm):' : 'Suggested prompt to read (from AI Empathy):'}
+                      </span>
+                      “{selectedPrompt}”
+                    </div>
+                  ) : null}
+
+                  {/* Audio Waveform */}
+                  <AudioWaveform
+                    isRecording={isRecording30s}
+                    remainingSec={durationLeft}
+                    durationSec={parentVoice?.duration}
+                    waveform={isRecording30s ? liveWaveform : parentVoice?.waveform}
+                    isPlaying={isPlayingParentVoice}
+                    onPlayToggle={parentVoice ? handleTogglePlayParentVoice : undefined}
+                    accentColor={colors.eveningPrimary}
+                  />
+
+                  {isTranscribingParentVoice && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <GoogleLoadingIndicator size={16} strokeWidth={2.5} multiColor={true} />
+                      <span style={{ fontSize: 12, fontWeight: 700, color: colors.textSecondary }}>
+                        {isVi ? 'AI đang nhận diện giọng nói của bạn...' : 'AI is transcribing your voice note...'}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Recording Controls */}
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    {!isRecording30s ? (
+                      <BigButton
+                        variant="evening"
+                        iconName={parentVoice ? 'replay' : 'mic'}
+                        onClick={handleStartRecording}
+                        loading={isTranscribingParentVoice}
+                      >
+                        {parentVoice
+                          ? isVi
+                            ? 'Thu Âm Lại (30s)'
+                            : 'Re-Record (30s)'
+                          : isVi
+                          ? 'Bắt Đầu Thu Âm Dặn Dò 30s'
+                          : 'Start 30s Voice Note'}
+                      </BigButton>
+                    ) : (
+                      <BigButton
+                        variant="danger"
+                        iconName="stop"
+                        onClick={handleStopRecording}
+                      >
+                        {isVi ? 'Dừng & Lưu Giọng Nói' : 'Stop & Save Voice'}
+                      </BigButton>
+                    )}
+                  </div>
+
+                  {/* Guidance Message Note */}
+                  <div>
+                    <label
+                      htmlFor="parent-guidance-note"
+                      style={{
+                        display: 'block',
+                        fontSize: 12,
+                        fontWeight: 800,
+                        color: colors.textSecondary,
+                        marginBottom: 6,
+                      }}
+                    >
+                      {isVi ? 'Lời dặn dò cho con (gợi ý từ AI hoặc tự viết):' : 'Bedtime guidance message:'}
+                    </label>
+                    <textarea
+                      id="parent-guidance-note"
+                      rows={2}
+                      value={messageNote || selectedPrompt}
+                      onChange={(e) => setMessageNote(e.target.value)}
+                      placeholder={isVi ? 'Nhập lời dặn dò yêu thương...' : 'Type guidance message...'}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: 16,
+                        fontSize: 14,
+                        backgroundColor: colors.surfaceContainer,
+                        border: `1.5px solid ${colors.outlineVariant}`,
+                        color: colors.textDark,
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+
+                  {sendSuccess ? (
+                    <div
+                      style={{
+                        padding: '12px 18px',
+                        borderRadius: 18,
+                        backgroundColor: isDark ? 'rgba(21, 128, 61, 0.2)' : '#DCFCE7',
+                        color: isDark ? '#86EFAC' : '#15803D',
+                        border: isDark ? '1px solid rgba(134, 239, 172, 0.3)' : 'none',
+                        fontSize: 14,
+                        fontWeight: 700,
+                        textAlign: 'center',
+                      }}
+                    >
+                      {isVi ? 'Đã gửi lời dặn dò tối về máy con thành công!' : 'Bedtime message sent to child!'}
+                    </div>
+                  ) : null}
+
+                  <BigButton
+                    variant="primary"
+                    iconName="send"
+                    onClick={handleSendBedtimeMessage}
+                    loading={sendingMessage || isTranscribingParentVoice}
+                    minHeight={62}
+                  >
+                    {isVi ? 'GỬI LỜI DẶN DÒ TỐI VỀ CHO CON' : 'SEND BEDTIME GUIDANCE TO CHILD'}
+                  </BigButton>
                 </div>
               </div>
             )}
-
-            {/* 30-Second Bedtime Voice Note Recorder */}
-            <div
-              ref={bedtimeSectionRef}
-              id="parent-bedtime-composer"
-              style={{
-                backgroundColor: colors.surfaceContainerLow,
-                borderRadius: 30,
-                padding: 22,
-                border: highlightBedtime
-                  ? `2px solid ${colors.eveningPrimary}`
-                  : `1px solid ${colors.outlineVariant}`,
-                boxShadow: highlightBedtime
-                  ? '0 0 0 4px rgba(99, 102, 241, 0.28), 0 8px 30px rgba(99, 102, 241, 0.2)'
-                  : undefined,
-                transition: 'all 0.3s ease',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 14,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <MIcon name="mic" size={22} color={colors.eveningPrimary} />
-                  <AccessibleText variant="h2" weight="900" color={colors.textDark}>
-                    {isVi ? 'Ghi Âm Dặn Dò Buổi Tối (30s)' : 'Parent Bedtime Voice (30s)'}
-                  </AccessibleText>
-                </div>
-
-                <span
-                  style={{
-                    backgroundColor: isRecording30s ? colors.errorBg : colors.surfaceContainerHighest,
-                    color: isRecording30s ? colors.error : colors.textSecondary,
-                    fontSize: 12,
-                    fontWeight: 800,
-                    padding: '4px 10px',
-                    borderRadius: 999,
-                  }}
-                >
-                  {isRecording30s ? `00:${durationLeft.toString().padStart(2, '0')}` : isVi ? 'Tối đa 30s' : 'Max 30s'}
-                </span>
-              </div>
-
-              {selectedPrompt ? (
-                <div
-                  style={{
-                    backgroundColor: colors.surfaceContainer,
-                    padding: '10px 14px',
-                    borderRadius: 16,
-                    borderLeft: `4px solid ${colors.eveningPrimary}`,
-                    fontSize: 13,
-                    fontWeight: 700,
-                    color: colors.textDark,
-                  }}
-                >
-                  <span style={{ fontSize: 11, color: colors.textSecondary, display: 'block', marginBottom: 2 }}>
-                    {isVi ? 'Gợi ý đọc khi thu âm:' : 'Suggested prompt to read:'}
-                  </span>
-                  “{selectedPrompt}”
-                </div>
-              ) : null}
-
-              {/* Audio Waveform */}
-              <AudioWaveform
-                isRecording={isRecording30s}
-                remainingSec={durationLeft}
-                durationSec={parentVoice?.duration}
-                waveform={isRecording30s ? liveWaveform : parentVoice?.waveform}
-                isPlaying={isPlayingParentVoice}
-                onPlayToggle={parentVoice ? handleTogglePlayParentVoice : undefined}
-                accentColor={colors.eveningPrimary}
-              />
-
-              {isTranscribingParentVoice && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <GoogleLoadingIndicator size={16} strokeWidth={2.5} multiColor={true} />
-                  <span style={{ fontSize: 12, fontWeight: 700, color: colors.textSecondary }}>
-                    {isVi ? 'AI đang nhận diện giọng nói của bạn...' : 'AI is transcribing your voice note...'}
-                  </span>
-                </div>
-              )}
-
-              {/* Recording Controls */}
-              <div style={{ display: 'flex', gap: 10 }}>
-                {!isRecording30s ? (
-                  <BigButton
-                    variant="evening"
-                    iconName={parentVoice ? 'replay' : 'mic'}
-                    onClick={handleStartRecording}
-                    loading={isTranscribingParentVoice}
-                  >
-                    {parentVoice
-                      ? isVi
-                        ? 'Thu Âm Lại (30s)'
-                        : 'Re-Record (30s)'
-                      : isVi
-                      ? 'Bắt Đầu Thu Âm Dặn Dò 30s'
-                      : 'Start 30s Voice Note'}
-                  </BigButton>
-                ) : (
-                  <BigButton
-                    variant="danger"
-                    iconName="stop"
-                    onClick={handleStopRecording}
-                  >
-                    {isVi ? 'Dừng & Lưu Giọng Nói' : 'Stop & Save Voice'}
-                  </BigButton>
-                )}
-              </div>
-
-              {/* Optional message text */}
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: colors.textSecondary, display: 'block', marginBottom: 4 }}>
-                  {isVi ? 'Lời nhắn chúc ngủ ngon gửi kèm:' : 'Bedtime guidance message:'}
-                </label>
-                <textarea
-                  value={messageNote || selectedPrompt}
-                  onChange={(e) => setMessageNote(e.target.value)}
-                  rows={2}
-                  placeholder={isVi ? 'Nhập lời dặn dò yêu thương...' : 'Type guidance message...'}
-                  style={{
-                    width: '100%',
-                    padding: '10px 14px',
-                    borderRadius: 16,
-                    fontSize: 14,
-                    backgroundColor: colors.surfaceContainer,
-                    border: `1.5px solid ${colors.outlineVariant}`,
-                    color: colors.textDark,
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                  }}
-                />
-              </div>
-
-              {sendSuccess ? (
-                <div
-                  style={{
-                    padding: '12px 18px',
-                    borderRadius: 18,
-                    backgroundColor: isDark ? 'rgba(21, 128, 61, 0.2)' : '#DCFCE7',
-                    color: isDark ? '#86EFAC' : '#15803D',
-                    border: isDark ? '1px solid rgba(134, 239, 172, 0.3)' : 'none',
-                    fontSize: 14,
-                    fontWeight: 700,
-                    textAlign: 'center',
-                  }}
-                >
-                  {isVi ? 'Đã gửi lời dặn dò tối về máy con thành công!' : 'Bedtime message sent to child!'}
-                </div>
-              ) : null}
-
-              <BigButton
-                variant="primary"
-                iconName="send"
-                onClick={handleSendBedtimeMessage}
-                loading={sendingMessage || isTranscribingParentVoice}
-                minHeight={62}
-              >
-                {isVi ? 'GỬI LỜI DẶN DÒ TỐI VỀ CHO CON' : 'SEND BEDTIME GUIDANCE TO CHILD'}
-              </BigButton>
-            </div>
           </div>
         </div>
       )}

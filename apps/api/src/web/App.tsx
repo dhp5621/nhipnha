@@ -110,18 +110,6 @@ function NavigationRoot() {
   }
 
   const renderMainContent = () => {
-    if (currentScreen === 'MORNING_TOUCH') {
-      return <MorningTouchScreen onBack={() => navigateTo(null)} />;
-    }
-
-    if (currentScreen === 'AFTERNOON_TOUCH') {
-      return <AfternoonTouchScreen onBack={() => navigateTo(null)} />;
-    }
-
-    if (currentScreen === 'EVENING_TOUCH') {
-      return <EveningTouchScreen onBack={() => navigateTo(null)} />;
-    }
-
     if (currentScreen === 'OWNER_CONSOLE') {
       return <OwnerManagementScreen onBack={() => navigateTo('ROLE_SWITCH')} />;
     }
@@ -139,15 +127,26 @@ function NavigationRoot() {
       );
     }
 
+    // Parents have their dedicated monitor dashboard (with task monitoring for Morning, Afternoon, Evening)
     if (member?.role === 'PARENT') {
       return (
         <ParentDashboardScreen
           onNavigateToSwitch={() => navigateTo('ROLE_SWITCH')}
-          onNavigateToMorning={() => navigateTo('MORNING_TOUCH')}
-          onNavigateToAfternoon={() => navigateTo('AFTERNOON_TOUCH')}
-          onNavigateToEvening={() => navigateTo('EVENING_TOUCH')}
         />
       );
+    }
+
+    // Children & Grandparents screens
+    if (currentScreen === 'MORNING_TOUCH') {
+      return <MorningTouchScreen onBack={() => navigateTo(null)} />;
+    }
+
+    if (currentScreen === 'AFTERNOON_TOUCH') {
+      return <AfternoonTouchScreen onBack={() => navigateTo(null)} />;
+    }
+
+    if (currentScreen === 'EVENING_TOUCH') {
+      return <EveningTouchScreen onBack={() => navigateTo(null)} />;
     }
 
     return (

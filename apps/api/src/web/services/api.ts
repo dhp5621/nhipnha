@@ -33,6 +33,32 @@ export interface FamilyTimelineResponse {
 }
 
 let apiSession: { memberId: string; token?: string } | null = null;
+
+// Multi-layer memory + session cache for AI Empathy and Audio Transcription to eliminate redundant API calls and reduce latency
+const empathyMemoryCache = new Map<string, EmpathyAssistantResponse>();
+const transcribeMemoryCache = new Map<string, { transcript: string; source: string }>();
+
+function getSessionItemSafe<T>(key: string): T | null {
+  try {
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      const item = window.sessionStorage.getItem(key);
+      if (item) return JSON.parse(item) as T;
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+function setSessionItemSafe<T>(key: string, value: T): void {
+  try {
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      window.sessionStorage.setItem(key, JSON.stringify(value));
+    }
+  } catch {
+    // ignore quota errors
+  }
+}
 let unauthorizedHandler: (() => void) | null = null;
 
 export function setApiSession(session: { memberId: string; token?: string } | null) {
@@ -364,7 +390,7 @@ export const apiClient = {
     );
   },
 
-  // AI Empathy Assistant: Server-side call to generate non-academic empathy prompts
+  // AI Empathy Assistant: Server-side call to generate non-academic empathy prompts (with smart cache)
   async getEmpathySuggestions(
     mood: string,
     childMessage?: string,
@@ -373,6 +399,16 @@ export const apiClient = {
     childName?: string,
     isDemo: boolean = false
   ): Promise<EmpathyAssistantResponse | null> {
+    const cacheKey = `empathy:${mood}:${childMessage || ''}:${attachmentTitle || ''}:${language}:${childName || ''}:${isDemo}`;
+    if (empathyMemoryCache.has(cacheKey)) {
+      return empathyMemoryCache.get(cacheKey)!;
+    }
+    const sessionCached = getSessionItemSafe<EmpathyAssistantResponse>(cacheKey);
+    if (sessionCached) {
+      empathyMemoryCache.set(cacheKey, sessionCached);
+      return sessionCached;
+    }
+
     try {
       const res = await fetch(`${API_BASE}/ai/empathy-assistant`, {
         method: 'POST',
@@ -388,6 +424,8 @@ export const apiClient = {
       });
       const data = await res.json();
       if (data.success && data.data) {
+        empathyMemoryCache.set(cacheKey, data.data);
+        setSessionItemSafe(cacheKey, data.data);
         return data.data;
       }
     } catch (e) {
@@ -396,7 +434,7 @@ export const apiClient = {
     return null;
   },
 
-  // AI Audio Transcription: Always prioritize AI speech-to-text (supports Vietnamese & English), fallback to local speech recognition
+  // AI Audio Transcription: Always prioritize AI speech-to-text (with smart cache to save API cost & latency)
   async transcribeAudio(params: {
     audioUrl: string;
     language?: 'vi' | 'en';
@@ -404,6 +442,20 @@ export const apiClient = {
     isDemo?: boolean;
     speakerRole?: 'CHILD' | 'PARENT';
   }): Promise<{ transcript: string; source: string }> {
+    const urlKey = params.audioUrl.length > 200
+      ? `${params.audioUrl.slice(0, 100)}_${params.audioUrl.length}_${params.audioUrl.slice(-100)}`
+      : params.audioUrl;
+    const cacheKey = `transcribe:${urlKey}:${params.language || 'vi'}:${params.speakerRole || ''}`;
+
+    if (transcribeMemoryCache.has(cacheKey)) {
+      return transcribeMemoryCache.get(cacheKey)!;
+    }
+    const sessionCached = getSessionItemSafe<{ transcript: string; source: string }>(cacheKey);
+    if (sessionCached) {
+      transcribeMemoryCache.set(cacheKey, sessionCached);
+      return sessionCached;
+    }
+
     try {
       const res = await fetch(`${API_BASE}/ai/transcribe`, {
         method: 'POST',
@@ -412,10 +464,13 @@ export const apiClient = {
       });
       const data = await res.json();
       if (data.success && typeof data.transcript === 'string') {
-        return {
+        const result = {
           transcript: data.transcript.trim(),
           source: data.source || 'ai',
         };
+        transcribeMemoryCache.set(cacheKey, result);
+        setSessionItemSafe(cacheKey, result);
+        return result;
       }
     } catch (e) {
       console.warn('AI transcribe error, falling back to local:', e);
