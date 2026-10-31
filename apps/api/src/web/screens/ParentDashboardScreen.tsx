@@ -50,6 +50,8 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
   } | null>(null);
 
   const [isPlayingChildVoice, setIsPlayingChildVoice] = useState(false);
+  const [autoTranscribedChildVoice, setAutoTranscribedChildVoice] = useState<string>('');
+  const [isTranscribingChildVoice, setIsTranscribingChildVoice] = useState(false);
   const [isPlayingChildEveningVoice, setIsPlayingChildEveningVoice] = useState(false);
   const [isPlayingParentVoice, setIsPlayingParentVoice] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
@@ -372,23 +374,46 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
     }
   };
 
-  const handleTogglePlayChildVoice = () => {
+  const handleTogglePlayChildVoice = async () => {
     if (!state.afternoonVoiceUrl) return;
     if (isPlayingChildVoice) {
       webAudioService.stopAudioPlayback();
       setIsPlayingChildVoice(false);
     } else {
       setIsPlayingChildVoice(true);
+      // If no transcript was captured yet, trigger AI transcription in parallel when parent presses play
+      if (
+        !storedChildTranscript &&
+        !autoTranscribedChildVoice &&
+        !isTranscribingChildVoice &&
+        state.afternoonVoiceUrl.startsWith('data:audio')
+      ) {
+        setIsTranscribingChildVoice(true);
+        apiClient
+          .transcribeAudio({
+            audioUrl: state.afternoonVoiceUrl,
+            language: activeLanguage,
+            isDemo: isDemoAccount,
+            speakerRole: 'CHILD',
+          })
+          .then((res) => {
+            if (res.transcript) {
+              setAutoTranscribedChildVoice(res.transcript);
+            }
+          })
+          .finally(() => {
+            setIsTranscribingChildVoice(false);
+          });
+      }
+
       const childSpeech =
-        state.afternoonNote &&
-        !state.afternoonNote.startsWith('Ảnh chụp:') &&
-        !state.afternoonNote.startsWith('Nét vẽ:')
-          ? state.afternoonNote
-          : isDemoAccount
+        storedChildTranscript ||
+        autoTranscribedChildVoice ||
+        (isDemoAccount
           ? isVi
             ? 'Chiều nay con đi học về vui lắm, con ăn canh chua bà nấu ngon ơi là ngon!'
             : 'School was so fun today, I took a photo of dinner with Grandma to show you!'
-          : '';
+          : '');
       webAudioService.playAudioUrl(state.afternoonVoiceUrl, childSpeech, () => {
         setIsPlayingChildVoice(false);
       });
@@ -491,16 +516,54 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
   const moodBadge = getMoodBadge(state.afternoonMood);
 
   // Clean display transcript for the child's voice note
-  const childVoiceTranscript =
+  const storedChildTranscript =
     state.afternoonNote &&
     !state.afternoonNote.startsWith('Ảnh chụp:') &&
     !state.afternoonNote.startsWith('Nét vẽ:')
       ? state.afternoonNote
-      : isDemoAccount
+      : '';
+
+  const childVoiceTranscript =
+    storedChildTranscript ||
+    autoTranscribedChildVoice ||
+    (isDemoAccount
       ? isVi
         ? 'Chiều nay con đi học về vui lắm, con ăn canh chua bà nấu và chụp ảnh khoe bố mẹ nè!'
         : 'School was so fun today, I took a photo of dinner with Grandma to show you!'
-      : '';
+      : '');
+
+  // Automatically transcribe the child's voice note on Parent Dashboard if voiceUrl exists without a transcript
+  useEffect(() => {
+    let cancelled = false;
+    async function ensureChildVoiceTranscript() {
+      if (!state.afternoonVoiceUrl || storedChildTranscript || isDemoAccount) {
+        return;
+      }
+      if (!state.afternoonVoiceUrl.startsWith('data:audio')) {
+        return;
+      }
+      setIsTranscribingChildVoice(true);
+      try {
+        const res = await apiClient.transcribeAudio({
+          audioUrl: state.afternoonVoiceUrl,
+          language: activeLanguage,
+          isDemo: isDemoAccount,
+          speakerRole: 'CHILD',
+        });
+        if (!cancelled && res.transcript) {
+          setAutoTranscribedChildVoice(res.transcript);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsTranscribingChildVoice(false);
+        }
+      }
+    }
+    ensureChildVoiceTranscript();
+    return () => {
+      cancelled = true;
+    };
+  }, [state.afternoonVoiceUrl, storedChildTranscript, isDemoAccount, activeLanguage]);
 
   return (
     <div
@@ -1137,35 +1200,87 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                         <AudioWaveform
                           isPlaying={isPlayingChildVoice}
                           onPlayToggle={handleTogglePlayChildVoice}
+                          waveform={state.afternoonWaveform}
                           durationSec={state.afternoonVoiceDuration || 15}
                           accentColor={colors.afternoonPrimary}
                         />
 
                         {/* Transcribed speech text directly below the voice player */}
-                        {childVoiceTranscript ? (
-                          <div
-                            style={{
-                              marginTop: 8,
-                              padding: '10px 14px',
-                              borderRadius: 14,
-                              backgroundColor: colors.surfaceContainerHighest,
-                              borderLeft: `4px solid ${colors.afternoonPrimary}`,
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: 4,
-                            }}
-                          >
+                        <div
+                          style={{
+                            marginTop: 8,
+                            padding: '10px 14px',
+                            borderRadius: 14,
+                            backgroundColor: colors.surfaceContainerHighest,
+                            borderLeft: `4px solid ${colors.afternoonPrimary}`,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 4,
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                               <MIcon name="record_voice_over" size={16} color={colors.afternoonPrimary} />
                               <span style={{ fontSize: 11, fontWeight: 900, color: colors.afternoonPrimary, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                                 {isVi ? 'Văn bản lời con nói (AI Nhận diện):' : 'Child Voice Transcript (AI):'}
                               </span>
                             </div>
+                            {!childVoiceTranscript && !isTranscribingChildVoice && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (!state.afternoonVoiceUrl) return;
+                                  setIsTranscribingChildVoice(true);
+                                  apiClient
+                                    .transcribeAudio({
+                                      audioUrl: state.afternoonVoiceUrl,
+                                      language: activeLanguage,
+                                      isDemo: isDemoAccount,
+                                      speakerRole: 'CHILD',
+                                    })
+                                    .then((res) => {
+                                      if (res.transcript) {
+                                        setAutoTranscribedChildVoice(res.transcript);
+                                      }
+                                    })
+                                    .finally(() => {
+                                      setIsTranscribingChildVoice(false);
+                                    });
+                                }}
+                                style={{
+                                  border: 'none',
+                                  backgroundColor: colors.primaryContainer,
+                                  color: colors.onPrimaryContainer,
+                                  fontSize: 11,
+                                  fontWeight: 800,
+                                  padding: '3px 8px',
+                                  borderRadius: 999,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                {isVi ? '✨ Dịch giọng nói AI' : '✨ AI Transcribe'}
+                              </button>
+                            )}
+                          </div>
+                          {isTranscribingChildVoice ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0' }}>
+                              <GoogleLoadingIndicator size={15} strokeWidth={2.5} multiColor={true} />
+                              <span style={{ fontSize: 12, fontWeight: 700, color: colors.textSecondary }}>
+                                {isVi ? 'AI đang giải mã giọng nói của con...' : 'AI is transcribing child voice note...'}
+                              </span>
+                            </div>
+                          ) : childVoiceTranscript ? (
                             <div style={{ fontSize: 13, fontWeight: 700, color: colors.textDark, fontStyle: 'italic', lineHeight: 1.45 }}>
                               “{childVoiceTranscript}”
                             </div>
-                          </div>
-                        ) : null}
+                          ) : (
+                            <div style={{ fontSize: 12, fontWeight: 600, color: colors.textSecondary, fontStyle: 'italic' }}>
+                              {isVi
+                                ? 'Bản ghi âm chưa có phụ đề (bấm Phát hoặc "Dịch giọng nói AI" để nhận diện).'
+                                : 'No speech transcript detected in this recording (press Play or "AI Transcribe").'}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     ) : null}
 

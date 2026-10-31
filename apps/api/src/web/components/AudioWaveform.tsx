@@ -99,18 +99,25 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
           overflow: 'hidden',
         }}
       >
-        {bars.map((heightNorm, i) => {
-          const heightPx = Math.max(4, Math.round(heightNorm * 34));
+        {bars.map((rawVal, i) => {
+          // Support both 0..1 normalized and 0..100 percentage waveform arrays
+          const heightNorm = rawVal > 1 ? Math.min(1, rawVal / 100) : Math.max(0.1, rawVal);
+          const dynamicNorm = isPlaying
+            ? Math.min(1, Math.max(0.2, heightNorm * (0.65 + 0.35 * Math.sin(i * 1.3))))
+            : heightNorm;
+          const heightPx = Math.max(4, Math.round(dynamicNorm * 34));
           const isActive = isRecording || isPlaying;
           return (
             <div
               key={i}
+              className={isPlaying ? 'waveform-bar-playing' : undefined}
               style={{
                 width: 4,
                 height: `${heightPx}px`,
                 borderRadius: 2,
                 backgroundColor: isActive ? color : colors.outline,
-                transition: 'height 0.1s ease, background-color 0.2s ease',
+                transition: 'height 0.15s ease, background-color 0.2s ease',
+                animationDelay: isPlaying ? `${(i % 6) * 0.12}s` : undefined,
                 flexShrink: 0,
               }}
             />
@@ -134,6 +141,17 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
           <span>{durationSec}s</span>
         ) : null}
       </div>
+
+      <style jsx>{`
+        @keyframes waveBounce {
+          0%, 100% { transform: scaleY(0.65); }
+          50% { transform: scaleY(1.18); }
+        }
+        .waveform-bar-playing {
+          animation: waveBounce 0.65s ease-in-out infinite;
+          transform-origin: center;
+        }
+      `}</style>
     </div>
   );
 };

@@ -154,13 +154,21 @@ class WebAudioService {
       }
 
       // 3. MediaRecorder for Audio File Capture
-      const recorder = new MediaRecorder(this.mediaStream);
+      const supportedMime =
+        typeof MediaRecorder.isTypeSupported === 'function'
+          ? ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'].find((m) =>
+              MediaRecorder.isTypeSupported(m)
+            ) || ''
+          : '';
+      const recorder = supportedMime
+        ? new MediaRecorder(this.mediaStream, { mimeType: supportedMime })
+        : new MediaRecorder(this.mediaStream);
       recorder.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) {
           this.audioChunks.push(e.data);
         }
       };
-      recorder.start(200);
+      recorder.start(250);
       this.mediaRecorder = recorder;
       return true;
     } catch (err) {
@@ -251,7 +259,7 @@ class WebAudioService {
   }
 
   /**
-   * Play audio URL with HTML5 Audio, graceful mock URI bypass, or Web Speech fallback
+   * Play audio URL with HTML5 Audio, Blob conversion for data URLs, or Web Speech fallback
    */
   async playAudioUrl(
     url?: string,
@@ -268,25 +276,83 @@ class WebAudioService {
 
     if (url && (url.startsWith('data:audio') || url.startsWith('http') || url.startsWith('blob:'))) {
       try {
-        const audio = new Audio(url);
+        let playSrc = url;
+        let objectUrlToRevoke: string | null = null;
+
+        // Convert base64 data:audio/... to Blob ObjectURL for reliable cross-browser HTML5 Audio playback
+        if (url.startsWith('data:audio')) {
+          try {
+            const commaIdx = url.indexOf(',');
+            if (commaIdx !== -1) {
+              const header = url.slice(0, commaIdx);
+              const base64 = url.slice(commaIdx + 1);
+              const mimeMatch = header.match(/^data:([^;]+)/);
+              const mimeType = mimeMatch ? mimeMatch[1] : 'audio/webm';
+              const binary = atob(base64);
+              const bytes = new Uint8Array(binary.length);
+              for (let i = 0; i < binary.length; i++) {
+                bytes[i] = binary.charCodeAt(i);
+              }
+              const blob = new Blob([bytes], { type: mimeType });
+              if (blob.size > 100) {
+                objectUrlToRevoke = URL.createObjectURL(blob);
+                playSrc = objectUrlToRevoke;
+              }
+            }
+          } catch (blobErr) {
+            console.warn('Data URL to Blob conversion warning:', blobErr);
+          }
+        }
+
+        const audio = new Audio();
+        audio.preload = 'auto';
+        audio.src = playSrc;
         this.currentAudioElement = audio;
-        audio.onended = () => {
-          this.currentAudioElement = null;
+
+        let finished = false;
+        const finishPlayback = () => {
+          if (finished) return;
+          finished = true;
+          if (objectUrlToRevoke) {
+            try {
+              URL.revokeObjectURL(objectUrlToRevoke);
+            } catch {}
+          }
+          if (this.currentAudioElement === audio) {
+            this.currentAudioElement = null;
+          }
           onEnd?.();
         };
+
+        audio.onended = finishPlayback;
         audio.onerror = () => {
-          this.currentAudioElement = null;
-          if (synthesizedText && synthesizedText.trim()) {
-            this.speakText(synthesizedText, onEnd);
-          } else {
-            onEnd?.();
+          if (objectUrlToRevoke) {
+            try {
+              URL.revokeObjectURL(objectUrlToRevoke);
+            } catch {}
+          }
+          if (this.currentAudioElement === audio) {
+            this.currentAudioElement = null;
+          }
+          if (!finished) {
+            finished = true;
+            if (synthesizedText && synthesizedText.trim()) {
+              this.speakText(synthesizedText, onEnd);
+            } else {
+              onEnd?.();
+            }
           }
         };
+
         await audio.play();
         return;
       } catch (err) {
         console.warn('HTMLAudio play error:', err);
-        onEnd?.();
+        if (synthesizedText && synthesizedText.trim()) {
+          this.speakText(synthesizedText, onEnd);
+        } else {
+          onEnd?.();
+        }
         return;
       }
     }

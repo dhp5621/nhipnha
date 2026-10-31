@@ -14,6 +14,7 @@ interface RhythmState {
   afternoonNote?: string;
   afternoonVoiceDuration?: number;
   afternoonVoiceUrl?: string;
+  afternoonWaveform?: number[];
   afternoonAttachment?: CreativeAttachment;
   afternoonTime?: string;
   afternoonSyncStatus: 'SYNCED' | 'PENDING';
@@ -154,6 +155,7 @@ export const RhythmProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         afternoonNote: afternoonCheckIn?.note,
         afternoonVoiceDuration: afternoonCheckIn?.voiceDurationSec,
         afternoonVoiceUrl: afternoonCheckIn?.voiceUrl,
+        afternoonWaveform: afternoonCheckIn?.waveform,
         afternoonAttachment: afternoonCheckIn?.attachment,
         afternoonTime: formatTimeHHMM(afternoonCheckIn?.createdAt),
         afternoonSyncStatus: afternoonCheckIn?.syncStatus || 'SYNCED',
@@ -234,6 +236,7 @@ export const RhythmProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       afternoonNote: cleanNote,
       afternoonVoiceDuration: voiceData?.duration,
       afternoonVoiceUrl: voiceData?.url,
+      afternoonWaveform: voiceData?.waveform,
       afternoonAttachment: attachment,
       afternoonTime: optimisticTime,
     }));

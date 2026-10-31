@@ -175,58 +175,90 @@ export async function POST(request: Request) {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 30000);
 
-        const userContent: any[] = [
-          {
-            type: 'text',
-            text:
-              localTranscript && localTranscript.trim()
-                ? `${promptText}\n(Gợi ý nhận diện thô từ trình duyệt để đối chiếu: "${localTranscript.trim()}")`
-                : promptText,
-          },
-          {
-            type: 'image_url',
-            image_url: { url: audioUrl },
-          },
+        const audioFormat = mimeType.includes('mp4')
+          ? 'mp4'
+          : mimeType.includes('ogg')
+          ? 'ogg'
+          : mimeType.includes('wav')
+          ? 'wav'
+          : mimeType.includes('mpeg') || mimeType.includes('mp3')
+          ? 'mp3'
+          : 'webm';
+
+        // Try OpenAI input_audio format first, and fall back to data URL image_url format
+        const payloads = [
+          [
+            {
+              type: 'text',
+              text:
+                localTranscript && localTranscript.trim()
+                  ? `${promptText}\n(Local browser speech hint: "${localTranscript.trim()}")`
+                  : promptText,
+            },
+            {
+              type: 'input_audio',
+              input_audio: {
+                data: base64Data,
+                format: audioFormat,
+              },
+            },
+          ],
+          [
+            {
+              type: 'text',
+              text:
+                localTranscript && localTranscript.trim()
+                  ? `${promptText}\n(Local browser speech hint: "${localTranscript.trim()}")`
+                  : promptText,
+            },
+            {
+              type: 'image_url',
+              image_url: { url: audioUrl },
+            },
+          ],
         ];
 
-        const aiRes = await fetch(`${cyoBaseUrl}/v1/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${cyoApiKey}`,
-          },
-          body: JSON.stringify({
-            model: cyoModel,
-            messages: [
-              { role: 'system', content: promptText },
-              { role: 'user', content: userContent },
-            ],
-            temperature: 0.1,
-          }),
-          signal: controller.signal,
-        }).finally(() => clearTimeout(timer));
+        for (const userContent of payloads) {
+          const aiRes = await fetch(`${cyoBaseUrl}/v1/chat/completions`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${cyoApiKey}`,
+            },
+            body: JSON.stringify({
+              model: cyoModel,
+              messages: [
+                { role: 'system', content: promptText },
+                { role: 'user', content: userContent },
+              ],
+              temperature: 0.1,
+            }),
+            signal: controller.signal,
+          });
 
-        if (aiRes.ok) {
-          const data = await aiRes.json();
-          const text = (data?.choices?.[0]?.message?.content || '').trim();
-          // Ensure the model didn't return an error/refusal about not seeing audio
-          const isRefusal =
-            /cannot|unable|không thể|không nhận được|no audio|provide the audio/i.test(
-              text
-            ) && text.length > 60;
-          if (text && !isRefusal) {
-            return NextResponse.json(
-              {
-                success: true,
-                transcript: text.replace(/^["“]|["”]$/g, '').trim(),
-                transcription: text.replace(/^["“]|["”]$/g, '').trim(),
-                source: 'cyo-gemini-stt',
-                model: cyoModel,
-              },
-              { headers: CORS_HEADERS }
-            );
+          if (aiRes.ok) {
+            const data = await aiRes.json();
+            const text = (data?.choices?.[0]?.message?.content || '').trim();
+            const isRefusal =
+              /cannot|unable|không thể|không nhận được|no audio|provide the audio|i don't have access|as an ai/i.test(
+                text
+              );
+            if (text && !isRefusal) {
+              clearTimeout(timer);
+              return NextResponse.json(
+                {
+                  success: true,
+                  transcript: text.replace(/^["“]|["”]$/g, '').trim(),
+                  transcription: text.replace(/^["“]|["”]$/g, '').trim(),
+                  source: 'cyo-gemini-stt',
+                  model: cyoModel,
+                },
+                { headers: CORS_HEADERS }
+              );
+            }
           }
         }
+        clearTimeout(timer);
       } catch {
         // Proceed to local speech recognition fallback
       }
