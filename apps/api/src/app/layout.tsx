@@ -13,7 +13,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="vi">
+    <html lang="en">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -66,6 +66,8 @@ export default function RootLayout({
                   root.setAttribute('data-theme', isDark ? 'dark' : 'light');
                   root.style.colorScheme = isDark ? 'dark' : 'light';
                   root.style.backgroundColor = isDark ? '#15100C' : '#FCF6EE';
+                  var lang = localStorage.getItem('nhipnha_language_preference') || 'en';
+                  root.setAttribute('lang', lang === 'vi' ? 'vi' : 'en');
                 } catch (e) {}
               })();
             `,

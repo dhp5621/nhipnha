@@ -18,8 +18,8 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 const LANGUAGE_STORAGE_KEY = 'nhipnha_language_preference';
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [preference, setPreference] = useState<LanguagePreference>('vi');
-  const [activeLanguage, setActiveLanguage] = useState<SupportedLanguage>('vi');
+  const [preference, setPreference] = useState<LanguagePreference>('en');
+  const [activeLanguage, setActiveLanguage] = useState<SupportedLanguage>('en');
 
   const detectSystemLanguage = (): SupportedLanguage => {
     if (typeof window !== 'undefined' && window.navigator) {
@@ -28,7 +28,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         if (lang.startsWith('vi')) return 'vi';
       } catch {}
     }
-    return 'vi';
+    return 'en';
   };
 
   const resolveLanguage = (pref: LanguagePreference): SupportedLanguage => {
@@ -45,12 +45,12 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           setPreference(saved);
           setActiveLanguage(resolveLanguage(saved));
         } else {
-          setPreference('vi');
-          setActiveLanguage('vi');
+          setPreference('en');
+          setActiveLanguage('en');
         }
       } catch {
-        setPreference('vi');
-        setActiveLanguage('vi');
+        setPreference('en');
+        setActiveLanguage('en');
       }
     }
   }, []);
