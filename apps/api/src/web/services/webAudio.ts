@@ -160,9 +160,15 @@ class WebAudioService {
               MediaRecorder.isTypeSupported(m)
             ) || ''
           : '';
-      const recorder = supportedMime
-        ? new MediaRecorder(this.mediaStream, { mimeType: supportedMime })
-        : new MediaRecorder(this.mediaStream);
+      const recorderOptions = supportedMime
+        ? { mimeType: supportedMime, audioBitsPerSecond: 32000 }
+        : { audioBitsPerSecond: 32000 };
+      let recorder: MediaRecorder;
+      try {
+        recorder = new MediaRecorder(this.mediaStream, recorderOptions);
+      } catch {
+        recorder = new MediaRecorder(this.mediaStream);
+      }
       recorder.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) {
           this.audioChunks.push(e.data);
@@ -221,8 +227,10 @@ class WebAudioService {
       const recorder = this.mediaRecorder!;
       recorder.onstop = () => {
         try {
-          const mime = recorder.mimeType || 'audio/webm';
-          const blob = new Blob(this.audioChunks, { type: mime });
+          // Strip codec parameter (e.g. 'audio/webm;codecs=opus' -> 'audio/webm') for clean Gemini inlineData & HTML5 Audio compatibility
+          const rawMime = recorder.mimeType || 'audio/webm';
+          const cleanMime = rawMime.split(';')[0].trim() || 'audio/webm';
+          const blob = new Blob(this.audioChunks, { type: cleanMime });
           const reader = new FileReader();
           reader.onloadend = () => {
             const dataUrl = (reader.result as string) || '';

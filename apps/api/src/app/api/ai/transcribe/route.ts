@@ -4,7 +4,8 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 const DEFAULT_GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com';
-const DEFAULT_GEMINI_AUDIO_MODEL = 'gemini-1.5-flash';
+// Use gemini-2.5-flash (current active multimodal audio model; gemini-1.5-flash is retired)
+const DEFAULT_GEMINI_AUDIO_MODEL = 'gemini-2.5-flash';
 const DEFAULT_CYO_BASE_URL = 'https://chat-api.chuyenbienhoa.com';
 const DEFAULT_CYO_MODEL = 'gemini-flash-lite';
 
@@ -13,6 +14,114 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-family-id, x-member-id',
 };
+
+/**
+ * Structured output schema matching Method 1 (`gemini-2.5-flash`) for bilingual
+ * Vietnamese ('vi') and English ('en') speech detection & verbatim transcription.
+ */
+const BILINGUAL_TRANSCRIPTION_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    detectedLanguages: {
+      type: 'ARRAY',
+      items: { type: 'STRING' },
+      description: "ISO language codes detected in audio (e.g. ['vi', 'en'])",
+    },
+    fullTranscript: {
+      type: 'STRING',
+      description: 'Complete verbatim spoken words combined in natural order',
+    },
+    segments: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          language: {
+            type: 'STRING',
+            description: "'vi' for Vietnamese, 'en' for English",
+          },
+          timestamp: {
+            type: 'STRING',
+            description: 'e.g. 00:00 - 00:05',
+          },
+          transcript: {
+            type: 'STRING',
+            description: 'Verbatim spoken words',
+          },
+        },
+        required: ['language', 'transcript'],
+      },
+    },
+  },
+  required: ['detectedLanguages', 'segments'],
+};
+
+const BILINGUAL_AUDIO_PROMPT = `Analyze this audio containing English and Vietnamese speech.
+- Identify when speakers switch languages.
+- Transcribe verbatim; do not translate Vietnamese into English or vice-versa.
+- Keep loan words and technical terms intact.
+- Categorize each segment by language ('vi' or 'en').
+- If the audio is completely silent or has no human speech, return empty segments [].`;
+
+function extractTranscriptFromStructuredOutput(rawText: string): {
+  transcript: string;
+  detectedLanguages: string[];
+  segments: Array<{ language: string; timestamp?: string; transcript: string }>;
+} | null {
+  if (!rawText) return null;
+  const trimmed = rawText.trim();
+
+  // Try parsing structured JSON response from gemini-2.5-flash
+  const jsonMatch = trimmed.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    try {
+      const parsed = JSON.parse(jsonMatch[0]);
+      const segments = Array.isArray(parsed.segments) ? parsed.segments : [];
+      const joinedSegments = segments
+        .map((s: any) => (typeof s?.transcript === 'string' ? s.transcript.trim() : ''))
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+      const full =
+        (typeof parsed.fullTranscript === 'string' && parsed.fullTranscript.trim()) ||
+        joinedSegments;
+      if (full) {
+        return {
+          transcript: full,
+          detectedLanguages: Array.isArray(parsed.detectedLanguages)
+            ? parsed.detectedLanguages
+            : [],
+          segments,
+        };
+      }
+      // Valid JSON with empty segments -> silence / no speech
+      if (Array.isArray(parsed.segments) && parsed.segments.length === 0) {
+        return {
+          transcript: '',
+          detectedLanguages: [],
+          segments: [],
+        };
+      }
+    } catch {
+      // Not valid JSON, fall through to plain text check
+    }
+  }
+
+  // Plain text transcript fallback
+  const isRefusal =
+    /cannot|unable|không thể|không nhận được|no audio|provide the audio|i don't have access|as an ai/i.test(
+      trimmed
+    );
+  if (!isRefusal && trimmed.length > 0) {
+    return {
+      transcript: trimmed.replace(/^["“]|["”]$/g, '').trim(),
+      detectedLanguages: [],
+      segments: [],
+    };
+  }
+
+  return null;
+}
 
 export async function OPTIONS() {
   return new NextResponse(null, {
@@ -26,8 +135,10 @@ export async function GET() {
     {
       status: 'ok',
       endpoint: '/api/ai/transcribe',
-      description: 'Dedicated Gemini Speech-to-Text & Audio Transcription Endpoint for Nhịp Nhà',
+      description:
+        'Bilingual (vi/en) Gemini 2.5 Flash Multimodal Speech-to-Text Endpoint for Nhịp Nhà',
       methods: ['GET', 'POST', 'OPTIONS'],
+      defaultModel: DEFAULT_GEMINI_AUDIO_MODEL,
       hasGeminiAudioKey: Boolean(
         process.env.GEMINI_AUDIO_API_KEY || process.env.GEMINI_API_KEY
       ),
@@ -77,17 +188,19 @@ export async function POST(request: Request) {
     let base64Data = '';
 
     if (audioUrl.startsWith('data:')) {
-      const matches = audioUrl.match(/^data:([^;]+);base64,(.+)$/);
-      if (matches) {
-        mimeType = matches[1].split(';')[0] || 'audio/webm';
-        base64Data = matches[2];
+      const commaIdx = audioUrl.indexOf(',');
+      if (commaIdx !== -1) {
+        const header = audioUrl.slice(0, commaIdx);
+        base64Data = audioUrl.slice(commaIdx + 1).trim();
+        const mimeMatch = header.match(/^data:([^;]+)/);
+        if (mimeMatch && mimeMatch[1]) {
+          // Strip codec parameters (e.g. 'audio/webm;codecs=opus' -> 'audio/webm') as required by Gemini inlineData
+          mimeType = mimeMatch[1].trim();
+        }
       }
     }
 
-    const promptText =
-      'You are an accurate bilingual speech-to-text recognition assistant supporting both Vietnamese (Tiếng Việt) and English. Listen to the audio and transcribe verbatim what the speaker says in the exact language they spoke (Vietnamese, English, or mixed). Output ONLY the raw spoken text without commentary, translation, quotes, or markdown. If the audio is silent or contains no speech, output NOTHING.';
-
-    // 1. Primary: Dedicated Google Native Generative Language API (if GEMINI_AUDIO_API_KEY or GEMINI_API_KEY is configured)
+    // 1. Primary: Google Gemini API (v1beta generateContent with gemini-2.5-flash & responseSchema)
     const geminiApiKey =
       process.env.GEMINI_AUDIO_API_KEY || process.env.GEMINI_API_KEY;
     const geminiBaseUrl = (
@@ -95,67 +208,84 @@ export async function POST(request: Request) {
       process.env.GEMINI_BASE_URL ||
       DEFAULT_GEMINI_BASE_URL
     ).replace(/\/+$/, '');
-    const geminiModel =
+    const configuredGeminiModel =
       process.env.GEMINI_AUDIO_MODEL ||
       process.env.GEMINI_MODEL ||
       DEFAULT_GEMINI_AUDIO_MODEL;
 
-    if (geminiApiKey && base64Data) {
-      try {
-        if (geminiBaseUrl.includes('googleapis.com') || geminiApiKey.startsWith('AIza')) {
-          const controller = new AbortController();
-          const timer = setTimeout(() => controller.abort(), 20000);
+    // Ensure retired gemini-1.5-flash is automatically upgraded to gemini-2.5-flash
+    const primaryGeminiModel = configuredGeminiModel.includes('1.5')
+      ? 'gemini-2.5-flash'
+      : configuredGeminiModel;
 
-          const geminiRes = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                contents: [
-                  {
-                    role: 'user',
-                    parts: [
-                      { text: promptText },
-                      {
-                        inlineData: {
-                          mimeType,
-                          data: base64Data,
-                        },
+    const candidateModels = Array.from(
+      new Set([primaryGeminiModel, 'gemini-2.5-flash', 'gemini-2.0-flash'])
+    );
+
+    if (geminiApiKey && base64Data) {
+      for (const modelName of candidateModels) {
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 25000);
+
+          const endpointUrl = geminiBaseUrl.includes('googleapis.com')
+            ? `${geminiBaseUrl}/v1beta/models/${modelName}:generateContent?key=${geminiApiKey}`
+            : `${geminiBaseUrl}/v1beta/models/${modelName}:generateContent?key=${geminiApiKey}`;
+
+          const geminiRes = await fetch(endpointUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [
+                {
+                  role: 'user',
+                  parts: [
+                    {
+                      inlineData: {
+                        mimeType,
+                        data: base64Data,
                       },
-                    ],
-                  },
-                ],
-                generationConfig: { temperature: 0.1 },
-              }),
-              signal: controller.signal,
-            }
-          ).finally(() => clearTimeout(timer));
+                    },
+                    { text: BILINGUAL_AUDIO_PROMPT },
+                  ],
+                },
+              ],
+              generationConfig: {
+                responseMimeType: 'application/json',
+                responseSchema: BILINGUAL_TRANSCRIPTION_SCHEMA,
+                temperature: 0.1,
+              },
+            }),
+            signal: controller.signal,
+          }).finally(() => clearTimeout(timer));
 
           if (geminiRes.ok) {
             const geminiJson = await geminiRes.json();
-            const recognized =
-              geminiJson?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-            if (recognized) {
+            const rawText =
+              geminiJson?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            const extracted = extractTranscriptFromStructuredOutput(rawText);
+            if (extracted && extracted.transcript) {
               return NextResponse.json(
                 {
                   success: true,
-                  transcript: recognized,
-                  transcription: recognized,
-                  source: 'gemini-native-audio',
-                  model: geminiModel,
+                  transcript: extracted.transcript,
+                  transcription: extracted.transcript,
+                  detectedLanguages: extracted.detectedLanguages,
+                  segments: extracted.segments,
+                  source: 'gemini-2.5-flash-multimodal',
+                  model: modelName,
                 },
                 { headers: CORS_HEADERS }
               );
             }
           }
+        } catch {
+          // Try next candidate model
         }
-      } catch {
-        // Proceed to CYO AI gateway or local fallback
       }
     }
 
-    // 2. Secondary AI Provider: Preexisting CYO AI Tool (gemini-flash-lite)
+    // 2. Secondary AI Provider: Preexisting CYO Gateway (tries native v1beta generateContent & OpenAI chat/completions)
     const cyoApiKey =
       process.env.AI_API_KEY ||
       process.env.TEXT_AI_API_KEY ||
@@ -171,9 +301,74 @@ export async function POST(request: Request) {
       DEFAULT_CYO_MODEL;
 
     if (cyoApiKey && base64Data) {
+      // 2a. Try Gemini-native v1beta passthrough on the gateway first (with gemini-2.5-flash & cyoModel)
+      for (const gwModel of ['gemini-2.5-flash', cyoModel]) {
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 20000);
+
+          const gwNativeRes = await fetch(
+            `${cyoBaseUrl}/v1beta/models/${gwModel}:generateContent?key=${cyoApiKey}`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${cyoApiKey}`,
+              },
+              body: JSON.stringify({
+                contents: [
+                  {
+                    role: 'user',
+                    parts: [
+                      {
+                        inlineData: {
+                          mimeType,
+                          data: base64Data,
+                        },
+                      },
+                      { text: BILINGUAL_AUDIO_PROMPT },
+                    ],
+                  },
+                ],
+                generationConfig: {
+                  responseMimeType: 'application/json',
+                  responseSchema: BILINGUAL_TRANSCRIPTION_SCHEMA,
+                  temperature: 0.1,
+                },
+              }),
+              signal: controller.signal,
+            }
+          ).finally(() => clearTimeout(timer));
+
+          if (gwNativeRes.ok) {
+            const gwJson = await gwNativeRes.json();
+            const rawText =
+              gwJson?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            const extracted = extractTranscriptFromStructuredOutput(rawText);
+            if (extracted && extracted.transcript) {
+              return NextResponse.json(
+                {
+                  success: true,
+                  transcript: extracted.transcript,
+                  transcription: extracted.transcript,
+                  detectedLanguages: extracted.detectedLanguages,
+                  segments: extracted.segments,
+                  source: 'gateway-v1beta-multimodal',
+                  model: gwModel,
+                },
+                { headers: CORS_HEADERS }
+              );
+            }
+          }
+        } catch {
+          // Proceed to OpenAI-compatible multimodal endpoint
+        }
+      }
+
+      // 2b. Try OpenAI-compatible /v1/chat/completions with multimodal audio content
       try {
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 30000);
+        const timer = setTimeout(() => controller.abort(), 25000);
 
         const audioFormat = mimeType.includes('mp4')
           ? 'mp4'
@@ -185,15 +380,13 @@ export async function POST(request: Request) {
           ? 'mp3'
           : 'webm';
 
-        // Try OpenAI input_audio format first, and fall back to data URL image_url format
+        const cleanDataUrl = `data:${mimeType};base64,${base64Data}`;
+
         const payloads = [
           [
             {
               type: 'text',
-              text:
-                localTranscript && localTranscript.trim()
-                  ? `${promptText}\n(Local browser speech hint: "${localTranscript.trim()}")`
-                  : promptText,
+              text: `${BILINGUAL_AUDIO_PROMPT}\nOutput JSON with {"detectedLanguages": ["vi"|"en"], "segments": [{"language": "vi"|"en", "transcript": "..."}]}`,
             },
             {
               type: 'input_audio',
@@ -206,14 +399,11 @@ export async function POST(request: Request) {
           [
             {
               type: 'text',
-              text:
-                localTranscript && localTranscript.trim()
-                  ? `${promptText}\n(Local browser speech hint: "${localTranscript.trim()}")`
-                  : promptText,
+              text: `${BILINGUAL_AUDIO_PROMPT}\nOutput JSON with {"detectedLanguages": ["vi"|"en"], "segments": [{"language": "vi"|"en", "transcript": "..."}]}`,
             },
             {
               type: 'image_url',
-              image_url: { url: audioUrl },
+              image_url: { url: cleanDataUrl },
             },
           ],
         ];
@@ -228,7 +418,7 @@ export async function POST(request: Request) {
             body: JSON.stringify({
               model: cyoModel,
               messages: [
-                { role: 'system', content: promptText },
+                { role: 'system', content: BILINGUAL_AUDIO_PROMPT },
                 { role: 'user', content: userContent },
               ],
               temperature: 0.1,
@@ -238,19 +428,18 @@ export async function POST(request: Request) {
 
           if (aiRes.ok) {
             const data = await aiRes.json();
-            const text = (data?.choices?.[0]?.message?.content || '').trim();
-            const isRefusal =
-              /cannot|unable|không thể|không nhận được|no audio|provide the audio|i don't have access|as an ai/i.test(
-                text
-              );
-            if (text && !isRefusal) {
+            const rawContent = (data?.choices?.[0]?.message?.content || '').trim();
+            const extracted = extractTranscriptFromStructuredOutput(rawContent);
+            if (extracted && extracted.transcript) {
               clearTimeout(timer);
               return NextResponse.json(
                 {
                   success: true,
-                  transcript: text.replace(/^["“]|["”]$/g, '').trim(),
-                  transcription: text.replace(/^["“]|["”]$/g, '').trim(),
-                  source: 'cyo-gemini-stt',
+                  transcript: extracted.transcript,
+                  transcription: extracted.transcript,
+                  detectedLanguages: extracted.detectedLanguages,
+                  segments: extracted.segments,
+                  source: 'cyo-gemini-multimodal',
                   model: cyoModel,
                 },
                 { headers: CORS_HEADERS }
@@ -260,7 +449,57 @@ export async function POST(request: Request) {
         }
         clearTimeout(timer);
       } catch {
-        // Proceed to local speech recognition fallback
+        // Proceed to local speech recognition refinement / fallback
+      }
+
+      // 2c. If browser captured raw localTranscript, use AI to clean/segment bilingual VI/EN text
+      if (localTranscript && localTranscript.trim()) {
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 15000);
+          const aiRefineRes = await fetch(`${cyoBaseUrl}/v1/chat/completions`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${cyoApiKey}`,
+            },
+            body: JSON.stringify({
+              model: cyoModel,
+              messages: [
+                {
+                  role: 'system',
+                  content:
+                    'You are a bilingual Vietnamese/English speech-to-text post-processor. Fix punctuation and capitalization while preserving the exact verbatim words in Vietnamese and English without translating. Output ONLY the cleaned transcript string.',
+                },
+                {
+                  role: 'user',
+                  content: localTranscript.trim(),
+                },
+              ],
+              temperature: 0.1,
+            }),
+            signal: controller.signal,
+          }).finally(() => clearTimeout(timer));
+
+          if (aiRefineRes.ok) {
+            const refineData = await aiRefineRes.json();
+            const refined = (refineData?.choices?.[0]?.message?.content || '').trim();
+            if (refined) {
+              return NextResponse.json(
+                {
+                  success: true,
+                  transcript: refined.replace(/^["“]|["”]$/g, '').trim(),
+                  transcription: refined.replace(/^["“]|["”]$/g, '').trim(),
+                  source: 'ai-refined-speech',
+                  model: cyoModel,
+                },
+                { headers: CORS_HEADERS }
+              );
+            }
+          }
+        } catch {
+          // Fall through to raw localTranscript
+        }
       }
     }
 
