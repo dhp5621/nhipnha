@@ -71,8 +71,8 @@ export const RoleSwitchScreen: React.FC<RoleSwitchScreenProps> = ({
       labelVi: 'Bà Nội (65–70 tuổi)',
       labelEn: 'Grandparent (65–70 yo)',
       icon: 'elderly',
-      descVi: 'Chăm cháu ở quê: Chữ cực lớn, tương phản cao WCAG AAA',
-      descEn: 'Elderly caregiver: Ultra large text, high contrast AAA',
+      descVi: 'Chăm cháu ở quê: Bảng giám sát nhịp sống, gửi lời yêu thương, chữ lớn',
+      descEn: 'Elderly caregiver: Family rhythm monitor, bedtime voice note, large text',
     },
   ];
 

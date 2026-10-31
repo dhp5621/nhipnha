@@ -313,6 +313,7 @@ async function generateEmpathyData(params: GenerateParams) {
     language = 'vi',
     isDemo = false,
   } = params;
+  const isVi = language === 'vi';
 
   const selectedMood: MoodType = mood || 'JOYFUL';
   const fallbackData = getFallbackEmpathy(

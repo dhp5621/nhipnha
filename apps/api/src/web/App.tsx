@@ -127,8 +127,8 @@ function NavigationRoot() {
       );
     }
 
-    // Parents have their dedicated monitor dashboard (with task monitoring for Morning, Afternoon, Evening)
-    if (member?.role === 'PARENT') {
+    // Parents and Grandparents have their dedicated monitor dashboard (with task monitoring for Morning, Afternoon, Evening)
+    if (member?.role === 'PARENT' || member?.role === 'GRANDPARENT') {
       return (
         <ParentDashboardScreen
           onNavigateToSwitch={() => navigateTo('ROLE_SWITCH')}
@@ -213,12 +213,12 @@ function NavigationRoot() {
               }}
             >
               <MIcon
-                name={member?.role === 'PARENT' ? 'insights' : 'home'}
+                name={member?.role === 'PARENT' || member?.role === 'GRANDPARENT' ? 'insights' : 'home'}
                 size={22}
                 color={isHomeTab ? colors.onPrimaryContainer : colors.textSecondary}
               />
               <span style={{ fontWeight: 700, fontSize: 14, fontFamily: 'inherit', fontSynthesis: 'none' }}>
-                {member?.role === 'PARENT'
+                {member?.role === 'PARENT' || member?.role === 'GRANDPARENT'
                   ? isVi
                     ? 'Nhịp Gia Đình'
                     : 'Family Rhythm'
@@ -456,7 +456,7 @@ function NavigationRoot() {
             }}
           >
             <MIcon
-              name={member?.role === 'PARENT' ? 'insights' : 'home'}
+              name={member?.role === 'PARENT' || member?.role === 'GRANDPARENT' ? 'insights' : 'home'}
               size={navIconSize}
               color={isHomeTab ? colors.onPrimaryContainer : colors.textSecondary}
             />
@@ -465,7 +465,7 @@ function NavigationRoot() {
               weight="800"
               color={isHomeTab ? colors.onPrimaryContainer : colors.textSecondary}
             >
-              {member?.role === 'PARENT'
+              {member?.role === 'PARENT' || member?.role === 'GRANDPARENT'
                 ? isVi
                   ? 'Nhịp Gia Đình'
                   : 'Family Rhythm'

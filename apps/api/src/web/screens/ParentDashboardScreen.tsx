@@ -114,6 +114,8 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
   const hasDiaryToday = state.afternoonCompleted;
   const activeAttachment = state.afternoonAttachment;
 
+  const isGrandparent = member?.role === 'GRANDPARENT';
+
   // Dynamically resolve the actual child's name from family members or check-ins
   const childName = useMemo(() => {
     const childMember = state.members.find((m) => m.role === 'CHILD');
@@ -121,8 +123,8 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
     const checkInChild = state.checkIns.find((c) => c.memberName && c.memberId !== member?.id);
     if (checkInChild?.memberName) return checkInChild.memberName;
     if (isDemoAccount) return 'Bé An';
-    return isVi ? 'Con' : 'Your Child';
-  }, [state.members, state.checkIns, member?.id, isDemoAccount, isVi]);
+    return isVi ? (isGrandparent ? 'Cháu' : 'Con') : (isGrandparent ? 'Your Grandchild' : 'Your Child');
+  }, [state.members, state.checkIns, member?.id, isDemoAccount, isVi, isGrandparent]);
 
   // Fetch AI Empathy Assistant suggestions when child diary exists
   useEffect(() => {
@@ -658,11 +660,13 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                   borderRadius: 999,
                 }}
               >
-                {member?.name} ({isVi ? 'Phụ huynh' : 'Parent'})
+                {member?.name} ({isGrandparent ? (isVi ? 'Ông / Bà' : 'Grandparent') : (isVi ? 'Phụ huynh' : 'Parent')})
               </span>
             </div>
             <AccessibleText variant="caption" color={colors.textSecondary}>
-              {isVi ? 'Dòng thời gian đồng hành & trợ lý thấu cảm từ xa' : 'Remote bonding timeline & AI Assistant'}
+              {isGrandparent
+                ? (isVi ? 'Bảng giám sát nhịp sinh hoạt & kết nối yêu thương cùng cháu' : 'Grandparent home monitor & loving family connection')
+                : (isVi ? 'Dòng thời gian đồng hành & trợ lý thấu cảm từ xa' : 'Remote bonding timeline & AI Assistant')}
             </AccessibleText>
           </div>
         </div>
@@ -1099,7 +1103,9 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <MIcon name="timeline" size={22} color={colors.primary} />
                   <AccessibleText variant="h2" weight="900" color={colors.textDark}>
-                    {isVi ? `Dòng Thời Gian Của ${childName}` : `${childName}'s Daily Timeline`}
+                    {isGrandparent
+                      ? (isVi ? `Nhịp Sinh Hoạt Của ${childName}` : `${childName}'s Daily Rhythms`)
+                      : (isVi ? `Dòng Thời Gian Của ${childName}` : `${childName}'s Daily Timeline`)}
                   </AccessibleText>
                 </div>
 
@@ -1147,7 +1153,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                 }}
                 title={isVi ? 'Bấm để mở bảng giám sát Nhịp Sáng bên phải' : 'Click to monitor Morning Wake-Up on the right'}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
                   <div
                     style={{
                       width: 38,
@@ -1162,7 +1168,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                   >
                     <MIcon name="wb_sunny" size={22} color="#8C4F00" />
                   </div>
-                  <div>
+                  <div style={{ minWidth: 0, overflow: 'hidden' }}>
                     <AccessibleText variant="bodyLarge" weight="800" color={colors.textDark}>
                       ☀️ {isVi ? 'Nhịp Sáng Chào Đi Học' : 'Morning Wake-Up'}
                     </AccessibleText>
@@ -1243,7 +1249,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                 }}
                 title={isVi ? 'Bấm để mở bảng giám sát Nhật Ký Chiều & AI bên phải' : 'Click to monitor Afternoon Diary & AI on the right'}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
                   <div
                     style={{
                       width: 38,
@@ -1258,7 +1264,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                   >
                     <MIcon name="palette" size={22} color="#9E3306" />
                   </div>
-                  <div>
+                  <div style={{ minWidth: 0, overflow: 'hidden' }}>
                     <AccessibleText variant="bodyLarge" weight="800" color={colors.textDark}>
                       🎒 {isVi ? 'Nhật Ký Chiều 15s' : 'Afternoon 15s Diary'}
                     </AccessibleText>
@@ -1339,7 +1345,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                 }}
                 title={isVi ? 'Bấm để mở phòng ghi âm Lời Dặn Buổi Tối bên phải' : 'Click to open Bedtime Guidance studio on the right'}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
                   <div
                     style={{
                       width: 38,
@@ -1354,7 +1360,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                   >
                     <MIcon name="nights_stay" size={22} color="#3D32B8" />
                   </div>
-                  <div>
+                  <div style={{ minWidth: 0, overflow: 'hidden' }}>
                     <AccessibleText variant="bodyLarge" weight="800" color={colors.textDark}>
                       🌙 {isVi ? 'Hộp Thư Thoại Tối' : 'Bedtime Guidance'}
                     </AccessibleText>
@@ -1456,13 +1462,19 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                 </div>
                 <div>
                   <AccessibleText variant="h2" weight="900" color={colors.textDark}>
-                    {isVi ? 'Bảng Giám Sát Nhịp Sống Của Con' : 'Child Rhythm Monitor Hub'}
+                    {isVi
+                      ? (isGrandparent ? 'Bảng Giám Sát Nhịp Sống Của Cháu' : 'Bảng Giám Sát Nhịp Sống Của Con')
+                      : (isGrandparent ? "Grandchild's Rhythm Monitor Hub" : "Child's Rhythm Monitor Hub")}
                   </AccessibleText>
                   <div style={{ marginTop: 8, maxWidth: 380, margin: '8px auto 0' }}>
                     <AccessibleText variant="bodyLarge" color={colors.textSecondary}>
                       {isVi
-                        ? 'Chưa chọn nhịp nào. Hãy bấm vào một nhịp trong Dòng Thời Gian bên trái để giám sát tình trạng thức dậy, nghe nhật ký 15s hoặc ghi âm dặn dò tối cho con.'
-                        : 'Nothing selected yet. Click an option in the timeline on the left to monitor morning wake-up, listen to 15s voice diary, or record bedtime guidance.'}
+                        ? (isGrandparent
+                            ? 'Chưa chọn nhịp nào. Hãy bấm vào một nhịp trong Dòng Thời Gian bên trái để giám sát tình trạng thức dậy, nghe nhật ký 15s hoặc gửi lời dặn tối cho cháu.'
+                            : 'Chưa chọn nhịp nào. Hãy bấm vào một nhịp trong Dòng Thời Gian bên trái để giám sát tình trạng thức dậy, nghe nhật ký 15s hoặc ghi âm dặn dò tối cho con.')
+                        : (isGrandparent
+                            ? 'Nothing selected yet. Click an option in the timeline on the left to monitor morning wake-up, listen to 15s voice diary, or send bedtime guidance to your grandchild.'
+                            : 'Nothing selected yet. Click an option in the timeline on the left to monitor morning wake-up, listen to 15s voice diary, or record bedtime guidance.')}
                     </AccessibleText>
                   </div>
                 </div>
@@ -1624,10 +1636,16 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                   <div style={{ fontSize: 13, color: state.morningCompleted ? (isDark ? '#86EFAC' : '#166534') : (isDark ? '#FDE68A' : '#78350F'), lineHeight: 1.5 }}>
                     {state.morningCompleted
                       ? isVi
-                        ? `Con đã gửi lời chào lúc ${state.morningTime || '06:45 sáng nay'}. Tín hiệu đã được xác thực an toàn trên máy chủ gia đình. Ba mẹ an tâm hoàn toàn khi bắt đầu ca sản xuất tại xưởng!`
-                        : `Child sent greeting at ${state.morningTime || '06:45 AM'}. Status safely synced on family server. Parents can have full peace of mind during work shift!`
+                        ? (isGrandparent
+                            ? `Cháu đã gửi lời chào lúc ${state.morningTime || '06:45 sáng nay'}. Tín hiệu đã được xác thực an toàn trên máy chủ. Ông bà và cha mẹ hoàn toàn an tâm!`
+                            : `Con đã gửi lời chào lúc ${state.morningTime || '06:45 sáng nay'}. Tín hiệu đã được xác thực an toàn trên máy chủ gia đình. Ba mẹ an tâm hoàn toàn khi bắt đầu ca sản xuất tại xưởng!`)
+                        : (isGrandparent
+                            ? `Child sent greeting at ${state.morningTime || '06:45 AM'}. Status safely synced. Grandparents and parents have full peace of mind!`
+                            : `Child sent greeting at ${state.morningTime || '06:45 AM'}. Status safely synced on family server. Parents can have full peace of mind during work shift!`)
                       : isVi
-                      ? `Tiếng chuông báo thức hẹn giờ tự động reo lúc 06:30 tại nhà. Ngay khi ${childName} thức dậy và bấm 1 chạm, bảng giám sát này sẽ cập nhật ngay lập tức.`
+                      ? (isGrandparent
+                          ? `Tiếng chuông báo thức hẹn giờ tự động reo lúc 06:30 tại nhà. Ngay khi ${childName} thức dậy và bấm 1 chạm, bảng giám sát này sẽ cập nhật ngay.`
+                          : `Tiếng chuông báo thức hẹn giờ tự động reo lúc 06:30 tại nhà. Ngay khi ${childName} thức dậy và bấm 1 chạm, bảng giám sát này sẽ cập nhật ngay lập tức.`)
                       : `The automated chime bell rings at 06:30 AM at home. As soon as ${childName} taps the morning greeting, this monitor updates live.`}
                   </div>
 
@@ -2048,7 +2066,9 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                     </div>
                     <div>
                       <AccessibleText variant="h2" weight="900" color={colors.textDark}>
-                        🌙 {isVi ? 'Phòng Ghi Âm Lời Dặn Tối (30s)' : 'Bedtime Guidance & Voice Studio (30s)'}
+                        🌙 {isVi
+                          ? (isGrandparent ? 'Gửi Lời Dặn Dò & Yêu Thương Cho Cháu (30s)' : 'Phòng Ghi Âm Lời Dặn Tối (30s)')
+                          : (isGrandparent ? 'Grandparent Bedtime Voice & Guidance (30s)' : 'Bedtime Guidance & Voice Studio (30s)')}
                       </AccessibleText>
                       <div>
                         <AccessibleText variant="caption" color={colors.textSecondary}>
@@ -2307,7 +2327,9 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                         textAlign: 'center',
                       }}
                     >
-                      {isVi ? 'Đã gửi lời dặn dò tối về máy con thành công!' : 'Bedtime message sent to child!'}
+                      {isVi
+                        ? (isGrandparent ? 'Đã gửi lời dặn dò tối về máy cháu thành công!' : 'Đã gửi lời dặn dò tối về máy con thành công!')
+                        : (isGrandparent ? 'Bedtime message sent to grandchild!' : 'Bedtime message sent to child!')}
                     </div>
                   ) : null}
 
@@ -2318,7 +2340,9 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                     loading={sendingMessage || isTranscribingParentVoice}
                     minHeight={62}
                   >
-                    {isVi ? 'GỬI LỜI DẶN DÒ TỐI VỀ CHO CON' : 'SEND BEDTIME GUIDANCE TO CHILD'}
+                    {isVi
+                      ? (isGrandparent ? 'GỬI LỜI DẶN DÒ TỐI VỀ CHO CHÁU' : 'GỬI LỜI DẶN DÒ TỐI VỀ CHO CON')
+                      : (isGrandparent ? 'SEND BEDTIME GUIDANCE TO GRANDCHILD' : 'SEND BEDTIME GUIDANCE TO CHILD')}
                   </BigButton>
                 </div>
               </div>
