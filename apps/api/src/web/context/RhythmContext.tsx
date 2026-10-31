@@ -187,8 +187,8 @@ export const RhythmProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         (c) => c.rhythmType === 'EVENING' && isToday(c.createdAt)
       );
 
-      const isGreetingDone =
-        !!morningCheckIn || (savedGreeting?.completed && savedGreeting?.date === todayDateStr);
+      const isGreetingDone: boolean =
+        !!morningCheckIn || Boolean(savedGreeting?.completed && savedGreeting?.date === todayDateStr);
       const morningGreetingTime =
         formatTimeHHMM(morningCheckIn?.createdAt) ||
         (savedGreeting?.date === todayDateStr ? savedGreeting.time : undefined);
