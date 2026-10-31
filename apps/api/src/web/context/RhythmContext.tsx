@@ -102,21 +102,71 @@ export const RhythmProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     try {
-      // 1. Try syncing any offline check-in queue first
+      // 1. Load local check-ins, messages, and greeting status from persistent storage
+      const localCheckIns = await webStorage.getLocalCheckIns(family.id);
+      const localMessages = await webStorage.getLocalMessages(family.id);
+      const savedGreeting = await webStorage.getGreetingCompleted(family.id);
+
+      // 2. Try syncing any offline check-in queue
       await apiClient.syncOfflineQueue();
       const offlineQueue = await webStorage.getOfflineQueue();
 
-      // 2. Fetch full timeline (7-day checkIns, messages, members)
-      const timelineData = await apiClient.getFamilyTimeline(family.id);
-      if (!timelineData || !timelineData.checkIns) {
-        return;
+      // 3. Fetch full timeline from server
+      let serverCheckIns: CheckIn[] = [];
+      let serverMessages: Message[] = [];
+      let members: Member[] = [];
+      let rhythmScore = 0;
+
+      try {
+        const timelineData = await apiClient.getFamilyTimeline(family.id);
+        if (timelineData) {
+          serverCheckIns = timelineData.checkIns || [];
+          serverMessages = timelineData.messages || [];
+          members = timelineData.members || [];
+          rhythmScore = timelineData.rhythmScore || 0;
+        }
+      } catch (e) {
+        console.warn('Network error fetching family timeline, using local cache:', e);
       }
 
-      const { checkIns, messages, members = [], rhythmScore = 0 } = timelineData;
+      // 4. Merge server check-ins with local check-ins (guarantees data such as greeting survives Vercel redeployments)
+      const mergedCheckInsMap = new Map<string, CheckIn>();
+      for (const item of serverCheckIns) {
+        mergedCheckInsMap.set(item.id, item);
+      }
+      const missingOnServer: CheckIn[] = [];
+      for (const item of localCheckIns) {
+        if (!mergedCheckInsMap.has(item.id)) {
+          mergedCheckInsMap.set(item.id, item);
+          missingOnServer.push(item);
+        }
+      }
 
-      // For real production accounts, filter today's check-ins for the daily status cards
-      // while preserving the full 7-day checkIns array for Weekly Recap.
-      // For the demo account, show the latest seeded check-in so judges always see active state.
+      // Re-populate server in background if server cold-started after redeployment
+      if (missingOnServer.length > 0 && !isDemoAccount) {
+        Promise.all(missingOnServer.map((c) => apiClient.submitCheckIn(c).catch(() => null))).catch(() => null);
+      }
+
+      // Merge server messages with local messages
+      const mergedMessagesMap = new Map<string, Message>();
+      for (const item of serverMessages) {
+        mergedMessagesMap.set(item.id, item);
+      }
+      for (const item of localMessages) {
+        mergedMessagesMap.set(item.id, item);
+      }
+
+      const checkIns = Array.from(mergedCheckInsMap.values()).sort((a, b) =>
+        (b.createdAt || '').localeCompare(a.createdAt || '')
+      );
+      const messages = Array.from(mergedMessagesMap.values()).sort((a, b) =>
+        (b.createdAt || '').localeCompare(a.createdAt || '')
+      );
+
+      // Persist the combined sets locally
+      await webStorage.saveLocalCheckIns(family.id, checkIns);
+      await webStorage.saveLocalMessages(family.id, messages);
+
       const todayDateStr = new Date().toISOString().slice(0, 10);
       const isToday = (iso?: string) => {
         if (isDemoAccount) return true;
@@ -137,19 +187,25 @@ export const RhythmProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         (c) => c.rhythmType === 'EVENING' && isToday(c.createdAt)
       );
 
+      const isGreetingDone =
+        !!morningCheckIn || (savedGreeting?.completed && savedGreeting?.date === todayDateStr);
+      const morningGreetingTime =
+        formatTimeHHMM(morningCheckIn?.createdAt) ||
+        (savedGreeting?.date === todayDateStr ? savedGreeting.time : undefined);
+
       setState((prev) => ({
         ...prev,
         pendingOfflineCount: offlineQueue.length,
-        members,
+        members: members.length > 0 ? members : prev.members,
         checkIns,
         messages,
-        rhythmScore,
+        rhythmScore: rhythmScore || prev.rhythmScore,
 
-        // Morning
-        morningCompleted: !!morningCheckIn,
-        morningTime: formatTimeHHMM(morningCheckIn?.createdAt),
+        // Morning Wake-Up / Greeting (persists across Vercel deployments)
+        morningCompleted: isGreetingDone,
+        morningTime: morningGreetingTime,
 
-        // Afternoon
+        // Afternoon 15s Diary
         afternoonCompleted: !!afternoonCheckIn,
         afternoonMood: afternoonCheckIn?.mood,
         afternoonNote: afternoonCheckIn?.note,
@@ -160,7 +216,7 @@ export const RhythmProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         afternoonTime: formatTimeHHMM(afternoonCheckIn?.createdAt),
         afternoonSyncStatus: afternoonCheckIn?.syncStatus || 'SYNCED',
 
-        // Evening
+        // Evening Bedtime Guidance
         eveningCompleted: !!eveningMessage,
         eveningListened: !!eveningMessage?.listenedAt,
         eveningMessageId: eveningMessage?.id,
@@ -193,7 +249,29 @@ export const RhythmProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const submitMorningTouch = async () => {
     if (!family?.id || !member?.id) return;
 
-    const optimisticTime = formatTimeHHMM(new Date().toISOString());
+    const nowIso = new Date().toISOString();
+    const optimisticTime = formatTimeHHMM(nowIso);
+    const todayDateStr = nowIso.slice(0, 10);
+
+    // Save morning greeting to persistent local storage immediately
+    await webStorage.saveGreetingCompleted(family.id, {
+      completed: true,
+      time: optimisticTime,
+      date: todayDateStr,
+    });
+
+    const localCheckIn: CheckIn = {
+      id: `chk_morning_${Date.now()}`,
+      familyId: family.id,
+      memberId: member.id,
+      memberName: member.name,
+      rhythmType: 'MORNING',
+      note: 'Con chuẩn bị đi học đây ạ!',
+      syncStatus: 'SYNCED',
+      createdAt: nowIso,
+    };
+    await webStorage.saveLocalCheckIn(localCheckIn);
+
     setState((prev) => ({
       ...prev,
       morningCompleted: true,
@@ -201,13 +279,7 @@ export const RhythmProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }));
 
     try {
-      await apiClient.submitCheckIn({
-        familyId: family.id,
-        memberId: member.id,
-        memberName: member.name,
-        rhythmType: 'MORNING',
-        note: 'Con chuẩn bị đi học đây ạ!',
-      });
+      await apiClient.submitCheckIn(localCheckIn);
       await refreshRhythm();
     } catch (err) {
       console.error('Error submitting morning touch:', err);
@@ -228,7 +300,28 @@ export const RhythmProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         ? 'Chiều nay con đi học về vui lắm, con ăn canh chua bà nấu và chụp ảnh khoe bố mẹ nè!'
         : undefined);
 
-    const optimisticTime = formatTimeHHMM(new Date().toISOString());
+    const nowIso = new Date().toISOString();
+    const optimisticTime = formatTimeHHMM(nowIso);
+
+    const checkInPayload: CheckIn = {
+      id: `chk_afternoon_${Date.now()}`,
+      familyId: family.id,
+      memberId: member.id,
+      memberName: member.name,
+      rhythmType: 'AFTERNOON',
+      mood,
+      note: cleanNote,
+      voiceDurationSec: voiceData?.duration,
+      voiceUrl: voiceData?.url,
+      waveform: voiceData?.waveform,
+      attachment,
+      syncStatus: 'SYNCED',
+      createdAt: nowIso,
+    };
+
+    // Save to local persistent storage immediately
+    await webStorage.saveLocalCheckIn(checkInPayload);
+
     setState((prev) => ({
       ...prev,
       afternoonCompleted: true,
@@ -242,18 +335,7 @@ export const RhythmProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }));
 
     try {
-      await apiClient.submitCheckIn({
-        familyId: family.id,
-        memberId: member.id,
-        memberName: member.name,
-        rhythmType: 'AFTERNOON',
-        mood,
-        note: cleanNote,
-        voiceDurationSec: voiceData?.duration,
-        voiceUrl: voiceData?.url,
-        waveform: voiceData?.waveform,
-        attachment,
-      });
+      await apiClient.submitCheckIn(checkInPayload);
       await refreshRhythm();
     } catch (err) {
       console.error('Error submitting afternoon touch:', err);
@@ -272,8 +354,26 @@ export const RhythmProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     note?: string
   ) => {
     if (!family?.id || !member?.id) return;
-    const nowTime = formatTimeHHMM(new Date().toISOString());
+    const nowIso = new Date().toISOString();
+    const nowTime = formatTimeHHMM(nowIso);
     const finalNote = note?.trim() || 'Con chúc bố mẹ ngủ ngon ạ, con yêu bố mẹ!';
+
+    const extraCheckIn: CheckIn = {
+      id: `chk_evening_extra_${Date.now()}`,
+      familyId: family.id,
+      memberId: member.id,
+      memberName: member.name,
+      rhythmType: 'EVENING',
+      note: finalNote,
+      voiceDurationSec: voiceData?.duration || 5,
+      voiceUrl: voiceData?.url,
+      waveform: voiceData?.waveform,
+      syncStatus: 'SYNCED',
+      createdAt: nowIso,
+    };
+
+    await webStorage.saveLocalCheckIn(extraCheckIn);
+
     setState((prev) => ({
       ...prev,
       eveningExtraReplied: true,
@@ -284,16 +384,7 @@ export const RhythmProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }));
 
     try {
-      await apiClient.submitCheckIn({
-        familyId: family.id,
-        memberId: member.id,
-        memberName: member.name,
-        rhythmType: 'EVENING',
-        note: finalNote,
-        voiceDurationSec: voiceData?.duration || 5,
-        voiceUrl: voiceData?.url,
-        waveform: voiceData?.waveform,
-      });
+      await apiClient.submitCheckIn(extraCheckIn);
       await refreshRhythm();
     } catch (err) {
       console.error('Error submitting evening extra reply:', err);

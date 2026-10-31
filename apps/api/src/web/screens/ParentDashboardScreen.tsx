@@ -1714,7 +1714,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                       }}
                     >
                       <MIcon name={isPlayingMorningBell ? 'stop' : 'volume_up'} size={18} color="#FFFFFF" />
-                      <span>{isPlayingMorningBell ? (isVi ? 'Dừng phát' : 'Stop') : isVi ? 'Nghe thử chuông' : 'Preview Chime'}</span>
+                      <span>{isPlayingMorningBell ? (isVi ? 'Dừng phát' : 'Stop') : isVi ? 'Nghe thử chuông' : 'Play'}</span>
                     </button>
                   </div>
 

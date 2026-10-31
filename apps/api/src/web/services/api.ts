@@ -34,9 +34,17 @@ export interface FamilyTimelineResponse {
 
 let apiSession: { memberId: string; token?: string } | null = null;
 
-// Multi-layer memory + session cache for AI Empathy and Audio Transcription to eliminate redundant API calls and reduce latency
+// Multi-layer memory + session cache for AI Empathy, Audio Transcription, and Weekly Recap
 const empathyMemoryCache = new Map<string, EmpathyAssistantResponse>();
 const transcribeMemoryCache = new Map<string, { transcript: string; source: string }>();
+const weeklyRecapMemoryCache = new Map<
+  string,
+  {
+    weeklyOverview: string;
+    narrativeHighlights: Array<{ emoji: string; title: string; detail: string }>;
+    weekendSuggestions: string[];
+  }
+>();
 
 function getSessionItemSafe<T>(key: string): T | null {
   try {
@@ -350,6 +358,7 @@ export const apiClient = {
       unauthorizedHandler();
     }
     if (res.ok && data?.success && data.data) {
+      await webStorage.saveLocalCheckIn(data.data);
       return data.data;
     }
     if (res.status >= 400 && res.status < 500) {
@@ -481,7 +490,7 @@ export const apiClient = {
     };
   },
 
-  // AI 7-Day Weekly Bonding Recap (NLP Level 2)
+  // AI 7-Day Weekly Bonding Recap (NLP Level 2 with smart language & memoized caching)
   async getWeeklyRecap(params: {
     childName: string;
     language: 'vi' | 'en';
@@ -498,6 +507,28 @@ export const apiClient = {
     narrativeHighlights: Array<{ emoji: string; title: string; detail: string }>;
     weekendSuggestions: string[];
   } | null> {
+    const checkInsDigest = (params.checkIns || [])
+      .slice(0, 10)
+      .map(
+        (c) =>
+          `${c.rhythmType || ''}_${c.mood || ''}_${c.createdAt || ''}_${(c.note || '').slice(0, 15)}`
+      )
+      .join('|');
+    const cacheKey = `weekly:${params.childName}:${params.language}:${params.isDemo ? 'demo' : 'prod'}:${checkInsDigest}`;
+
+    if (weeklyRecapMemoryCache.has(cacheKey)) {
+      return weeklyRecapMemoryCache.get(cacheKey)!;
+    }
+    const sessionCached = getSessionItemSafe<{
+      weeklyOverview: string;
+      narrativeHighlights: Array<{ emoji: string; title: string; detail: string }>;
+      weekendSuggestions: string[];
+    }>(cacheKey);
+    if (sessionCached) {
+      weeklyRecapMemoryCache.set(cacheKey, sessionCached);
+      return sessionCached;
+    }
+
     try {
       const res = await fetch(`${API_BASE}/ai/empathy-assistant`, {
         method: 'POST',
@@ -509,6 +540,8 @@ export const apiClient = {
       });
       const data = await res.json();
       if (data.success && data.data) {
+        weeklyRecapMemoryCache.set(cacheKey, data.data);
+        setSessionItemSafe(cacheKey, data.data);
         return data.data;
       }
     } catch (e) {
@@ -517,7 +550,7 @@ export const apiClient = {
     return null;
   },
 
-  // Send Bedtime Message from Parent to database
+  // Send Bedtime Message from Parent to database (persists locally across deployments)
   async sendBedtimeMessage(message: Partial<Message>): Promise<Message> {
     if (!message.familyId) {
       throw new Error('Missing familyId for bedtime message');
@@ -526,6 +559,9 @@ export const apiClient = {
       method: 'POST',
       body: JSON.stringify(message),
     });
+    if (data.data) {
+      await webStorage.saveLocalMessage(data.data);
+    }
     return data.data;
   },
 

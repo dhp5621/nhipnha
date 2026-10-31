@@ -33,8 +33,79 @@ function getFallbackEmpathy(
 ): EmpathyAssistantResponse {
   const isVi = language === 'vi';
 
-  // If Demo Account, preserve the rich Dong Thap demo story
+  // If Demo Account, preserve the rich Dong Thap demo story in user's selected language
   if (isDemo) {
+    if (!isVi) {
+      let summary = '';
+      let keywords: string[] = [];
+      let suggestedPrompts: string[] = [];
+      let toneExplanation = '';
+      let cvInsight = '';
+
+      switch (selectedMood) {
+        case 'JOYFUL':
+          summary = `${childName} had a very joyful day at school today, was praised by the teacher for drawing a beautiful lotus flower, and enjoyed a warm dinner with grandma.`;
+          keywords = ['#LotusFlowerDrawing', '#PraisedByTeacher', '#GrandmasSourSoup', '#LookingForwardToWeekend'];
+          suggestedPrompts = [
+            'What was the happiest game you played with your friends today? Tell Mom all about it!',
+            'Mom heard you were having so much fun today, do you have any exciting stories to share with me?',
+            'Seeing you so happy today makes all my tiredness at the factory melt away, you are my wonderful love!',
+          ];
+          toneExplanation =
+            'Keep warm curiosity and encourage your child to share joyful feelings rather than asking about homework scores.';
+          cvInsight =
+            'Warm pink & bright yellow tones — Positive visual cues reflecting deep affection and family connection.';
+          break;
+        case 'CALM':
+          summary = `${childName} spent a calm and peaceful day, relaxing on the front porch with grandparents in the cool afternoon.`;
+          keywords = ['#PeacefulDay', '#WithGrandparents', '#CountryHomeTranquility'];
+          suggestedPrompts = [
+            'The afternoon breeze feels so pleasant, did you help grandma water the garden today?',
+            'Did you and grandma finish dinner yet? Remember to drink some warm water before bedtime!',
+            'Mom is about to finish my shift, seeing you safe and peaceful gives me the greatest peace of mind.',
+          ];
+          toneExplanation = 'Fosters a comforting sense of parental presence across distance.';
+          cvInsight = 'Family daily life theme — A peaceful, steady rhythm with grandparents at home.';
+          break;
+        case 'TIRED':
+          summary = `${childName} is feeling a little tired after school. A gentle reassuring check-in and early rest will help.`;
+          keywords = ['#FeelingTired', '#NeedGentleRest', '#ZeroScorePressure'];
+          suggestedPrompts = [
+            'Mom heard in your voice that you sound a bit tired, does your back ache? Let Mom tell grandma to make warm soup for you.',
+            'Rest early tonight, sweetie, do not worry about homework—your health and well-being come first.',
+            'Mom sends you a big warm hug! Drink some warm milk and rest your eyes early tonight.',
+          ];
+          toneExplanation =
+            'Validates physical fatigue without pressing for academic performance.';
+          cvInsight =
+            'Muted soothing colors — Visual cue: Child needs gentle comfort and unconditional parental love.';
+          break;
+        case 'NEED_HUG':
+        default:
+          summary = `${childName} misses Mom and Dad deeply this evening. Children living apart from parents need steady reassurance and reunion promises.`;
+          keywords = ['#MissMomAndDad', '#NeedAHug', '#WeekendCountdown'];
+          suggestedPrompts = [
+            `Mom misses you so much too, ${childName}! I keep your drawing right here on my work desk.`,
+            'Only a few more days until the weekend when Mom and Dad visit home, we will go to the village market together!',
+            'Hug the teddy bear Mom got you on my behalf tonight, we are always so proud of you and love you so much!',
+          ];
+          toneExplanation =
+            'Soothes separation anxiety, conveying unconditional love and a concrete reunion date.';
+          cvInsight =
+            'Home & family theme — Child eagerly longs for parents’ loving physical presence.';
+          break;
+      }
+
+      if (childMessage) {
+        summary += ` Child's note: "${childMessage}"`;
+      }
+      if (attachmentTitle) {
+        cvInsight = `${attachmentTitle} — ${cvInsight}`;
+      }
+
+      return { summary, keywords, suggestedPrompts, toneExplanation, cvInsight };
+    }
+
     let summary = '';
     let keywords: string[] = [];
     let suggestedPrompts: string[] = [];
@@ -309,7 +380,9 @@ Nguyên tắc AI lấy con người làm trung tâm (Cấp độ 1 & 2):
   const actualMessage =
     childMessage?.trim() ||
     (isDemo
-      ? 'Chiều nay con đi học về vui lắm, con vẽ bông hoa sen tặng mẹ và ăn canh chua bà nấu.'
+      ? (!isVi
+          ? 'This afternoon after school was so happy, I drew a pink lotus flower for mom and had sweet and sour soup with grandma.'
+          : 'Chiều nay con đi học về vui lắm, con vẽ bông hoa sen tặng mẹ và ăn canh chua bà nấu.')
       : language === 'en'
       ? '(Child selected an emotion without recording a spoken note)'
       : '(Bé chọn biểu tượng cảm xúc, chưa ghi âm lời nhắn chi tiết)');
@@ -317,12 +390,20 @@ Nguyên tắc AI lấy con người làm trung tâm (Cấp độ 1 & 2):
   const actualAttachment =
     attachmentTitle?.trim() ||
     (isDemo
-      ? 'Nét vẽ: Hoa sen hồng tặng mẹ'
+      ? (!isVi ? 'Doodle: Pink lotus flower for mom' : 'Nét vẽ: Hoa sen hồng tặng mẹ')
       : language === 'en'
       ? '(No photo/doodle attached)'
       : '(Chưa đính kèm tranh/ảnh)');
 
-  const userPrompt = `Thông tin Nhật ký tương tác 15 giây của bé:
+  const userPrompt = language === 'en'
+    ? `Child 15-second check-in details:
+- Child Name: ${childName}
+- Selected Mood: ${selectedMood}
+- 15s Spoken Message / Notes: ${actualMessage}
+- Doodle / Attached Photo: ${actualAttachment}
+Analyze the check-in truthfully according to the provided data and return JSON in the required schema.
+IMPORTANT: All output text (summary, keywords, suggestedPrompts, toneExplanation, cvInsight) MUST be written in natural, warm English.`
+    : `Thông tin Nhật ký tương tác 15 giây của bé:
 - Tên bé: ${childName}
 - Biểu tượng cảm xúc đã chọn: ${selectedMood}
 - Lời nhắn thoại 15s / Ghi chú của bé: ${actualMessage}
@@ -561,7 +642,9 @@ Output ONLY valid JSON matching:
           { role: 'system', content: systemPrompt },
           {
             role: 'user',
-            content: `Dữ liệu 7 ngày của bé ${childName}:\n${logsText}\nHãy tổng hợp JSON.`,
+            content: isVi
+              ? `Dữ liệu 7 ngày của bé ${childName}:\n${logsText}\nHãy tổng hợp JSON.`
+              : `7-day check-in logs for ${childName}:\n${logsText}\nPlease synthesize JSON in natural, warm English matching the required schema.`,
           },
         ],
         temperature: 0.5,
