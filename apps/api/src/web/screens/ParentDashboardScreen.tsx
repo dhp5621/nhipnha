@@ -15,10 +15,16 @@ import { GoogleLoadingIndicator } from '../components/GoogleLoadingIndicator';
 
 interface ParentDashboardScreenProps {
   onNavigateToSwitch: () => void;
+  onNavigateToMorning?: () => void;
+  onNavigateToAfternoon?: () => void;
+  onNavigateToEvening?: () => void;
 }
 
 export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
   onNavigateToSwitch,
+  onNavigateToMorning,
+  onNavigateToAfternoon,
+  onNavigateToEvening,
 }) => {
   const { family, member, isDemoAccount } = useAuth();
   const { state, refreshRhythm } = useRhythm();
@@ -48,6 +54,19 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
     waveform: number[];
     transcript?: string;
   } | null>(null);
+
+  const [highlightBedtime, setHighlightBedtime] = useState(false);
+  const bedtimeSectionRef = useRef<HTMLDivElement | null>(null);
+
+  const handleOpenBedtimeSection = () => {
+    if (bedtimeSectionRef.current) {
+      bedtimeSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setHighlightBedtime(true);
+      setTimeout(() => setHighlightBedtime(false), 2400);
+    } else if (onNavigateToEvening) {
+      onNavigateToEvening();
+    }
+  };
 
   const [isPlayingChildVoice, setIsPlayingChildVoice] = useState(false);
   const [autoTranscribedChildVoice, setAutoTranscribedChildVoice] = useState<string>('');
@@ -1068,6 +1087,16 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
 
               {/* Rhythm 1: Morning wake-up check */}
               <div
+                role="button"
+                tabIndex={0}
+                onClick={() => onNavigateToMorning?.()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onNavigateToMorning?.();
+                  }
+                }}
+                className="timeline-touch-card"
                 style={{
                   backgroundColor: colors.surfaceContainer,
                   padding: '14px 18px',
@@ -1075,7 +1104,10 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
+                  cursor: 'pointer',
+                  border: `1px solid ${colors.outlineVariant}`,
                 }}
+                title={isVi ? 'Bấm để mở màn hình Chạm Sáng' : 'Click to open Morning Touch'}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div
@@ -1087,6 +1119,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
+                      flexShrink: 0,
                     }}
                   >
                     <MIcon name="wb_sunny" size={22} color="#8C4F00" />
@@ -1099,32 +1132,57 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                       <AccessibleText variant="caption" color={colors.textSecondary}>
                         {state.morningCompleted
                           ? isVi
-                            ? `Con đã gửi lúc ${state.morningTime || 'sáng nay'}`
-                            : `Sent at ${state.morningTime || 'this morning'}`
+                            ? `Con đã gửi lúc ${state.morningTime || 'sáng nay'} • Bấm để nghe chuông & xem lại`
+                            : `Sent at ${state.morningTime || 'this morning'} • Tap to review & hear chime`
                           : isVi
-                          ? 'Chưa nhận được lời chào'
-                          : 'Pending'}
+                          ? 'Chưa nhận được lời chào • Bấm để mở Chạm Sáng'
+                          : 'Pending • Tap to open Morning Touch'}
                       </AccessibleText>
                     </div>
                   </div>
                 </div>
 
-                <span
-                  style={{
-                    backgroundColor: state.morningCompleted ? '#DCFCE7' : colors.surfaceContainerHighest,
-                    color: state.morningCompleted ? '#15803D' : colors.textMuted,
-                    fontSize: 11,
-                    fontWeight: 800,
-                    padding: '4px 10px',
-                    borderRadius: 999,
-                  }}
-                >
-                  {state.morningCompleted ? (isVi ? 'Đã Chào' : 'Completed') : isVi ? 'Chờ con' : 'Waiting'}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                  <span
+                    style={{
+                      backgroundColor: state.morningCompleted ? '#DCFCE7' : colors.surfaceContainerHighest,
+                      color: state.morningCompleted ? '#15803D' : colors.textMuted,
+                      fontSize: 11,
+                      fontWeight: 800,
+                      padding: '4px 10px',
+                      borderRadius: 999,
+                    }}
+                  >
+                    {state.morningCompleted ? (isVi ? 'Đã Chào' : 'Completed') : isVi ? 'Chờ con' : 'Waiting'}
+                  </span>
+                  <div
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: '50%',
+                      backgroundColor: colors.surfaceContainerHigh,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <MIcon name="chevron_right" size={18} color={colors.textSecondary} />
+                  </div>
+                </div>
               </div>
 
               {/* Rhythm 2: Afternoon Diary (Mood, Voice, Doodle/Photo) */}
               <div
+                role={!state.afternoonCompleted ? 'button' : undefined}
+                tabIndex={!state.afternoonCompleted ? 0 : undefined}
+                onClick={!state.afternoonCompleted ? () => onNavigateToAfternoon?.() : undefined}
+                onKeyDown={!state.afternoonCompleted ? (e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onNavigateToAfternoon?.();
+                  }
+                } : undefined}
+                className={!state.afternoonCompleted ? 'timeline-touch-card' : undefined}
                 style={{
                   backgroundColor: colors.surfaceContainer,
                   padding: '16px 18px',
@@ -1132,7 +1190,10 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 12,
+                  cursor: !state.afternoonCompleted ? 'pointer' : 'default',
+                  border: `1px solid ${colors.outlineVariant}`,
                 }}
+                title={!state.afternoonCompleted ? (isVi ? 'Bấm để mở màn hình Chạm Chiều' : 'Click to open Afternoon Touch') : undefined}
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -1145,6 +1206,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        flexShrink: 0,
                       }}
                     >
                       <MIcon name="palette" size={22} color="#9E3306" />
@@ -1160,25 +1222,67 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                               ? `Gửi lúc ${state.afternoonTime || 'chiều nay'}`
                               : `Sent at ${state.afternoonTime || 'afternoon'}`
                             : isVi
-                            ? 'Đang chờ con tan học về gửi'
-                            : 'Waiting for child'}
+                            ? 'Đang chờ con tan học về gửi • Bấm để mở Nhật Ký Chiều'
+                            : 'Waiting for child • Tap to open Afternoon Diary'}
                         </AccessibleText>
                       </div>
                     </div>
                   </div>
 
-                  <span
-                    style={{
-                      backgroundColor: moodBadge.bg,
-                      color: moodBadge.color,
-                      fontSize: 12,
-                      fontWeight: 900,
-                      padding: '4px 10px',
-                      borderRadius: 999,
-                    }}
-                  >
-                    {moodBadge.label}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                    <span
+                      style={{
+                        backgroundColor: moodBadge.bg,
+                        color: moodBadge.color,
+                        fontSize: 12,
+                        fontWeight: 900,
+                        padding: '4px 10px',
+                        borderRadius: 999,
+                      }}
+                    >
+                      {moodBadge.label}
+                    </span>
+                    {!state.afternoonCompleted ? (
+                      <div
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: '50%',
+                          backgroundColor: colors.surfaceContainerHigh,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <MIcon name="chevron_right" size={18} color={colors.textSecondary} />
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onNavigateToAfternoon?.();
+                        }}
+                        style={{
+                          border: 'none',
+                          backgroundColor: colors.surfaceContainerHigh,
+                          color: colors.textDark,
+                          fontSize: 11,
+                          fontWeight: 800,
+                          padding: '4px 8px',
+                          borderRadius: 999,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                        }}
+                        title={isVi ? 'Mở màn hình Chạm Chiều' : 'Open Afternoon Screen'}
+                      >
+                        <span>{isVi ? 'Mở' : 'Open'}</span>
+                        <MIcon name="chevron_right" size={14} color={colors.textSecondary} />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {state.afternoonCompleted ? (
@@ -1345,6 +1449,16 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
 
               {/* Rhythm 3: Evening status */}
               <div
+                role="button"
+                tabIndex={0}
+                onClick={handleOpenBedtimeSection}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleOpenBedtimeSection();
+                  }
+                }}
+                className="timeline-touch-card"
                 style={{
                   backgroundColor: colors.surfaceContainer,
                   padding: '14px 18px',
@@ -1352,7 +1466,10 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 10,
+                  cursor: 'pointer',
+                  border: `1px solid ${colors.outlineVariant}`,
                 }}
+                title={isVi ? 'Bấm để ghi âm lời dặn tối' : 'Click to go to bedtime voice recorder'}
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -1365,6 +1482,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        flexShrink: 0,
                       }}
                     >
                       <MIcon name="nights_stay" size={22} color="#3D32B8" />
@@ -1377,43 +1495,85 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                         <AccessibleText variant="caption" color={colors.textSecondary}>
                           {state.eveningListened
                             ? isVi
-                              ? 'Bé đã nghe thông điệp của bạn'
-                              : 'Child listened to your message'
+                              ? 'Bé đã nghe thông điệp của bạn • Bấm để ghi âm thêm'
+                              : 'Child listened to your message • Tap to record more'
                             : state.eveningCompleted
                             ? isVi
-                              ? 'Đã gửi lời nhắn tối nay (chờ bé nghe)'
-                              : 'Sent tonight (waiting for child to listen)'
+                              ? 'Đã gửi lời nhắn tối nay (chờ bé nghe) • Bấm để xem'
+                              : 'Sent tonight (waiting for child) • Tap to review'
                             : isVi
-                            ? 'Chưa gửi lời nhắn tối nay'
-                            : 'Not sent yet tonight'}
+                            ? 'Chưa gửi lời nhắn tối nay • Bấm để ghi âm 30s gửi con'
+                            : 'Not sent yet tonight • Tap to record 30s voice note'}
                         </AccessibleText>
                       </div>
                     </div>
                   </div>
 
-                  <span
-                    style={{
-                      backgroundColor: state.eveningListened ? '#DCFCE7' : colors.surfaceContainerHighest,
-                      color: state.eveningListened ? '#15803D' : colors.textMuted,
-                      fontSize: 11,
-                      fontWeight: 800,
-                      padding: '4px 10px',
-                      borderRadius: 999,
-                    }}
-                  >
-                    {state.eveningListened
-                      ? isVi
-                        ? 'Bé Đã Nghe'
-                        : 'Listened'
-                      : state.eveningCompleted
-                      ? isVi
-                        ? 'Đã Gửi'
-                        : 'Sent'
-                      : isVi
-                      ? 'Chưa gửi'
-                      : 'Pending'}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                    <span
+                      style={{
+                        backgroundColor: state.eveningListened ? '#DCFCE7' : colors.surfaceContainerHighest,
+                        color: state.eveningListened ? '#15803D' : colors.textMuted,
+                        fontSize: 11,
+                        fontWeight: 800,
+                        padding: '4px 10px',
+                        borderRadius: 999,
+                      }}
+                    >
+                      {state.eveningListened
+                        ? isVi
+                          ? 'Bé Đã Nghe'
+                          : 'Listened'
+                        : state.eveningCompleted
+                        ? isVi
+                          ? 'Đã Gửi'
+                          : 'Sent'
+                        : isVi
+                        ? 'Chưa gửi'
+                        : 'Pending'}
+                    </span>
+                    <div
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: '50%',
+                        backgroundColor: colors.surfaceContainerHigh,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <MIcon name="arrow_downward" size={18} color={colors.textSecondary} />
+                    </div>
+                  </div>
                 </div>
+
+                {onNavigateToEvening && (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 2 }}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onNavigateToEvening();
+                      }}
+                      style={{
+                        border: 'none',
+                        background: 'none',
+                        color: colors.eveningPrimary,
+                        fontSize: 11,
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        padding: '2px 4px',
+                      }}
+                    >
+                      <span>{isVi ? 'Xem giao diện Chạm Tối của bé' : "View Child's Bedtime Screen"}</span>
+                      <MIcon name="open_in_new" size={13} color={colors.eveningPrimary} />
+                    </button>
+                  </div>
+                )}
 
                 {/* Child's Evening Reply back to Parents */}
                 {state.eveningExtraReplied && (
@@ -1512,11 +1672,19 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
 
             {/* 30-Second Bedtime Voice Note Recorder */}
             <div
+              ref={bedtimeSectionRef}
+              id="parent-bedtime-composer"
               style={{
                 backgroundColor: colors.surfaceContainerLow,
                 borderRadius: 30,
                 padding: 22,
-                border: `1px solid ${colors.outlineVariant}`,
+                border: highlightBedtime
+                  ? `2px solid ${colors.eveningPrimary}`
+                  : `1px solid ${colors.outlineVariant}`,
+                boxShadow: highlightBedtime
+                  ? '0 0 0 4px rgba(99, 102, 241, 0.28), 0 8px 30px rgba(99, 102, 241, 0.2)'
+                  : undefined,
+                transition: 'all 0.3s ease',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 14,
@@ -1665,6 +1833,20 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
           </div>
         </div>
       )}
+
+      <style>{`
+        .timeline-touch-card {
+          transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease !important;
+        }
+        .timeline-touch-card:hover {
+          transform: translateY(-2px);
+          filter: brightness(1.03);
+          box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+        }
+        .timeline-touch-card:active {
+          transform: translateY(0);
+        }
+      `}</style>
     </div>
   );
 };

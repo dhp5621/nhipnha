@@ -143,6 +143,9 @@ function NavigationRoot() {
       return (
         <ParentDashboardScreen
           onNavigateToSwitch={() => navigateTo('ROLE_SWITCH')}
+          onNavigateToMorning={() => navigateTo('MORNING_TOUCH')}
+          onNavigateToAfternoon={() => navigateTo('AFTERNOON_TOUCH')}
+          onNavigateToEvening={() => navigateTo('EVENING_TOUCH')}
         />
       );
     }
