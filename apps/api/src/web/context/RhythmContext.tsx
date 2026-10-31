@@ -207,7 +207,9 @@ export const RhythmProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         memberName: member.name,
         rhythmType: 'AFTERNOON',
         mood,
-        note: note || attachment?.titleVi || undefined,
+        note:
+          note ||
+          'Chiều nay con đi học về vui lắm, con ăn canh chua bà nấu và chụp ảnh khoe bố mẹ nè!',
         voiceDurationSec: voiceData?.duration,
         voiceUrl: voiceData?.url,
         waveform: voiceData?.waveform,

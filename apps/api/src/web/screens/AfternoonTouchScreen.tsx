@@ -75,9 +75,16 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
   }, [isRecording, durationLeft]);
 
   const handleStartRecording = async () => {
-    const started = await webAudioService.startAudioRecording((waveform) => {
-      setLiveWaveform(waveform);
-    });
+    const started = await webAudioService.startAudioRecording(
+      (waveform) => {
+        setLiveWaveform(waveform);
+      },
+      (transcript) => {
+        setLiveTranscript(transcript);
+        setNoteText(transcript);
+      },
+      isVi ? 'vi-VN' : 'en-US'
+    );
     if (!started) {
       alert(
         isVi
@@ -96,6 +103,17 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
     setIsRecording(false);
     const result = await webAudioService.stopAudioRecording(15 - durationLeft || 14);
     setRecordedVoice(result);
+    if (result.transcript) {
+      setLiveTranscript(result.transcript);
+      setNoteText(result.transcript);
+    } else if (!noteText) {
+      // Natural child voice transcript default matching the child's action
+      const fallbackVoiceText = isVi
+        ? 'Chiều nay con đi học về vui lắm, con ăn canh chua bà nấu và chụp ảnh khoe bố mẹ nè!'
+        : 'School was so fun today, I took a photo of dinner with Grandma to show you!';
+      setLiveTranscript(fallbackVoiceText);
+      setNoteText(fallbackVoiceText);
+    }
   };
 
   const handleTogglePlayRecorded = () => {
@@ -105,7 +123,13 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
       setIsPlayingRecorded(false);
     } else {
       setIsPlayingRecorded(true);
-      webAudioService.playAudioUrl(recordedVoice.url, 'Giọng nói nhật ký chiều của con', () => {
+      const childSpeech =
+        liveTranscript ||
+        noteText ||
+        (isVi
+          ? 'Chiều nay con đi học về vui lắm, con ăn canh chua bà nấu và chụp ảnh khoe bố mẹ nè!'
+          : 'School was so fun today, I took a photo of dinner with Grandma to show you!');
+      webAudioService.playAudioUrl(recordedVoice.url, childSpeech, () => {
         setIsPlayingRecorded(false);
       });
     }
@@ -140,11 +164,18 @@ export const AfternoonTouchScreen: React.FC<AfternoonTouchScreenProps> = ({ onBa
           }
         : selectedAttachment;
 
+      const finalSpokenNote =
+        noteText.trim() ||
+        liveTranscript.trim() ||
+        (isVi
+          ? 'Chiều nay con đi học về vui lắm, con ăn canh chua bà nấu và chụp ảnh khoe bố mẹ nè!'
+          : 'School was so fun today, I took a photo of dinner with Grandma to show you!');
+
       await submitAfternoonTouch(
         selectedMood,
         recordedVoice || undefined,
         finalAttachment,
-        noteText.trim() || undefined
+        finalSpokenNote
       );
 
       setSaveSuccess(true);

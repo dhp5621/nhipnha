@@ -294,7 +294,16 @@ class WebAudioService {
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'vi-VN';
-        utterance.rate = 0.95;
+        utterance.rate = 1.0;
+        utterance.pitch = 1.15; // Natural, cheerful young voice tone
+
+        // Select Vietnamese voice if available on user device
+        const voices = window.speechSynthesis.getVoices();
+        const viVoice = voices.find((v) => v.lang.toLowerCase().includes('vi'));
+        if (viVoice) {
+          utterance.voice = viVoice;
+        }
+
         utterance.onend = () => onEnd?.();
         utterance.onerror = () => onEnd?.();
         window.speechSynthesis.speak(utterance);

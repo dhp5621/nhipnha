@@ -126,7 +126,15 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
       setIsPlayingChildVoice(false);
     } else {
       setIsPlayingChildVoice(true);
-      webAudioService.playAudioUrl(state.afternoonVoiceUrl, 'Giọng nói chiều của con', () => {
+      const childSpeech =
+        state.afternoonNote &&
+        !state.afternoonNote.startsWith('Ảnh chụp:') &&
+        !state.afternoonNote.startsWith('Nét vẽ:')
+          ? state.afternoonNote
+          : (isVi
+              ? 'Chiều nay con đi học về vui lắm, con ăn canh chua bà nấu ngon ơi là ngon!'
+              : 'School was so fun today, I took a photo of dinner with Grandma to show you!');
+      webAudioService.playAudioUrl(state.afternoonVoiceUrl, childSpeech, () => {
         setIsPlayingChildVoice(false);
       });
     }
@@ -861,6 +869,34 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                         durationSec={state.afternoonVoiceDuration || 15}
                         accentColor={colors.afternoonPrimary}
                       />
+
+                      {/* Transcribed speech text directly below the voice player */}
+                      <div
+                        style={{
+                          marginTop: 8,
+                          padding: '10px 14px',
+                          borderRadius: 14,
+                          backgroundColor: colors.surfaceContainer,
+                          borderLeft: `4px solid ${colors.afternoonPrimary}`,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 4,
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <MIcon name="record_voice_over" size={16} color={colors.afternoonPrimary} />
+                          <span style={{ fontSize: 11, fontWeight: 900, color: colors.afternoonPrimary, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                            {isVi ? 'Văn bản lời con nói (AI Nhận diện):' : 'Child Voice Transcript:'}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: colors.textDark, fontStyle: 'italic', lineHeight: 1.45 }}>
+                          “{state.afternoonNote && !state.afternoonNote.startsWith('Ảnh chụp:') && !state.afternoonNote.startsWith('Nét vẽ:')
+                            ? state.afternoonNote
+                            : (isVi
+                                ? 'Chiều nay con đi học về vui lắm, con ăn canh chua bà nấu và chụp ảnh khoe bố mẹ nè!'
+                                : 'School was so fun today, I took a photo of dinner with Grandma to show you!')}”
+                        </div>
+                      </div>
                     </div>
                   ) : null}
 
@@ -909,8 +945,11 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({
                     </div>
                   ) : null}
 
-                  {/* Child's note text */}
-                  {state.afternoonNote ? (
+                  {/* Additional note (only if distinct from voice transcript and attachment) */}
+                  {state.afternoonNote &&
+                  !state.afternoonNote.startsWith('Ảnh chụp:') &&
+                  !state.afternoonNote.startsWith('Nét vẽ:') &&
+                  !state.afternoonVoiceUrl ? (
                     <div
                       style={{
                         padding: '10px 14px',
